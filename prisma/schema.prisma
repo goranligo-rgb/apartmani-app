@@ -1,0 +1,690 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+enum VrstaJedinice {
+  KUCA
+  APARTMAN
+  STAN
+}
+
+enum IzvorRezervacije {
+  DIREKTNO
+  ADMIN
+  WEB
+  BOOKING
+  AIRBNB
+  TEKUCI_RACUN
+  OSTALO
+}
+
+enum StatusRezervacije {
+  UPIT
+  CEKA_POTVRDU
+  CEKA_AKONTACIJU
+  REZERVIRANO
+  POTVRDENO
+  CEKA_OSTATAK
+  PLACENO
+  OTKAZANO
+  ZAVRSENO
+}
+
+enum TipZadatka {
+  CHECK_IN
+  CHECK_OUT
+  ZAVRSNO_CISCENJE
+  MEDJUCISCENJE
+  PROMJENA_POSTELJINE
+  MEDJUCISCENJE_I_POSTELJINA
+  DODATNO_CISCENJE
+}
+
+enum StatusZadatka {
+  CEKA
+  U_TOKU
+  GOTOVO
+  OTKAZANO
+}
+
+enum BojaPerioda {
+  PLAVA
+  ZELENA
+  ZUTA
+  NARANCASTA
+  CRVENA
+  LJUBICASTA
+}
+
+enum StatusPrijedlogaAkcije {
+  CEKA_ODOBRENJE
+  ODOBRENO
+  ODBIJENO
+}
+
+enum StatusNarudzbeCiscenja {
+  KREIRANO
+  POSLANO
+  POTVRDJENO
+  OTKAZANO
+}
+
+enum TipPlacanja {
+  POTVRDA_REZERVACIJE
+  AKONTACIJA
+  OSTATAK
+  RAZLIKA
+  CIJELI_IZNOS
+  POVRAT
+}
+
+enum StatusPlacanja {
+  CEKA_PLACANJE
+  ZAHTJEV_POSLAN
+  PLACENO
+  DJELOMICNO_PLACENO
+  NEUSPJELO
+  OTKAZANO
+  POVRAT
+}
+
+enum TipEmaila {
+  POTVRDA_REZERVACIJE
+  ZAHTJEV_AKONTACIJA
+  ZAHTJEV_OSTATAK
+  ZAHTJEV_RAZLIKA
+  HVALA_NA_PLACANJU
+  PROMJENA_REZERVACIJE
+  OTKAZIVANJE_REZERVACIJE
+  RACUN
+}
+
+enum StatusEmaila {
+  POSLANO
+  GRESKA
+}
+
+model Objekt {
+  id          String  @id @default(uuid())
+  naziv       String
+  opis        String?
+  mjesto      String?
+  imaBazen    Boolean @default(false)
+  grupaBazena String?
+
+  nazivZaRacun     String?
+  oibZaRacun       String?
+  adresaZaRacun    String?
+  mjestoZaRacun    String?
+  ibanZaRacun      String?
+  emailZaRacun     String?
+  ccEmailZaRacun   String?
+  telefonZaRacun   String?
+  napomenaNaRacunu String?
+  prefixRacuna     String?
+
+  aktivan   Boolean @default(true)
+  sortOrder Int     @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  jedinice Jedinica[]
+  racuni   Racun[]
+  slike    SlikaObjekta[]
+
+  @@index([naziv])
+}
+
+model Jedinica {
+  id                     String        @id @default(uuid())
+  objektId               String
+  naziv                  String
+  sifra                  String?
+  vrsta                  VrstaJedinice
+  osnovniKapacitet       Int
+  dodatniKapacitet       Int           @default(0)
+  ukupniKapacitet        Int
+  brojKupaona            Int           @default(1)
+  brojSpavacihSoba       Int?
+  imaSpavanjeUDnevnom    Boolean       @default(false)
+  sharedPool             Boolean       @default(false)
+  aktivna                Boolean       @default(true)
+  postotakAkontacije     Float         @default(30)
+  autoGapDiscountEnabled Boolean       @default(true)
+  gapDiscountPercent     Float         @default(15)
+  gapDiscountMaxNights   Int           @default(3)
+  napomena               String?
+  sortOrder              Int           @default(0)
+  createdAt              DateTime      @default(now())
+  updatedAt              DateTime      @updatedAt
+
+  objekt           Objekt            @relation(fields: [objektId], references: [id], onDelete: Cascade)
+  rezervacije      Rezervacija[]
+  zadaci           Zadatak[]
+  cjenici          Cjenik[]
+  akcije           Akcija[]
+  prijedloziAkcija PrijedlogAkcije[]
+  blokade          BlokadaJedinice[]
+  vanjskiKalendari VanjskiKalendar[]
+
+  cijeneCiscenja CijenaCiscenjaAgencije[]
+  stavkeCiscenja CiscenjeStavka[]
+
+  slike SlikaObjekta[]
+
+  oprema JedinicaOprema[]
+
+  @@index([objektId])
+}
+
+model Gost {
+  id        String   @id @default(uuid())
+  ime       String
+  prezime   String?
+  email     String?  @unique
+  telefon   String?
+  adresa    String?
+  grad      String?
+  drzava    String?
+  napomena  String?
+  oznake    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  rezervacije Rezervacija[]
+}
+
+model Rezervacija {
+  id         String            @id @default(uuid())
+  jedinicaId String
+  gostId     String?
+  izvor      IzvorRezervacije  @default(DIREKTNO)
+  status     StatusRezervacije @default(CEKA_POTVRDU)
+
+  datumOd     DateTime
+  datumDo     DateTime
+  brojNocenja Int
+  brojOsoba   Int
+
+  iznosUkupno  Float?
+  iznosPotvrde Float?
+  iznosPlaceno Float?
+
+  iznosOsnovni        Float?
+  popustPostotak      Float?
+  popustIznos         Float?
+  dogovoreniIznos     Float?
+  iznosOstatka        Float?
+  rokUplateAkontacije DateTime?
+  rokUplateOstatka    DateTime?
+  razlogPopusta       String?
+
+  // Pravila naplate spremljena na samu rezervaciju
+  // da se kasnija promjena globalnih postavki ne odrazi na stare rezervacije.
+  danaVrijediAkontacija     Int?
+  danaPrijeDolaskaOstatak   Int?
+  danaPrijeDolaskaPlaceno   Int?
+  zadnjiPodsjetnikOstatkaAt DateTime?
+  automatskoOtkazivanje     Boolean   @default(true)
+
+  placenoKarticom      Boolean @default(false)
+  valuta               String  @default("EUR")
+  bookingExternalId    String?
+  napomena             String?
+  automatskoCiscenje   Boolean @default(true)
+  automatskaPosteljina Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  jedinica Jedinica  @relation(fields: [jedinicaId], references: [id], onDelete: Cascade)
+  gost     Gost?     @relation(fields: [gostId], references: [id], onDelete: SetNull)
+  zadaci   Zadatak[]
+
+  placanja Placanje[]
+  racuni   Racun[]
+  emailovi EmailLog[]
+  promjene RezervacijaPromjena[]
+
+  @@index([jedinicaId])
+  @@index([datumOd, datumDo])
+  @@index([status])
+  @@index([izvor])
+  @@index([rokUplateAkontacije])
+  @@index([rokUplateOstatka])
+}
+
+model RezervacijaPromjena {
+  id            String @id @default(uuid())
+  rezervacijaId String
+
+  tip    String
+  opis   String?
+  razlog String?
+
+  stariPodaci String?
+  noviPodaci  String?
+
+  korisnikIme String?
+
+  createdAt DateTime @default(now())
+
+  rezervacija Rezervacija @relation(fields: [rezervacijaId], references: [id], onDelete: Cascade)
+
+  @@index([rezervacijaId])
+  @@index([tip])
+  @@index([createdAt])
+}
+
+model Zadatak {
+  id            String        @id @default(uuid())
+  jedinicaId    String
+  rezervacijaId String?
+  datum         DateTime
+  tip           TipZadatka
+  status        StatusZadatka @default(CEKA)
+  naslov        String
+  opis          String?
+  prioritet     Boolean       @default(false)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  jedinica    Jedinica     @relation(fields: [jedinicaId], references: [id], onDelete: Cascade)
+  rezervacija Rezervacija? @relation(fields: [rezervacijaId], references: [id], onDelete: SetNull)
+
+  @@index([jedinicaId])
+  @@index([datum])
+}
+
+model Cjenik {
+  id               String      @id @default(uuid())
+  jedinicaId       String
+  datumOd          DateTime
+  datumDo          DateTime
+  cijenaNocenja    Float
+  minimalniBoravak Int         @default(2)
+  bojaPerioda      BojaPerioda @default(ZELENA)
+  aktivno          Boolean     @default(true)
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+
+  jedinica Jedinica @relation(fields: [jedinicaId], references: [id], onDelete: Cascade)
+
+  @@index([jedinicaId])
+  @@index([datumOd, datumDo])
+}
+
+model Akcija {
+  id         String @id @default(uuid())
+  jedinicaId String
+
+  naziv String  @default("Posebna prilika")
+  opis  String?
+
+  datumOd DateTime
+  datumDo DateTime
+
+  brojOsoba Int?
+
+  postotakPopusta Float?
+  cijenaUkupno    Float?
+
+  prikaziNaWebu Boolean @default(true)
+  aktivna       Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  jedinica Jedinica @relation(fields: [jedinicaId], references: [id], onDelete: Cascade)
+
+  @@index([jedinicaId])
+  @@index([datumOd, datumDo])
+  @@index([aktivna])
+  @@index([prikaziNaWebu])
+}
+
+model PrijedlogAkcije {
+  id               String                 @id @default(uuid())
+  jedinicaId       String
+  datumOd          DateTime
+  datumDo          DateTime
+  brojNocenja      Int
+  predlozeniPopust Float
+  razlog           String?
+  status           StatusPrijedlogaAkcije @default(CEKA_ODOBRENJE)
+  createdAt        DateTime               @default(now())
+  updatedAt        DateTime               @updatedAt
+
+  jedinica Jedinica @relation(fields: [jedinicaId], references: [id], onDelete: Cascade)
+
+  @@index([jedinicaId])
+  @@index([status])
+  @@index([datumOd, datumDo])
+}
+
+model BlokadaJedinice {
+  id         String   @id @default(uuid())
+  jedinicaId String
+  datumOd    DateTime
+  datumDo    DateTime
+  razlog     String?
+  izvor      String   @default("ADMIN")
+  externalId String?
+  aktivna    Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  jedinica Jedinica @relation(fields: [jedinicaId], references: [id], onDelete: Cascade)
+
+  @@index([jedinicaId])
+  @@index([datumOd, datumDo])
+  @@index([externalId])
+}
+
+model VanjskiKalendar {
+  id         String    @id @default(uuid())
+  jedinicaId String
+  naziv      String
+  izvor      String    @default("BOOKING")
+  icalUrl    String
+  aktivan    Boolean   @default(true)
+  lastSyncAt DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  jedinica Jedinica @relation(fields: [jedinicaId], references: [id], onDelete: Cascade)
+
+  @@index([jedinicaId])
+  @@index([izvor])
+}
+
+model CiscenjeAgencija {
+  id       String  @id @default(uuid())
+  naziv    String
+  email    String
+  ccEmails String?
+  telefon  String?
+  aktivna  Boolean @default(true)
+  napomena String?
+
+  narudzbe CiscenjeNarudzba[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([aktivna])
+}
+
+model CijenaCiscenjaAgencije {
+  id         String @id @default(uuid())
+  jedinicaId String
+  cijena     Float
+
+  vrijediOd DateTime
+  vrijediDo DateTime?
+  aktivna   Boolean   @default(true)
+
+  jedinica Jedinica @relation(fields: [jedinicaId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([jedinicaId])
+  @@index([aktivna])
+}
+
+model CiscenjeNarudzba {
+  id         String                 @id @default(uuid())
+  agencijaId String
+  datumOd    DateTime
+  datumDo    DateTime
+  status     StatusNarudzbeCiscenja @default(KREIRANO)
+
+  emailPrimatelja  String
+  ccEmailsSnapshot String?
+
+  subject    String?
+  tekstMaila String?
+
+  poslanoEmail Boolean   @default(false)
+  poslanoAt    DateTime?
+
+  napomena String?
+
+  agencija CiscenjeAgencija @relation(fields: [agencijaId], references: [id], onDelete: Cascade)
+  stavke   CiscenjeStavka[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([agencijaId])
+  @@index([datumOd, datumDo])
+  @@index([status])
+}
+
+model CiscenjeStavka {
+  id         String  @id @default(uuid())
+  narudzbaId String
+  jedinicaId String
+  zadatakId  String?
+
+  datum         DateTime
+  tip           TipZadatka
+  nazivJedinice String
+  nazivObjekta  String?
+  opis          String?
+
+  cijena      Float
+  obavljeno   Boolean   @default(false)
+  obavljenoAt DateTime?
+
+  narudzba CiscenjeNarudzba @relation(fields: [narudzbaId], references: [id], onDelete: Cascade)
+  jedinica Jedinica         @relation(fields: [jedinicaId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([narudzbaId])
+  @@index([jedinicaId])
+  @@index([datum])
+  @@index([obavljeno])
+}
+
+model CiscenjeMailPostavke {
+  id String @id @default(uuid())
+
+  aktivno Boolean @default(true)
+
+  saljiPonedjeljak Boolean @default(true)
+  saljiUtorak      Boolean @default(false)
+  saljiSrijeda     Boolean @default(false)
+  saljiCetvrtak    Boolean @default(false)
+  saljiPetak       Boolean @default(true)
+  saljiSubota      Boolean @default(false)
+  saljiNedjelja    Boolean @default(false)
+
+  martyBazenPonedjeljak Boolean @default(false)
+  martyBazenUtorak      Boolean @default(false)
+  martyBazenSrijeda     Boolean @default(false)
+  martyBazenCetvrtak    Boolean @default(false)
+  martyBazenPetak       Boolean @default(false)
+  martyBazenSubota      Boolean @default(false)
+  martyBazenNedjelja    Boolean @default(false)
+
+  satSlanja    Int @default(8)
+  minutaSlanja Int @default(0)
+
+  brojDanaUnaprijed Int @default(7)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Placanje {
+  id            String @id @default(uuid())
+  rezervacijaId String
+
+  tip    TipPlacanja
+  status StatusPlacanja @default(CEKA_PLACANJE)
+
+  iznos  Float
+  valuta String @default("EUR")
+
+  // 🔥 STRIPE PODACI
+  provider           String?   // npr. STRIPE
+  providerId         String?   // Stripe Checkout Session ID
+  paymentIntentId    String?   // 🔥 KLJUČNO za capture kasnije
+  paymentUrl         String?   // Stripe checkout URL
+
+  // 🧠 LOGIKA PLAĆANJA
+  nacinPlacanja String? // KARTICA
+  napomena      String?
+
+  placenoAt DateTime?
+
+  // 🔥 ZA AUTORIZACIJU
+  autoriziranoAt DateTime?   // kad je kartica autorizirana
+  expiresAt      DateTime?   // do kada vrijedi autorizacija (npr. +1h)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  rezervacija Rezervacija @relation(fields: [rezervacijaId], references: [id], onDelete: Cascade)
+  racuni      Racun[]
+
+  @@index([rezervacijaId])
+  @@index([status])
+  @@index([tip])
+}
+
+model Racun {
+  id            String  @id @default(uuid())
+  rezervacijaId String
+  placanjeId    String?
+  objektId      String?
+
+  brojRacuna String
+  iznos      Float
+  valuta     String @default("EUR")
+
+  nazivIzdavatelja   String?
+  oibIzdavatelja     String?
+  adresaIzdavatelja  String?
+  mjestoIzdavatelja  String?
+  ibanIzdavatelja    String?
+  emailIzdavatelja   String?
+  telefonIzdavatelja String?
+
+  pdfUrl      String?
+  poslanGostu Boolean @default(false)
+
+  createdAt DateTime @default(now())
+
+  rezervacija Rezervacija @relation(fields: [rezervacijaId], references: [id], onDelete: Cascade)
+  placanje    Placanje?   @relation(fields: [placanjeId], references: [id], onDelete: SetNull)
+  objekt      Objekt?     @relation(fields: [objektId], references: [id], onDelete: SetNull)
+
+  @@unique([brojRacuna])
+  @@index([rezervacijaId])
+  @@index([placanjeId])
+  @@index([objektId])
+}
+
+model EmailLog {
+  id            String  @id @default(uuid())
+  rezervacijaId String?
+
+  to      String
+  subject String
+  tip     TipEmaila
+
+  status StatusEmaila @default(POSLANO)
+  greska String?
+
+  createdAt DateTime @default(now())
+
+  rezervacija Rezervacija? @relation(fields: [rezervacijaId], references: [id], onDelete: Cascade)
+
+  @@index([rezervacijaId])
+  @@index([tip])
+  @@index([status])
+}
+
+model SlikaObjekta {
+  id    String  @id @default(uuid())
+  url   String
+  naziv String?
+  opis  String?
+
+  objektId   String?
+  jedinicaId String?
+
+  prikaziNaPocetnoj   Boolean @default(false)
+  prikaziNaDashboardu Boolean @default(false)
+
+  sortOrder Int     @default(0)
+  aktivna   Boolean @default(true)
+
+  createdAt DateTime @default(now())
+
+  objekt   Objekt?   @relation(fields: [objektId], references: [id], onDelete: Cascade)
+  jedinica Jedinica? @relation(fields: [jedinicaId], references: [id], onDelete: Cascade)
+
+  @@index([objektId])
+  @@index([jedinicaId])
+  @@index([prikaziNaPocetnoj, aktivna])
+  @@index([prikaziNaDashboardu, aktivna])
+}
+
+model OpremaJedinice {
+  id         String  @id @default(uuid())
+  naziv      String
+  kategorija String?
+  ikona      String?
+  aktivna    Boolean @default(true)
+  sortOrder  Int     @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  jedinice JedinicaOprema[]
+
+  @@unique([naziv])
+  @@index([kategorija])
+}
+
+model JedinicaOprema {
+  id         String @id @default(uuid())
+  jedinicaId String
+  opremaId   String
+
+  jedinica Jedinica       @relation(fields: [jedinicaId], references: [id], onDelete: Cascade)
+  oprema   OpremaJedinice @relation(fields: [opremaId], references: [id], onDelete: Cascade)
+
+  @@unique([jedinicaId, opremaId])
+  @@index([jedinicaId])
+  @@index([opremaId])
+}
+
+model PostavkeNaplate {
+  id String @id @default(uuid())
+
+  danaVrijediPozivAkontacije      Int @default(3)
+  danaPrijeDolaskaSlanjeOstatka   Int @default(7)
+  danaPrijeDolaskaMoraBitiPlaceno Int @default(3)
+
+  automatskiOtkaziBezAkontacije    Boolean @default(true)
+  automatskiSaljiPodsjetnikOstatka Boolean @default(true)
+
+  tekstPozivaAkontacije   String?
+  tekstPodsjetnikaOstatka String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
