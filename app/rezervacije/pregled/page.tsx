@@ -26,6 +26,17 @@ function brojNocenja(datumOd: string, datumDo: string) {
   );
 }
 
+function startOfDay(d: Date) {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate(), 12, 0, 0, 0);
+}
+
+function daysUntil(date: Date) {
+  const today = startOfDay(new Date());
+  const target = startOfDay(date);
+
+  return Math.ceil((target.getTime() - today.getTime()) / 86400000);
+}
+
 export default async function PregledRezervacijePage(props: {
   searchParams: SearchParams;
 }) {
@@ -96,9 +107,27 @@ export default async function PregledRezervacijePage(props: {
     );
   }
 
+  const postavke = await prisma.postavkeNaplate.findFirst({
+    orderBy: {
+      updatedAt: "desc",
+    },
+  });
+
+  const pragPuneNaplate =
+    postavke?.danaPrijeDolaskaPunaNaplata ?? 30;
+
   const nocenja = brojNocenja(datumOd, datumDo);
+  const datumDolaska = new Date(datumOd);
+  const danaDoDolaska = daysUntil(datumDolaska);
+
+  const naplataPunogIznosa =
+    danaDoDolaska <= pragPuneNaplate;
+
   const postotak = jedinica.postotakAkontacije ?? 30;
-  const iznosPotvrde = Number(((iznosUkupno * postotak) / 100).toFixed(2));
+
+  const iznosPotvrde = naplataPunogIznosa
+    ? iznosUkupno
+    : Number(((iznosUkupno * postotak) / 100).toFixed(2));
 
   return (
     <main
@@ -115,7 +144,9 @@ export default async function PregledRezervacijePage(props: {
         </h1>
 
         <p className="mt-2 text-[#6f665a]">
-          Za potvrdu rezervacije naplaćuje se {postotak}% ukupnog iznosa.
+          {naplataPunogIznosa
+            ? "Za potvrdu rezervacije naplaćuje se puni iznos."
+            : `Za potvrdu rezervacije naplaćuje se ${postotak}% ukupnog iznosa.`}
         </p>
 
         <div className="mt-8 grid gap-4 md:grid-cols-2">
@@ -126,9 +157,18 @@ export default async function PregledRezervacijePage(props: {
           <Box label="Noćenja" value={String(nocenja)} />
           <Box label="Broj osoba" value={String(brojOsoba)} />
           <Box label="Ukupna cijena" value={`€ ${iznosUkupno.toFixed(2)}`} />
+
           <Box
-            label="Potvrda rezervacije"
-            value={`€ ${iznosPotvrde.toFixed(2)} (${postotak}%)`}
+            label={
+              naplataPunogIznosa
+                ? "Plaćanje rezervacije"
+                : "Potvrda rezervacije"
+            }
+            value={
+              naplataPunogIznosa
+                ? `€ ${iznosPotvrde.toFixed(2)} (100%)`
+                : `€ ${iznosPotvrde.toFixed(2)} (${postotak}%)`
+            }
           />
         </div>
 
@@ -148,19 +188,10 @@ export default async function PregledRezervacijePage(props: {
           </div>
         </div>
 
-        {napomena ? (
-          <div className="mt-6 border border-[#e7dece] bg-[#fcfaf6] p-5">
-            <div className="mb-2 text-sm font-bold text-[#8c7f71]">
-              Napomena
-            </div>
-            <div className="text-[#2e2923]">{napomena}</div>
-          </div>
-        ) : null}
-
         <div className="mt-6 border border-[#f1ddbb] bg-[#fff6e2] p-4 text-[#7e5d15]">
-          Prilikom potvrde rezervacije kartica se autorizira za {postotak}% ukupnog
-          iznosa. Novac se ne skida odmah, nego se sredstva samo rezerviraju do konačne
-          potvrde rezervacije.
+          {naplataPunogIznosa
+            ? "Budući da je dolazak blizu, naplaćuje se puni iznos rezervacije."
+            : "Kartica se autorizira za dio iznosa, a ostatak se plaća kasnije."}
         </div>
 
         <div className="mt-8 flex flex-wrap gap-3">
@@ -168,7 +199,7 @@ export default async function PregledRezervacijePage(props: {
             href={`/rezervacije/nova?${backParams.toString()}`}
             className="cursor-pointer border border-[#d9cfbf] bg-white px-5 py-3 font-semibold text-[#2e2923] transition hover:bg-[#f8f3ea]"
           >
-            Natrag na ispravak podataka
+            Natrag
           </Link>
 
           <form action="/api/rezervacije/create-payment" method="POST">
@@ -189,11 +220,8 @@ export default async function PregledRezervacijePage(props: {
             <input type="hidden" name="iznosPotvrde" value={iznosPotvrde} />
             <input type="hidden" name="napomena" value={napomena} />
 
-            <button
-              type="submit"
-              className="cursor-pointer border border-[#caa870] bg-[#c79a57] px-5 py-3 font-bold text-white transition hover:brightness-95"
-            >
-              Plati potvrdu rezervacije
+            <button className="cursor-pointer border border-[#caa870] bg-[#c79a57] px-5 py-3 font-bold text-white transition hover:brightness-95">
+              Plati karticom
             </button>
           </form>
         </div>

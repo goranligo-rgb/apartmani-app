@@ -318,22 +318,25 @@ export default async function NovaRezervacijaPage(props: {
                 Država
               </label>
 
-              <input
+              <select
                 name="drzava"
-                list="drzave"
                 defaultValue={searchParams.drzava || "Hrvatska"}
-                className="w-full border border-[#d9cfbf] px-4 py-3 outline-none"
+                className="w-full cursor-pointer border border-[#d9cfbf] px-4 py-3 outline-none"
                 required
-              />
+              >
+                <option value="" disabled>
+                  Odaberite državu
+                </option>
 
-              <datalist id="drzave">
                 {DRZAVE.map((drzava) => (
-                  <option key={drzava} value={drzava} />
+                  <option key={drzava} value={drzava}>
+                    {drzava}
+                  </option>
                 ))}
-              </datalist>
+              </select>
 
               <p className="mt-1 text-xs text-[#7b6f62]">
-                Počnite pisati naziv države i odaberite iz ponuđenog popisa.
+                Odaberite državu iz popisa.
               </p>
             </div>
           </div>

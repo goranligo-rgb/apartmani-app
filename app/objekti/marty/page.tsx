@@ -70,7 +70,6 @@ function formatKapacitet(osnovni: number, dodatni: number) {
   if (dodatni > 0) {
     return `${osnovni} osobe + ${dodatni} osoba`;
   }
-
   return `${osnovni} osoba`;
 }
 
@@ -105,9 +104,7 @@ export default async function MartyPage() {
         where: {
           aktivna: true,
           OR: [
-            {
-              objektId: objekt.id,
-            },
+            { objektId: objekt.id },
             {
               jedinica: {
                 objektId: objekt.id,
@@ -119,29 +116,54 @@ export default async function MartyPage() {
       })
     : [];
 
-  const heroSlika = slike[0]?.url || "/images/3-malinska.webp";
+  // ✅ HERO slike – SAMO aktivne + označene za dashboard + ovog objekta
+  const heroImages = slike
+    .filter((s) => s.objektId === objekt?.id && s.prikaziNaDashboardu)
+    .map((s) => s.url);
 
   return (
     <main className="min-h-screen bg-[#f4efe6]">
-      <section
-        className="relative h-[62vh] bg-cover bg-center"
-        style={{ backgroundImage: `url('${heroSlika}')` }}
-      >
+      
+      {/* HERO */}
+      <section className="relative h-[62vh] overflow-hidden bg-[#0b252b]">
+        {heroImages.length > 0 &&
+          heroImages.map((src, index) => (
+            <div
+              key={`${src}-${index}`}
+              className="absolute inset-0 bg-cover bg-center opacity-0"
+              style={{
+                backgroundImage: `url(${src})`,
+                animation: `heroFade ${heroImages.length * 6}s infinite`,
+                animationDelay: `${index * 6}s`,
+                willChange: "opacity, transform",
+                transform: "translateZ(0)",
+              }}
+            />
+          ))}
+
         <div className="absolute inset-0 bg-black/40" />
 
-        <div className="relative z-10 flex h-full items-end p-10">
-          <div className="text-white">
-            <p className="mb-2 text-sm font-bold uppercase tracking-[0.3em] text-[#d6b36a]">
-              Malinska · Otok Krk
-            </p>
+        <div className="absolute left-6 top-6 z-20">
+          <Link
+            href="/"
+            className="inline-block bg-white/90 px-4 py-2 text-sm font-bold text-[#2e2923] shadow hover:bg-white"
+          >
+            ← Natrag
+          </Link>
+        </div>
 
-            <h1 className="text-6xl font-bold">Luxury Apartments Marty</h1>
+        <div className="absolute bottom-10 left-10 z-20 text-white">
+          <p className="mb-2 text-sm font-bold uppercase tracking-[0.3em] text-[#d6b36a]">
+            Malinska · Otok Krk
+          </p>
 
-            <p className="mt-3 text-xl">5 apartmana · zajednički bazen</p>
-          </div>
+          <h1 className="text-6xl font-bold">Luxury Apartments Marty</h1>
+
+          <p className="mt-3 text-xl">5 apartmana · zajednički bazen</p>
         </div>
       </section>
 
+      {/* CONTENT */}
       <section className="mx-auto max-w-6xl px-6 py-14">
         <h2 className="text-4xl font-bold text-[#2e2923]">
           Apartmani Marty
@@ -293,6 +315,16 @@ export default async function MartyPage() {
           Provjeri dostupnost
         </Link>
       </section>
+
+      <style>{`
+        @keyframes heroFade {
+          0% { opacity: 0; transform: scale(1.04); }
+          8% { opacity: 1; }
+          30% { opacity: 1; }
+          40% { opacity: 0; transform: scale(1.10); }
+          100% { opacity: 0; }
+        }
+      `}</style>
     </main>
   );
 }

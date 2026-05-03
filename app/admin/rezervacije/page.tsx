@@ -101,6 +101,11 @@ export default async function AdminRezervacijePage({
   });
 
   const sveRezervacije = await prisma.rezervacija.findMany({
+    where: {
+      status: {
+        not: "OBRISANO",
+      },
+    },
     include: {
       gost: true,
       jedinica: {
@@ -235,11 +240,10 @@ export default async function AdminRezervacijePage({
           <div className="mt-5 flex flex-wrap gap-2">
             <Link
               href={buildAllObjectsHref()}
-              className={`cursor-pointer border px-4 py-2 text-sm font-black ${
-                !params.objektId
+              className={`cursor-pointer border px-4 py-2 text-sm font-black ${!params.objektId
                   ? "border-[#c79a57] bg-[#fff6e2] text-[#2e2923]"
                   : "border-[#e2d8c8] bg-white text-[#6f665a] hover:bg-[#f8f3ea]"
-              }`}
+                }`}
             >
               Svi objekti
             </Link>
@@ -255,11 +259,10 @@ export default async function AdminRezervacijePage({
                 <Link
                   key={o.id}
                   href={`/admin/rezervacije?${q.toString()}`}
-                  className={`cursor-pointer border px-4 py-2 text-sm font-black ${
-                    params.objektId === o.id
+                  className={`cursor-pointer border px-4 py-2 text-sm font-black ${params.objektId === o.id
                       ? "border-[#c79a57] bg-[#fff6e2] text-[#2e2923]"
                       : "border-[#e2d8c8] bg-white text-[#6f665a] hover:bg-[#f8f3ea]"
-                  }`}
+                    }`}
                 >
                   {o.naziv}
                 </Link>
@@ -270,11 +273,10 @@ export default async function AdminRezervacijePage({
           <div className="mt-4 flex flex-wrap gap-2">
             <Link
               href={buildAllMonthsHref()}
-              className={`cursor-pointer border px-4 py-2 text-sm font-black ${
-                !params.mjesec
+              className={`cursor-pointer border px-4 py-2 text-sm font-black ${!params.mjesec
                   ? "border-[#7a5a22] bg-[#f8f3ea] text-[#2e2923]"
                   : "border-[#e2d8c8] bg-white text-[#6f665a] hover:bg-[#f8f3ea]"
-              }`}
+                }`}
             >
               Svi mjeseci
             </Link>
@@ -290,11 +292,10 @@ export default async function AdminRezervacijePage({
                 <Link
                   key={m}
                   href={`/admin/rezervacije?${q.toString()}`}
-                  className={`cursor-pointer border px-4 py-2 text-sm font-black capitalize ${
-                    params.mjesec === m
+                  className={`cursor-pointer border px-4 py-2 text-sm font-black capitalize ${params.mjesec === m
                       ? "border-[#7a5a22] bg-[#f8f3ea] text-[#2e2923]"
                       : "border-[#e2d8c8] bg-white text-[#6f665a] hover:bg-[#f8f3ea]"
-                  }`}
+                    }`}
                 >
                   {monthLabel(m)}
                 </Link>
@@ -392,9 +393,8 @@ export default async function AdminRezervacijePage({
                   const placeno = Number(r.iznosPlaceno || 0);
                   const ostatak = Math.max(ukupno - placeno, 0);
 
-                  const gostIme = `${r.gost?.ime || "Gost"} ${
-                    r.gost?.prezime || ""
-                  }`.trim();
+                  const gostIme = `${r.gost?.ime || "Gost"} ${r.gost?.prezime || ""
+                    }`.trim();
 
                   return (
                     <tr

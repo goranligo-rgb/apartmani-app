@@ -47,7 +47,6 @@ export default async function KalendarPage(props: {
   const searchParams = await props.searchParams;
 
   const currentMonth = parseMonth(searchParams.month);
-
   const days = getDaysOfMonth(currentMonth);
 
   const monthLabel = currentMonth.toLocaleDateString("hr-HR", {
@@ -93,6 +92,11 @@ export default async function KalendarPage(props: {
           datumOd: "asc",
         },
       },
+      blokadeVanjskogKalendara: {
+        orderBy: {
+          datumOd: "asc",
+        },
+      },
     },
     orderBy: [
       { objekt: { naziv: "asc" } },
@@ -127,13 +131,22 @@ export default async function KalendarPage(props: {
       gostPrezime: r.gost?.prezime ?? "",
     })),
 
-    blokade: j.blokade.map((b) => ({
-      id: b.id,
-      datumOd: toLocalIso(b.datumOd),
-      datumDo: toLocalIso(b.datumDo),
-      razlog: b.razlog,
-      izvor: b.izvor,
-    })),
+    blokade: [
+      ...j.blokade.map((b) => ({
+        id: b.id,
+        datumOd: toLocalIso(b.datumOd),
+        datumDo: toLocalIso(b.datumDo),
+        razlog: b.razlog,
+        izvor: b.izvor,
+      })),
+      ...j.blokadeVanjskogKalendara.map((b) => ({
+        id: b.id,
+        datumOd: toLocalIso(b.datumOd),
+        datumDo: toLocalIso(b.datumDo),
+        razlog: b.naslov || "Booking.com",
+        izvor: b.izvor || "BOOKING",
+      })),
+    ],
   }));
 
   return (

@@ -4,25 +4,53 @@ import { Resend } from "resend";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
+function getMailFrom() {
+  return process.env.MAIL_FROM || "Malinska Stay <rezervacije@malinska-stay.hr>";
+}
+
+async function getAppUrl() {
+  const postavke = await prisma.postavkeNaplate.findFirst();
+
+  if (postavke?.appUrl) return postavke.appUrl;
+  if (process.env.NEXT_PUBLIC_APP_URL) return process.env.NEXT_PUBLIC_APP_URL;
+  if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
+
+  return "http://localhost:3000";
+}
+
 export async function GET() {
   try {
+    const postavke = await prisma.postavkeNaplate.findFirst();
+
+    if (postavke && !postavke.automatskiSaljiPodsjetnikOstatka) {
+      return NextResponse.json({
+        success: true,
+        message: "Automatsko slanje podsjetnika ostatka je isključeno.",
+        pronadeno: 0,
+        poslano: 0,
+      });
+    }
+
+    const danaPrijeDolaska =
+      postavke?.danaPrijeDolaskaSlanjeOstatka ?? 7;
+
     const danas = new Date();
 
-    const za7Dana = new Date();
-    za7Dana.setDate(danas.getDate() + 7);
-    za7Dana.setHours(0, 0, 0, 0);
+    const datumDolaska = new Date();
+    datumDolaska.setDate(danas.getDate() + danaPrijeDolaska);
+    datumDolaska.setHours(0, 0, 0, 0);
 
-    const sutra = new Date(za7Dana);
-    sutra.setDate(za7Dana.getDate() + 1);
+    const danPoslije = new Date(datumDolaska);
+    danPoslije.setDate(datumDolaska.getDate() + 1);
 
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+    const baseUrl = await getAppUrl();
 
     const rezervacije = await prisma.rezervacija.findMany({
       where: {
         status: "POTVRDENO",
         datumOd: {
-          gte: za7Dana,
-          lt: sutra,
+          gte: datumDolaska,
+          lt: danPoslije,
         },
       },
       include: {
@@ -40,8 +68,17 @@ export async function GET() {
     for (const r of rezervacije) {
       if (!r.gost?.email) continue;
 
-      const ukupno = r.iznosUkupno || 0;
-      const placeno = r.iznosPlaceno || 0;
+      const vecPoslan = await prisma.emailLog.findFirst({
+        where: {
+          rezervacijaId: r.id,
+          tip: "ZAHTJEV_OSTATAK",
+        },
+      });
+
+      if (vecPoslan) continue;
+
+      const ukupno = Number(r.iznosUkupno || 0);
+      const placeno = Number(r.iznosPlaceno || 0);
       const ostatak = Math.max(ukupno - placeno, 0);
 
       if (ostatak <= 0) continue;
@@ -50,7 +87,9 @@ export async function GET() {
         where: {
           rezervacijaId: r.id,
           tip: "OSTATAK",
-          status: "CEKA_PLACANJE",
+          status: {
+            in: ["CEKA_PLACANJE", "ZAHTJEV_POSLAN"],
+          },
         },
       });
 
@@ -59,8 +98,10 @@ export async function GET() {
           data: {
             rezervacijaId: r.id,
             tip: "OSTATAK",
+            status: "CEKA_PLACANJE",
             iznos: ostatak,
             valuta: r.valuta || "EUR",
+            nacinPlacanja: "KARTICA",
           },
         });
       }
@@ -68,7 +109,7 @@ export async function GET() {
       const paymentLink = `${baseUrl}/placanje/${placanje.id}`;
 
       await resend.emails.send({
-        from: "Apartmani <info@malinska-stay.hr>",
+        from: getMailFrom(),
         to: r.gost.email,
         subject: "Molimo uplatu ostatka rezervacije",
         html: `
@@ -76,7 +117,7 @@ export async function GET() {
 
           <p>Poštovani ${r.gost.ime || "goste"},</p>
 
-          <p>Vaš dolazak je za 7 dana.</p>
+          <p>Vaš dolazak je za ${danaPrijeDolaska} dana.</p>
 
           <p>
             <strong>Objekt:</strong> ${r.jedinica.objekt.naziv}<br/>
@@ -117,6 +158,8 @@ export async function GET() {
 
     return NextResponse.json({
       success: true,
+      danaPrijeDolaska,
+      datumDolaska,
       pronadeno: rezervacije.length,
       poslano,
     });

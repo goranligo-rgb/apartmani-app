@@ -34,6 +34,7 @@ enum StatusRezervacije {
   PLACENO
   OTKAZANO
   ZAVRSENO
+  OBRISANO
 }
 
 enum TipZadatka {
@@ -165,14 +166,15 @@ model Jedinica {
   createdAt              DateTime      @default(now())
   updatedAt              DateTime      @updatedAt
 
-  objekt           Objekt            @relation(fields: [objektId], references: [id], onDelete: Cascade)
-  rezervacije      Rezervacija[]
-  zadaci           Zadatak[]
-  cjenici          Cjenik[]
-  akcije           Akcija[]
-  prijedloziAkcija PrijedlogAkcije[]
-  blokade          BlokadaJedinice[]
-  vanjskiKalendari VanjskiKalendar[]
+  objekt                   Objekt                     @relation(fields: [objektId], references: [id], onDelete: Cascade)
+  rezervacije              Rezervacija[]
+  zadaci                   Zadatak[]
+  cjenici                  Cjenik[]
+  akcije                   Akcija[]
+  prijedloziAkcija         PrijedlogAkcije[]
+  blokade                  BlokadaJedinice[]
+  vanjskiKalendari         VanjskiKalendar[]
+  blokadeVanjskogKalendara BlokadaVanjskogKalendara[]
 
   cijeneCiscenja CijenaCiscenjaAgencije[]
   stavkeCiscenja CiscenjeStavka[]
@@ -240,6 +242,10 @@ model Rezervacija {
   napomena             String?
   automatskoCiscenje   Boolean @default(true)
   automatskaPosteljina Boolean @default(true)
+
+  obrisanoAt       DateTime?
+  obrisaoKorisnik String?
+  statusPrijeBrisanja StatusRezervacije?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -399,10 +405,35 @@ model VanjskiKalendar {
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
 
-  jedinica Jedinica @relation(fields: [jedinicaId], references: [id], onDelete: Cascade)
+  jedinica Jedinica                   @relation(fields: [jedinicaId], references: [id], onDelete: Cascade)
+  blokade  BlokadaVanjskogKalendara[]
 
   @@index([jedinicaId])
   @@index([izvor])
+}
+
+model BlokadaVanjskogKalendara {
+  id                String @id @default(uuid())
+  vanjskiKalendarId String
+  jedinicaId        String
+
+  izvor  String  @default("BOOKING")
+  uid    String?
+  naslov String?
+
+  datumOd DateTime
+  datumDo DateTime
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  vanjskiKalendar VanjskiKalendar @relation(fields: [vanjskiKalendarId], references: [id], onDelete: Cascade)
+  jedinica        Jedinica        @relation(fields: [jedinicaId], references: [id], onDelete: Cascade)
+
+  @@index([vanjskiKalendarId])
+  @@index([jedinicaId])
+  @@index([datumOd])
+  @@index([datumDo])
 }
 
 model CiscenjeAgencija {
@@ -538,10 +569,10 @@ model Placanje {
   valuta String @default("EUR")
 
   // 🔥 STRIPE PODACI
-  provider           String?   // npr. STRIPE
-  providerId         String?   // Stripe Checkout Session ID
-  paymentIntentId    String?   // 🔥 KLJUČNO za capture kasnije
-  paymentUrl         String?   // Stripe checkout URL
+  provider        String? // npr. STRIPE
+  providerId      String? // Stripe Checkout Session ID
+  paymentIntentId String? // 🔥 KLJUČNO za capture kasnije
+  paymentUrl      String? // Stripe checkout URL
 
   // 🧠 LOGIKA PLAĆANJA
   nacinPlacanja String? // KARTICA
@@ -550,8 +581,8 @@ model Placanje {
   placenoAt DateTime?
 
   // 🔥 ZA AUTORIZACIJU
-  autoriziranoAt DateTime?   // kad je kartica autorizirana
-  expiresAt      DateTime?   // do kada vrijedi autorizacija (npr. +1h)
+  autoriziranoAt DateTime? // kad je kartica autorizirana
+  expiresAt      DateTime? // do kada vrijedi autorizacija (npr. +1h)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -680,11 +711,18 @@ model PostavkeNaplate {
   danaPrijeDolaskaSlanjeOstatka   Int @default(7)
   danaPrijeDolaskaMoraBitiPlaceno Int @default(3)
 
+  danaPrijeDolaskaPunaNaplata Int @default(30)
+
+  appUrl String?
+
   automatskiOtkaziBezAkontacije    Boolean @default(true)
   automatskiSaljiPodsjetnikOstatka Boolean @default(true)
 
   tekstPozivaAkontacije   String?
   tekstPodsjetnikaOstatka String?
+  adminEmails String?
+  emailPredlozakRezervacija String?
+  tekstAdminNoveRezervacije String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

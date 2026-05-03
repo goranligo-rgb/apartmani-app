@@ -181,7 +181,7 @@ async function main() {
   `;
 
   const result = await resend.emails.send({
-    from: "Malinska Stay <info@malinska-stay.hr>",
+    from: "Malinska Stay <rezervacije@malinska-stay.hr>",
     to: agencija.email,
     cc: ccEmails,
     subject,

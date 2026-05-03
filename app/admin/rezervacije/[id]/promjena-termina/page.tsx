@@ -14,6 +14,11 @@ type SearchParams = Promise<{
   do?: string;
 }>;
 
+const COLOR_SLOBODNO = "rgba(134,239,172,0.46)";
+const COLOR_ZAUZETO = "#ef1f1f";
+const COLOR_STARI_TERMIN = "rgba(234,179,8,0.42)";
+const COLOR_NOVI_ODABIR = "rgba(59,130,246,0.55)";
+
 function money(value?: number | null) {
   return `${Number(value || 0).toFixed(2)} €`;
 }
@@ -437,14 +442,14 @@ export default async function PromjenaTerminaPage({
       style={{
         fontFamily: "Calibri, Segoe UI, Arial, sans-serif",
         background:
-          "radial-gradient(circle at top left, #2dd4bf 0%, transparent 28%), radial-gradient(circle at top right, #7c3aed 0%, transparent 32%), linear-gradient(135deg, #060816 0%, #0b1024 45%, #120818 100%)",
+          "linear-gradient(180deg, #f6f1e8 0%, #efe6d8 48%, #eadfce 100%)",
       }}
     >
-      <div className="mx-auto max-w-7xl text-white">
-        <div className="mb-6 border border-white/15 bg-white/10 p-6 shadow-[0_25px_80px_rgba(0,0,0,0.45)] backdrop-blur-2xl">
+      <div className="mx-auto max-w-7xl text-[#2e2923]">
+        <div className="mb-6 border border-white/70 bg-white p-6 shadow-[0_18px_45px_rgba(0,0,0,0.08)]">
           <Link
             href={`/admin/rezervacije/${rezervacija.id}`}
-            className="cursor-pointer text-sm font-black text-cyan-200 hover:text-white"
+            className="cursor-pointer text-sm font-black text-[#9b6b12] hover:text-[#2e2923]"
           >
             ← Natrag na detalj rezervacije
           </Link>
@@ -453,7 +458,7 @@ export default async function PromjenaTerminaPage({
             Promjena termina rezervacije
           </h1>
 
-          <p className="mt-2 text-slate-300">
+          <p className="mt-2 text-[#6f665a]">
             {rezervacija.jedinica.objekt.naziv} / {rezervacija.jedinica.naziv}
           </p>
 
@@ -477,7 +482,7 @@ export default async function PromjenaTerminaPage({
           </div>
 
           {(rezervacija.izvor === "BOOKING" || rezervacija.izvor === "WEB") && (
-            <div className="mt-5 border border-amber-300/40 bg-amber-300/15 p-4 text-sm font-bold text-amber-100">
+            <div className="mt-5 border border-[#ead7b6] bg-[#fff9ef] p-4 text-sm font-bold text-[#7a5a22]">
               OPREZ: ova rezervacija je došla putem {rezervacija.izvor}. Prije
               izmjene provjeri uplatu i vanjski sustav.
             </div>
@@ -485,10 +490,10 @@ export default async function PromjenaTerminaPage({
         </div>
 
         <section className="mb-6 grid gap-3 md:grid-cols-4">
-          <Legend color="#22c55e" label="Slobodno" />
-          <Legend color="#ef4444" label="Zauzeto drugim rezervacijama" />
+          <Legend color="#86efac" label="Slobodno" />
+          <Legend color="#ef1f1f" label="Zauzeto drugim rezervacijama" />
           <Legend color="#eab308" label="Stari termin gosta — može se odabrati" />
-          <Legend color="#38bdf8" label="Novi odabrani termin" />
+          <Legend color="#3b82f6" label="Novi odabrani termin" />
         </section>
 
         <section className="mb-6 grid gap-4 xl:grid-cols-[2fr_1fr]">
@@ -506,7 +511,7 @@ export default async function PromjenaTerminaPage({
             ))}
           </div>
 
-          <aside className="border border-white/15 bg-white/10 p-5 shadow-[0_20px_60px_rgba(0,0,0,0.35)] backdrop-blur-xl">
+          <aside className="h-fit border border-white/70 bg-white p-5 shadow-[0_14px_35px_rgba(0,0,0,0.08)] xl:sticky xl:top-6">
             <h2 className="text-xl font-black">Novi odabir</h2>
 
             <div className="mt-4 space-y-3">
@@ -534,7 +539,7 @@ export default async function PromjenaTerminaPage({
             {odabraniOd && odabraniDo && odabraniOd < odabraniDo && (
               <>
                 {postojiPreklapanje ? (
-                  <div className="mt-5 border border-red-300/40 bg-red-400/15 p-4 text-sm font-black text-red-100">
+                  <div className="mt-5 border border-red-300 bg-red-50 p-4 text-sm font-black text-red-700">
                     Novi termin se preklapa s drugom rezervacijom. Nije moguće
                     potvrditi.
                   </div>
@@ -560,28 +565,28 @@ export default async function PromjenaTerminaPage({
                     />
 
                     <label className="block">
-                      <div className="mb-1 text-xs font-black uppercase tracking-[0.14em] text-slate-300">
+                      <div className="mb-1 text-xs font-black uppercase tracking-[0.14em] text-[#7a5a22]">
                         Razlog promjene
                       </div>
                       <textarea
                         name="razlog"
                         rows={3}
-                        className="w-full border border-white/15 bg-black/25 px-3 py-2 text-white outline-none"
+                        className="w-full border border-[#d8c8aa] bg-white px-3 py-2 text-[#2e2923] outline-none"
                         placeholder="Npr. gost traži drugi termin..."
                       />
                     </label>
 
-                    <div className="border border-red-300/40 bg-red-400/10 p-4">
-                      <div className="text-sm font-black text-red-100">
+                    <div className="border border-red-300 bg-red-50 p-4">
+                      <div className="text-sm font-black text-red-700">
                         Potvrda izmjene
                       </div>
 
-                      <p className="mt-2 text-sm text-slate-200">
+                      <p className="mt-2 text-sm text-[#6f665a]">
                         Ova radnja mijenja termin, cijenu, ostatak za uplatu i
                         status rezervacije. Promjena se zapisuje u povijest.
                       </p>
 
-                      <label className="mt-4 flex cursor-pointer items-start gap-3 text-sm text-slate-100">
+                      <label className="mt-4 flex cursor-pointer items-start gap-3 text-sm text-[#2e2923]">
                         <input
                           type="checkbox"
                           name="potvrdaIzmjene"
@@ -596,7 +601,7 @@ export default async function PromjenaTerminaPage({
                       </label>
 
                       <div className="mt-4">
-                        <label className="mb-1 block text-xs font-black uppercase tracking-[0.14em] text-red-100">
+                        <label className="mb-1 block text-xs font-black uppercase tracking-[0.14em] text-red-700">
                           Za potvrdu upiši: POTVRĐUJEM
                         </label>
 
@@ -604,12 +609,12 @@ export default async function PromjenaTerminaPage({
                           name="potvrdaTekst"
                           required
                           placeholder="POTVRĐUJEM"
-                          className="w-full border border-red-300/30 bg-black/30 px-3 py-2 font-black text-white outline-none"
+                          className="w-full border border-red-300 bg-white px-3 py-2 font-black text-red-900 outline-none"
                         />
                       </div>
                     </div>
 
-                    <button className="w-full cursor-pointer border border-amber-300 bg-amber-300/20 px-5 py-3 text-sm font-black text-amber-100 transition hover:bg-amber-300/30">
+                    <button className="w-full cursor-pointer border border-[#caa870] bg-[#c79a57] px-5 py-3 text-sm font-black text-white transition hover:brightness-95">
                       Potvrdi promjenu termina
                     </button>
                   </form>
@@ -618,7 +623,7 @@ export default async function PromjenaTerminaPage({
             )}
 
             {(!odabraniOd || !odabraniDo) && (
-              <p className="mt-5 text-sm text-slate-400">
+              <p className="mt-5 border border-[#ead7b6] bg-[#fff9ef] p-4 text-sm text-[#6f665a]">
                 Klikni prvo novi datum dolaska, zatim datum odlaska. Žuti dani
                 su stari termin tog gosta i smiju se odabrati.
               </p>
@@ -666,29 +671,29 @@ function MonthCalendar({
   }
 
   return (
-    <section className="border border-white/15 bg-white/10 p-3 shadow-[0_20px_60px_rgba(0,0,0,0.35)] backdrop-blur-xl">
-      <h2 className="mb-3 text-lg font-black capitalize text-white">
+    <section className="border border-white/70 bg-white p-3 shadow-[0_14px_35px_rgba(0,0,0,0.08)]">
+      <h2 className="mb-3 text-lg font-black capitalize text-[#2e2923]">
         {monthLabel(mjesec)}
       </h2>
 
-      <div className="grid grid-cols-7 border-l border-t border-white/10 text-center text-xs font-black text-slate-300">
+      <div className="grid grid-cols-7 border-l border-t border-[#e2d8c8] text-center text-xs font-black text-[#6f665a]">
         {["Pon", "Uto", "Sri", "Čet", "Pet", "Sub", "Ned"].map((day) => (
           <div
             key={day}
-            className="border-b border-r border-white/10 bg-black/25 p-1"
+            className="border-b border-r border-[#e2d8c8] bg-[#f8f3ea] p-1"
           >
             {day}
           </div>
         ))}
       </div>
 
-      <div className="grid grid-cols-7 border-l border-white/10">
+      <div className="grid grid-cols-7 border-l border-[#e2d8c8]">
         {cells.map((dan, index) => {
           if (!dan) {
             return (
               <div
                 key={`empty-${index}`}
-                className="min-h-[60px] border-b border-r border-white/10 bg-black/10"
+                className="min-h-[60px] border-b border-r border-[#e2d8c8] bg-[#f7f1e8]"
               />
             );
           }
@@ -753,71 +758,66 @@ function MonthCalendar({
             }
           }
 
-          let background = "rgba(34,197,94,0.20)";
-          let borderColor = "rgba(34,197,94,0.45)";
+          let background = COLOR_SLOBODNO;
+          let borderColor = "rgba(76,175,80,0.45)";
           let title = "Slobodno";
 
-          // Dan odlaska druge rezervacije:
-          // može biti novi dolazak, zato pola crveno / pola zeleno.
           if (drugaOdlazak) {
             background =
-              "linear-gradient(135deg, rgba(239,68,68,0.48) 0%, rgba(239,68,68,0.48) 49%, rgba(34,197,94,0.24) 51%, rgba(34,197,94,0.24) 100%)";
+              "linear-gradient(135deg, rgba(239,31,31,0.48) 0%, rgba(239,31,31,0.48) 49%, rgba(134,239,172,0.46) 51%, rgba(134,239,172,0.46) 100%)";
             borderColor = "rgba(255,255,255,0.18)";
             title = "Odlazak gosta / moguće novi dolazak";
           }
 
-          // Dan dolaska druge rezervacije:
-          // može biti odlazak, ali ne smije biti novi dolazak.
           if (drugaDolazak) {
             background =
-              "linear-gradient(135deg, rgba(34,197,94,0.24) 0%, rgba(34,197,94,0.24) 49%, rgba(239,68,68,0.48) 51%, rgba(239,68,68,0.48) 100%)";
+              "linear-gradient(135deg, rgba(134,239,172,0.46) 0%, rgba(134,239,172,0.46) 49%, rgba(239,31,31,0.48) 51%, rgba(239,31,31,0.48) 100%)";
             borderColor = "rgba(255,255,255,0.18)";
             title = "Dolazak drugog gosta / moguće samo kao odlazak";
           }
 
           if (trenutnaOdlazak) {
             background =
-              "linear-gradient(135deg, rgba(234,179,8,0.55) 0%, rgba(234,179,8,0.55) 49%, rgba(34,197,94,0.24) 51%, rgba(34,197,94,0.24) 100%)";
+              "linear-gradient(135deg, rgba(234,179,8,0.55) 0%, rgba(234,179,8,0.55) 49%, rgba(134,239,172,0.46) 51%, rgba(134,239,172,0.46) 100%)";
             borderColor = "rgba(234,179,8,0.75)";
             title = "Odlazak ovog gosta / slobodno za odabir";
           }
 
           if (trenutnaBoravi) {
-            background = "rgba(234,179,8,0.42)";
+            background = COLOR_STARI_TERMIN;
             borderColor = "rgba(234,179,8,0.80)";
             title = "Stari termin ovog gosta";
           }
 
           if (selectedRange || selectedStart || selectedEnd) {
-            background = "rgba(56,189,248,0.46)";
-            borderColor = "rgba(56,189,248,0.90)";
+            background = COLOR_NOVI_ODABIR;
+            borderColor = "rgba(59,130,246,0.90)";
             title = "Novi odabrani termin";
           }
 
-          // Puni crveni dan: drugi gost boravi cijeli dan/noć.
           if (drugaBoravi) {
             return (
               <div
                 key={iso}
                 className="min-h-[60px] border-b border-r p-1 text-left"
                 style={{
-                  background: "rgba(239,68,68,0.42)",
-                  borderColor: "rgba(239,68,68,0.70)",
+                  background: "rgba(239,31,31,0.42)",
+                  borderColor: "rgba(239,31,31,0.70)",
                   cursor: "not-allowed",
                 }}
                 title="Zauzeto drugom rezervacijom"
               >
                 <div className="flex h-full flex-col justify-between">
                   <div className="flex items-center justify-between">
-                    <span className="text-sm font-black text-white">
+                    <span className="text-sm font-black text-[#2e2923]">
                       {dan.getDate()}
                     </span>
-                    <span className="text-[10px] font-black text-red-100">
+                    <span className="text-[10px] font-black text-[#7f1d1d]">
                       X
                     </span>
                   </div>
 
-                  <div className="text-right text-[11px] font-black text-white">
+                  <div className="text-right text-[11px] font-black text-[#2e2923]">
                     {cijena > 0 ? `${cijena.toFixed(0)} €` : "—"}
                   </div>
                 </div>
@@ -825,8 +825,6 @@ function MonthCalendar({
             );
           }
 
-          // Dan dolaska tuđe rezervacije smije biti kliknut samo kao ODLAZAK,
-          // znači samo ako je admin već izabrao početni datum prije tog dana.
           if (drugaDolazak && !mozeBitiOdlazak) {
             return (
               <div
@@ -841,15 +839,15 @@ function MonthCalendar({
               >
                 <div className="flex h-full flex-col justify-between">
                   <div className="flex items-center justify-between">
-                    <span className="text-sm font-black text-white">
+                    <span className="text-sm font-black text-[#2e2923]">
                       {dan.getDate()}
                     </span>
-                    <span className="text-[10px] font-black text-red-100">
+                    <span className="text-[10px] font-black text-[#7f1d1d]">
                       X
                     </span>
                   </div>
 
-                  <div className="text-right text-[11px] font-black text-white">
+                  <div className="text-right text-[11px] font-black text-[#2e2923]">
                     {cijena > 0 ? `${cijena.toFixed(0)} €` : "—"}
                   </div>
                 </div>
@@ -861,7 +859,7 @@ function MonthCalendar({
             <Link
               key={iso}
               href={`?${q.toString()}`}
-              className="min-h-[60px] cursor-pointer border-b border-r p-1 text-left transition hover:brightness-125"
+              className="min-h-[60px] cursor-pointer border-b border-r p-1 text-left transition hover:brightness-105"
               style={{
                 background,
                 borderColor,
@@ -870,18 +868,18 @@ function MonthCalendar({
             >
               <div className="flex h-full flex-col justify-between">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm font-black text-white">
+                  <span className="text-sm font-black text-[#2e2923]">
                     {dan.getDate()}
                   </span>
 
                   {(selectedStart || selectedEnd) && (
-                    <span className="text-[10px] font-black text-cyan-100">
+                    <span className="text-[10px] font-black text-[#1d4ed8]">
                       {selectedStart ? "OD" : "DO"}
                     </span>
                   )}
                 </div>
 
-                <div className="text-right text-[11px] font-black text-white">
+                <div className="text-right text-[11px] font-black text-[#2e2923]">
                   {cijena > 0 ? `${cijena.toFixed(0)} €` : "—"}
                 </div>
               </div>
@@ -895,18 +893,20 @@ function MonthCalendar({
 
 function Info({ label, value }: { label: string; value: string }) {
   return (
-    <div className="border border-white/10 bg-black/20 p-3">
-      <div className="text-[10px] font-black uppercase tracking-[0.15em] text-cyan-200">
+    <div className="border border-[#e2d8c8] bg-[#fcfaf6] p-3">
+      <div className="text-[10px] font-black uppercase tracking-[0.15em] text-[#9b7a4c]">
         {label}
       </div>
-      <div className="mt-1 text-sm font-black text-white">{value || "-"}</div>
+      <div className="mt-1 text-sm font-black text-[#2e2923]">
+        {value || "-"}
+      </div>
     </div>
   );
 }
 
 function Legend({ color, label }: { color: string; label: string }) {
   return (
-    <div className="flex items-center gap-2 border border-white/15 bg-white/10 p-3 text-sm font-black text-white">
+    <div className="flex items-center gap-2 border border-[#e2d8c8] bg-white p-3 text-sm font-black text-[#2e2923] shadow-[0_10px_25px_rgba(0,0,0,0.04)]">
       <span
         style={{
           width: 14,

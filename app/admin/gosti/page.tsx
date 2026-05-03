@@ -10,17 +10,17 @@ type SearchParams = Promise<{
 }>;
 
 const UI_COLORS = {
-  slobodno: "#ede9fe",
-  slobodnoBorder: "#ddd6fe",
+  slobodno: "#fcfaf6",
+  slobodnoBorder: "#e2d8c8",
   zauzeto: "#fee2e2",
   zauzetoBorder: "#fecaca",
-  odabrano: "#8f7df0",
-  odabranoBorder: "#6f5ce0",
+  odabrano: "#c79a57",
+  odabranoBorder: "#caa870",
   gold: "#c79a57",
   goldSoft: "rgba(199, 154, 87, 0.18)",
   dangerText: "#991b1b",
-  purpleText: "#5b21b6",
-  dark: "#0b252b",
+  purpleText: "#9b6b12",
+  dark: "#2e2923",
 };
 
 const OZNAKE_GOSTA = [
@@ -144,16 +144,16 @@ export default async function AdminGostiPage({
       style={{
         fontFamily: "Calibri, Segoe UI, Arial, sans-serif",
         background:
-          "radial-gradient(circle at top left, rgba(143,125,240,0.16), transparent 34%), linear-gradient(135deg, #f8fafc 0%, #f3f0ff 45%, #fff7ed 100%)",
+          "linear-gradient(180deg, #f6f1e8 0%, #efe6d8 48%, #eadfce 100%)",
         color: UI_COLORS.dark,
       }}
     >
       <div className="mx-auto max-w-7xl">
         <div
-          className="mb-6 border p-6 shadow-[0_18px_45px_rgba(15,23,42,0.10)]"
+          className="mb-6 border p-6 shadow-[0_18px_45px_rgba(0,0,0,0.08)]"
           style={{
             background: "rgba(255,255,255,0.92)",
-            borderColor: UI_COLORS.slobodnoBorder,
+            borderColor: "rgba(255,255,255,0.70)",
           }}
         >
           <div className="flex flex-wrap items-start justify-between gap-4">
@@ -170,7 +170,7 @@ export default async function AdminGostiPage({
                 Gosti / arhiva gostiju
               </h1>
 
-              <p className="mt-2 max-w-3xl text-slate-600">
+              <p className="mt-2 max-w-3xl text-[#6f665a]">
                 Pregled gostiju, kontakata, adresa, oznaka i povijesti boravaka.
               </p>
             </div>
@@ -198,10 +198,10 @@ export default async function AdminGostiPage({
 
         {statistikaDrzava.length > 0 && (
           <section
-            className="mb-6 border p-5 shadow-[0_14px_35px_rgba(15,23,42,0.08)]"
+            className="mb-6 border p-5 shadow-[0_14px_35px_rgba(0,0,0,0.08)]"
             style={{
-              background: "rgba(255,255,255,0.86)",
-              borderColor: "#e2e8f0",
+              background: "rgba(255,255,255,0.92)",
+              borderColor: "rgba(255,255,255,0.70)",
             }}
           >
             <h2 className="mb-4 text-xl font-black">Top države</h2>
@@ -230,10 +230,10 @@ export default async function AdminGostiPage({
         )}
 
         <section
-          className="mb-6 border p-5 shadow-[0_14px_35px_rgba(15,23,42,0.08)]"
+          className="mb-6 border p-5 shadow-[0_14px_35px_rgba(0,0,0,0.08)]"
           style={{
-            background: "rgba(255,255,255,0.9)",
-            borderColor: "#e2e8f0",
+            background: "rgba(255,255,255,0.92)",
+            borderColor: "rgba(255,255,255,0.70)",
           }}
         >
           <form className="grid gap-3 lg:grid-cols-[1fr_220px_220px_auto]">
@@ -242,14 +242,14 @@ export default async function AdminGostiPage({
               defaultValue={q}
               placeholder="Pretraži ime, prezime, email, telefon, adresu, grad, napomenu..."
               className="w-full border bg-white px-4 py-3 outline-none"
-              style={{ borderColor: "#dbe3ee", color: UI_COLORS.dark }}
+              style={{ borderColor: "#d8c8aa", color: UI_COLORS.dark }}
             />
 
             <select
               name="drzava"
               defaultValue={drzavaFilter}
               className="w-full border bg-white px-4 py-3 outline-none"
-              style={{ borderColor: "#dbe3ee", color: UI_COLORS.dark }}
+              style={{ borderColor: "#d8c8aa", color: UI_COLORS.dark }}
             >
               <option value="">Sve države</option>
               {sveDrzave.map((d) => (
@@ -263,7 +263,7 @@ export default async function AdminGostiPage({
               name="oznaka"
               defaultValue={oznakaFilter}
               className="w-full border bg-white px-4 py-3 outline-none"
-              style={{ borderColor: "#dbe3ee", color: UI_COLORS.dark }}
+              style={{ borderColor: "#d8c8aa", color: UI_COLORS.dark }}
             >
               <option value="">Sve oznake</option>
               {OZNAKE_GOSTA.map((o) => (
@@ -301,10 +301,10 @@ export default async function AdminGostiPage({
         <section className="grid gap-4">
           {filtrirani.length === 0 ? (
             <div
-              className="border p-8 text-center text-slate-500"
+              className="border p-8 text-center text-[#6f665a]"
               style={{
                 background: "white",
-                borderColor: "#e2e8f0",
+                borderColor: "#e2d8c8",
               }}
             >
               Nema gostiju za odabrani filter.
@@ -328,12 +328,12 @@ export default async function AdminGostiPage({
               return (
                 <article
                   key={gost.id}
-                  className="border p-5 shadow-[0_14px_35px_rgba(15,23,42,0.08)]"
+                  className="border p-5 shadow-[0_14px_35px_rgba(0,0,0,0.08)]"
                   style={{
                     background: imaProblem ? UI_COLORS.zauzeto : "white",
                     borderColor: imaProblem
                       ? UI_COLORS.zauzetoBorder
-                      : "#e2e8f0",
+                      : "#e2d8c8",
                   }}
                 >
                   <div className="grid gap-5 xl:grid-cols-[1.2fr_0.9fr_0.9fr_170px]">
@@ -362,11 +362,11 @@ export default async function AdminGostiPage({
                         )}
                       </div>
 
-                      <div className="mt-2 text-sm text-slate-600">
+                      <div className="mt-2 text-sm text-[#6f665a]">
                         {gost.email || "-"} · {gost.telefon || "-"}
                       </div>
 
-                      <div className="mt-3 grid gap-1 text-sm text-slate-700">
+                      <div className="mt-3 grid gap-1 text-sm text-[#2e2923]">
                         <div>
                           <b>Adresa:</b> {gost.adresa || "-"}
                         </div>
@@ -453,7 +453,7 @@ export default async function AdminGostiPage({
                           />
                         </>
                       ) : (
-                        <p className="text-sm text-slate-500">Nema rezervacija.</p>
+                        <p className="text-sm text-[#6f665a]">Nema rezervacija.</p>
                       )}
                     </Box>
 
@@ -499,7 +499,7 @@ export default async function AdminGostiPage({
                   </div>
 
                   {gost.rezervacije.length > 1 && (
-                    <details className="mt-4 border-t pt-4" style={{ borderColor: "#e2e8f0" }}>
+                    <details className="mt-4 border-t pt-4" style={{ borderColor: "#e2d8c8" }}>
                       <summary
                         className="cursor-pointer text-sm font-black"
                         style={{ color: UI_COLORS.purpleText }}
@@ -510,7 +510,7 @@ export default async function AdminGostiPage({
                       <div className="mt-3 overflow-x-auto">
                         <table className="w-full min-w-[760px] border-collapse text-sm">
                           <thead>
-                            <tr className="border-b text-left text-slate-500">
+                            <tr className="border-b text-left text-[#6f665a]">
                               <th className="py-2 pr-3">Termin</th>
                               <th className="py-2 pr-3">Objekt</th>
                               <th className="py-2 pr-3">Jedinica</th>
@@ -521,7 +521,7 @@ export default async function AdminGostiPage({
                           </thead>
                           <tbody>
                             {gost.rezervacije.map((r) => (
-                              <tr key={r.id} className="border-b text-slate-700">
+                              <tr key={r.id} className="border-b text-[#2e2923]">
                                 <td className="py-2 pr-3">
                                   {formatDate(r.datumOd)} – {formatDate(r.datumDo)}
                                 </td>
@@ -573,7 +573,7 @@ function Stat({
 }) {
   return (
     <div
-      className="border p-5 shadow-[0_14px_35px_rgba(15,23,42,0.08)]"
+      className="border p-5 shadow-[0_14px_35px_rgba(0,0,0,0.08)]"
       style={{
         background: danger
           ? UI_COLORS.zauzeto
@@ -584,10 +584,10 @@ function Stat({
           ? UI_COLORS.zauzetoBorder
           : purple
           ? UI_COLORS.slobodnoBorder
-          : "#e2e8f0",
+          : "#e2d8c8",
       }}
     >
-      <div className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">
+      <div className="text-xs font-black uppercase tracking-[0.18em] text-[#9b7a4c]">
         {title}
       </div>
       <div
@@ -617,8 +617,8 @@ function Box({
     <div
       className="border p-4"
       style={{
-        background: "#f8fafc",
-        borderColor: "#e2e8f0",
+        background: "#fcfaf6",
+        borderColor: "#e2d8c8",
       }}
     >
       <div
@@ -665,8 +665,8 @@ function Row({
   value: string | number | null | undefined;
 }) {
   return (
-    <div className="flex justify-between gap-3 border-b border-slate-200 pb-1">
-      <span className="text-slate-500">{label}</span>
+    <div className="flex justify-between gap-3 border-b border-[#e2d8c8] pb-1">
+      <span className="text-[#6f665a]">{label}</span>
       <span className="text-right font-black" style={{ color: UI_COLORS.dark }}>
         {value === null || value === undefined || value === "" ? "-" : value}
       </span>

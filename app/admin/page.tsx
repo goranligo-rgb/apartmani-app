@@ -47,7 +47,7 @@ function isPredlozenoZaStorno(r: any) {
     placeno <= 0 &&
     !!r.rokUplateAkontacije &&
     startOfDay(r.rokUplateAkontacije).getTime() <
-    startOfDay(new Date()).getTime()
+      startOfDay(new Date()).getTime()
   );
 }
 
@@ -89,6 +89,10 @@ export default async function AdminPage() {
     },
     orderBy: [{ datumOd: "asc" }],
   });
+
+  const cekaPotvrdu = rezervacijeAktivne.filter(
+    (r) => r.status === "CEKA_POTVRDU"
+  );
 
   const predlozenoZaStorno = rezervacijeAktivne.filter(isPredlozenoZaStorno);
 
@@ -188,6 +192,13 @@ export default async function AdminPage() {
       badge: agencija?.email ? "Spremno" : "Postavi",
     },
     {
+      title: "Gosti",
+      opis: "Pregled gostiju, država, oznaka i povijesti boravaka.",
+      href: "/admin/gosti",
+      icon: "👤",
+      badge: "CRM",
+    },
+    {
       title: "Slike objekata",
       opis: "Upload slika po objektu, jedinici i posebnih slika za dashboard i početnu.",
       href: "/admin/slike",
@@ -202,11 +213,11 @@ export default async function AdminPage() {
       badge: "Sadržaj",
     },
     {
-      title: "Booking sync",
-      opis: "Povezivanje i sinkronizacija vanjskih kalendara.",
-      href: "/admin/sync",
-      icon: "🔄",
-      badge: "Sync",
+      title: "Booking iCal sync",
+      opis: "Dodavanje Booking iCal linkova po jedinici, ručni sync i kontrola zauzetosti.",
+      href: "/admin/ical",
+      icon: "🟣",
+      badge: "Booking",
     },
   ];
 
@@ -241,79 +252,150 @@ export default async function AdminPage() {
               <div className="text-xs font-black uppercase tracking-[0.22em] text-[#9b7a4c]">
                 Sustav
               </div>
+
               <div className="mt-1 text-2xl font-black text-[#2e2923]">
                 ONLINE
               </div>
+
               <div className="mt-1 text-sm text-[#6f665a]">
                 Mail · PDF · Plaćanja
               </div>
+
+              <Link
+                href="/api/admin/logout"
+                className="mt-4 inline-block border border-[#d8c8aa] bg-white px-4 py-2 text-sm font-black text-[#7a5a22] transition hover:bg-[#fff6e2]"
+              >
+                Odjava
+              </Link>
             </div>
           </div>
         </section>
 
+        {cekaPotvrdu.length > 0 && (
+          <section className="mb-6 border-2 border-[#c79a57] bg-[#fff8e8] p-5 shadow-[0_18px_45px_rgba(0,0,0,0.10)]">
+            <div className="mb-4 flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+              <div>
+                <div className="text-xs font-black uppercase tracking-[0.22em] text-[#9b6b12]">
+                  Hitno za odobrenje
+                </div>
+
+                <h2 className="mt-1 text-3xl font-black text-[#2e2923]">
+                  Nepotvrđene rezervacije
+                </h2>
+
+                <p className="mt-1 text-sm text-[#6f665a]">
+                  Ove rezervacije su tek zaprimljene i čekaju tvoju potvrdu.
+                </p>
+              </div>
+
+              <Link
+                href="/admin/rezervacije?status=CEKA_POTVRDU"
+                className="border border-[#c79a57] bg-white px-4 py-2 text-sm font-black text-[#7a5a22] transition hover:bg-[#fff1c7]"
+              >
+                Otvori sve →
+              </Link>
+            </div>
+
+            <div className="grid gap-3">
+              {cekaPotvrdu.map((r) => (
+                <Link
+                  key={r.id}
+                  href={`/admin/rezervacije/${r.id}`}
+                  className="block border border-[#e2c98b] bg-white p-4 transition hover:bg-[#fffaf0]"
+                >
+                  <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                    <div>
+                      <div className="text-lg font-black text-[#2e2923]">
+                        {r.gost?.ime} {r.gost?.prezime}
+                      </div>
+
+                      <div className="mt-1 text-sm text-[#6f665a]">
+                        {r.jedinica?.objekt?.naziv} · {r.jedinica?.naziv}
+                      </div>
+
+                      <div className="mt-1 text-sm font-bold text-[#7a5a22]">
+                        {r.datumOd.toLocaleDateString("hr-HR")} –{" "}
+                        {r.datumDo.toLocaleDateString("hr-HR")}
+                      </div>
+                    </div>
+
+                    <div className="text-left md:text-right">
+                      <div className="text-xl font-black text-[#2e2923]">
+                        {money(r.dogovoreniIznos || r.iznosUkupno)}
+                      </div>
+
+                      <div className="mt-1 text-xs font-black uppercase tracking-[0.16em] text-[#9b6b12]">
+                        Čeka potvrdu
+                      </div>
+                    </div>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </section>
+        )}
+
         {(predlozenoZaStorno.length > 0 ||
           dolaziUskoroNijePlaceno.length > 0) && (
-            <section className="mb-6 grid gap-3 lg:grid-cols-2">
-              {predlozenoZaStorno.length > 0 && (
-                <Link
-                  href="/admin/rezervacije/naplata?status=ISTEKAO_ROK_AKONTACIJE"
-                  className="block border border-[#d6aaa6] bg-[#fff4f2] p-4 text-[#7a2f2a] shadow-[0_10px_25px_rgba(0,0,0,0.06)] transition hover:bg-[#ffecea]"
-                >
-                  <div className="text-xs font-black uppercase tracking-[0.16em] text-[#9b3f36]">
-                    Predloženo za storno
+          <section className="mb-6 grid gap-3 lg:grid-cols-2">
+            {predlozenoZaStorno.length > 0 && (
+              <Link
+                href="/admin/rezervacije/naplata?status=ISTEKAO_ROK_AKONTACIJE"
+                className="block border border-[#d6aaa6] bg-[#fff4f2] p-4 text-[#7a2f2a] shadow-[0_10px_25px_rgba(0,0,0,0.06)] transition hover:bg-[#ffecea]"
+              >
+                <div className="text-xs font-black uppercase tracking-[0.16em] text-[#9b3f36]">
+                  Predloženo za storno
+                </div>
+
+                <div className="mt-1 flex items-end justify-between gap-3">
+                  <div>
+                    <h2 className="text-xl font-black">
+                      {predlozenoZaStorno.length} rezervacija
+                    </h2>
+                    <p className="mt-1 text-sm">
+                      Rok akontacije je istekao. Provjeriti telefonski prije
+                      storna.
+                    </p>
                   </div>
 
-                  <div className="mt-1 flex items-end justify-between gap-3">
-                    <div>
-                      <h2 className="text-xl font-black">
-                        {predlozenoZaStorno.length} rezervacija
-                      </h2>
-                      <p className="mt-1 text-sm">
-                        Rok akontacije je istekao. Provjeriti telefonski prije
-                        storna.
-                      </p>
-                    </div>
+                  <div className="text-sm font-black">Otvori →</div>
+                </div>
+              </Link>
+            )}
 
-                    <div className="text-sm font-black">Otvori →</div>
+            {dolaziUskoroNijePlaceno.length > 0 && (
+              <Link
+                href="/admin/rezervacije/naplata?status=DOLAZI_USKORO_NIJE_PLACENO"
+                className="block border border-[#d9c28c] bg-[#fff9e8] p-4 text-[#765819] shadow-[0_10px_25px_rgba(0,0,0,0.06)] transition hover:bg-[#fff4d5]"
+              >
+                <div className="text-xs font-black uppercase tracking-[0.16em] text-[#9b741f]">
+                  Dolazak uskoro / nije plaćeno
+                </div>
+
+                <div className="mt-1 flex items-end justify-between gap-3">
+                  <div>
+                    <h2 className="text-xl font-black">
+                      {dolaziUskoroNijePlaceno.length} rezervacija
+                    </h2>
+                    <p className="mt-1 text-sm">
+                      Gost dolazi kroz 7 dana ili manje, a postoji ostatak za
+                      uplatu.
+                    </p>
                   </div>
-                </Link>
-              )}
 
-              {dolaziUskoroNijePlaceno.length > 0 && (
-                <Link
-                  href="/admin/rezervacije/naplata?status=DOLAZI_USKORO_NIJE_PLACENO"
-                  className="block border border-[#d9c28c] bg-[#fff9e8] p-4 text-[#765819] shadow-[0_10px_25px_rgba(0,0,0,0.06)] transition hover:bg-[#fff4d5]"
-                >
-                  <div className="text-xs font-black uppercase tracking-[0.16em] text-[#9b741f]">
-                    Dolazak uskoro / nije plaćeno
-                  </div>
-
-                  <div className="mt-1 flex items-end justify-between gap-3">
-                    <div>
-                      <h2 className="text-xl font-black">
-                        {dolaziUskoroNijePlaceno.length} rezervacija
-                      </h2>
-                      <p className="mt-1 text-sm">
-                        Gost dolazi kroz 7 dana ili manje, a postoji ostatak za
-                        uplatu.
-                      </p>
-                    </div>
-
-                    <div className="text-sm font-black">Otvori →</div>
-                  </div>
-                </Link>
-              )}
-            </section>
-          )}
+                  <div className="text-sm font-black">Otvori →</div>
+                </div>
+              </Link>
+            )}
+          </section>
+        )}
 
         <section className="mb-6 grid gap-4 md:grid-cols-3">
           <SmallStatus
-            title="Otvorena naplata"
-            value={`${cekaAkontaciju.length} rezervacija`}
-            description={`Preostalo za potvrdu: ${money(
-              ukupnoCekaAkontaciju.ostatak
-            )}`}
-            href="/admin/rezervacije/naplata?status=CEKA_AKONTACIJU"
+            title="Čeka potvrdu"
+            value={`${cekaPotvrdu.length} rezervacija`}
+            description="Nove rezervacije koje treba ručno odobriti."
+            href="/admin/rezervacije?status=CEKA_POTVRDU"
           />
 
           <SmallStatus
@@ -367,6 +449,24 @@ export default async function AdminPage() {
             </Link>
           ))}
         </section>
+      </div>
+
+      <div className="mt-8 flex flex-col items-end gap-1">
+        <Link
+          href="/admin/reset-rezervacije"
+          className="text-xs font-bold text-[#c7b79c] transition hover:text-[#7a5a22]"
+          title="Reset test rezervacija"
+        >
+          reset test rezervacija
+        </Link>
+
+        <Link
+          href="/admin/rezervacije/obrisane"
+          className="text-xs font-bold text-[#c7b79c] transition hover:text-[#7a5a22]"
+          title="Obrisane rezervacije"
+        >
+          obrisane rezervacije
+        </Link>
       </div>
     </main>
   );

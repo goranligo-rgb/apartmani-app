@@ -41,21 +41,26 @@ type JedinicaItem = {
   blokade: BlokadaItem[];
 };
 
-const CALENDAR_COLORS = {
-  slobodno: "hsl(140, 80%, 60%)",
-  slobodnoBorder: "hsl(140, 80%, 35%)",
+const UI_COLORS = {
+  slobodno: "#ede9fe",
+  slobodnoBorder: "#ddd6fe",
 
-  zauzeto: "hsl(0, 91%, 55%)",
-  zauzetoBorder: "hsl(0, 85%, 35%)",
+  zauzeto: "#fee2e2",
+  zauzetoBorder: "#fecaca",
 
   odabrano: "#8f7df0",
   odabranoBorder: "#6f5ce0",
 
-  blokirano: "#4b5563",
-  blokiranoBorder: "#374151",
+  blokirano: "#e5e7eb",
+  blokiranoBorder: "#d1d5db",
 
-  prazno: "#f3f4f6",
-  praznoBorder: "#e5e7eb",
+  gold: "#c79a57",
+  goldSoft: "rgba(199, 154, 87, 0.18)",
+
+  dark: "#0b252b",
+  brown: "#2e2923",
+  muted: "#6f665a",
+  bg: "#f6f1e8",
 };
 
 function parseIsoDate(value: string) {
@@ -185,18 +190,11 @@ function getHeroImage(objektNaziv: string) {
 }
 
 function opisObjekta(objektNaziv: string) {
-  if (objektNaziv === "House Art") {
-    return "Privatna kuća za obiteljski odmor";
-  }
-
-  if (objektNaziv === "Luxury Apartments Marty") {
+  if (objektNaziv === "House Art") return "Privatna kuća za obiteljski odmor";
+  if (objektNaziv === "Luxury Apartments Marty")
     return "Apartmani s bazenom u Malinskoj";
-  }
-
-  if (objektNaziv === "House Eva") {
+  if (objektNaziv === "House Eva")
     return "Tri apartmana za miran obiteljski odmor";
-  }
-
   return "Smještaj u Malinskoj";
 }
 
@@ -246,10 +244,8 @@ export default function CalendarClient({
   const monthHref = (month: string) => {
     const params = new URLSearchParams();
     params.set("month", month);
-
     if (objektSlug) params.set("objekt", objektSlug);
     if (adminMode) params.set("admin", "1");
-
     return `/kalendar?${params.toString()}#kalendar`;
   };
 
@@ -305,9 +301,8 @@ export default function CalendarClient({
   }
 
   function adminRangeMode() {
-    if (!adminSelection?.datumOd || !adminSelection?.datumDo || !aktivnaJedinica) {
+    if (!adminSelection?.datumOd || !adminSelection?.datumDo || !aktivnaJedinica)
       return null;
-    }
 
     const startBlocked = isDayBlocked(
       adminSelection.datumOd,
@@ -488,97 +483,106 @@ export default function CalendarClient({
     if (splitCheckout) {
       return {
         backgroundColor: "#ffffff",
-        borderColor: CALENDAR_COLORS.slobodnoBorder,
-        color: "#2e2923",
+        borderColor: UI_COLORS.slobodnoBorder,
+        color: UI_COLORS.brown,
       };
     }
 
     if (adminMode) {
       if (booked) {
         return {
-          backgroundColor: CALENDAR_COLORS.zauzeto,
-          borderColor: CALENDAR_COLORS.zauzetoBorder,
-          color: "#ffffff",
+          backgroundColor: UI_COLORS.zauzeto,
+          borderColor: UI_COLORS.zauzetoBorder,
+          color: "#991b1b",
         };
       }
 
       if (adminSelected) {
         return {
-          backgroundColor: CALENDAR_COLORS.odabrano,
-          borderColor: CALENDAR_COLORS.odabranoBorder,
+          backgroundColor: UI_COLORS.odabrano,
+          borderColor: UI_COLORS.odabranoBorder,
           color: "#ffffff",
         };
       }
 
       if (blocked) {
         return {
-          backgroundColor: CALENDAR_COLORS.blokirano,
-          borderColor: CALENDAR_COLORS.blokiranoBorder,
-          color: "#ffffff",
+          backgroundColor: UI_COLORS.blokirano,
+          borderColor: UI_COLORS.blokiranoBorder,
+          color: "#374151",
         };
       }
 
       if (price) {
         return {
-          backgroundColor: CALENDAR_COLORS.slobodno,
-          borderColor: CALENDAR_COLORS.slobodnoBorder,
-          color: "#12351a",
+          backgroundColor: UI_COLORS.slobodno,
+          borderColor: UI_COLORS.slobodnoBorder,
+          color: "#5b21b6",
         };
       }
 
       return {
-        backgroundColor: CALENDAR_COLORS.prazno,
-        borderColor: CALENDAR_COLORS.praznoBorder,
+        backgroundColor: "#f7f1e8",
+        borderColor: "#eadfcd",
         color: "#9ca3af",
       };
     }
 
     if (selected) {
       return {
-        backgroundColor: CALENDAR_COLORS.odabrano,
-        borderColor: CALENDAR_COLORS.odabranoBorder,
+        backgroundColor: UI_COLORS.odabrano,
+        borderColor: UI_COLORS.odabranoBorder,
         color: "#ffffff",
       };
     }
 
     if (unavailable) {
       return {
-        backgroundColor: CALENDAR_COLORS.zauzeto,
-        borderColor: CALENDAR_COLORS.zauzetoBorder,
-        color: "#ffffff",
+        backgroundColor: UI_COLORS.zauzeto,
+        borderColor: UI_COLORS.zauzetoBorder,
+        color: "#991b1b",
       };
     }
 
     return {
-      backgroundColor: CALENDAR_COLORS.slobodno,
-      borderColor: CALENDAR_COLORS.slobodnoBorder,
-      color: "#12351a",
+      backgroundColor: UI_COLORS.slobodno,
+      borderColor: UI_COLORS.slobodnoBorder,
+      color: "#5b21b6",
     };
   }
 
   const selectedAdminMode = adminRangeMode();
 
+  const jediniceGridClass =
+    selectedObjekt === "Luxury Apartments Marty"
+      ? "grid gap-3 sm:grid-cols-2 lg:grid-cols-5"
+      : "grid gap-3 sm:grid-cols-2 lg:grid-cols-3";
+
   return (
     <main
-      className="min-h-screen bg-[#f4efe6] px-4 py-5"
-      style={{ fontFamily: "Calibri, Segoe UI, Arial, sans-serif" }}
+      className="min-h-screen px-4 py-5 md:px-8"
+      style={{
+        background:
+          "linear-gradient(180deg, #f6f1e8 0%, #efe6d8 50%, #eadfce 100%)",
+        fontFamily: "Calibri, Segoe UI, Arial, sans-serif",
+      }}
     >
-      <div className="mx-auto max-w-6xl">
-        <section className="relative mb-6 min-h-[360px] overflow-hidden border border-white/20 bg-black shadow-[0_22px_70px_rgba(0,0,0,0.25)]">
+      <div className="mx-auto max-w-7xl">
+        <section className="relative mb-5 min-h-[390px] overflow-hidden border border-white/70 bg-black shadow-[0_18px_45px_rgba(0,0,0,0.20)]">
           <div
-            className="absolute inset-0 bg-cover bg-center"
+            key={selectedObjekt}
+            className="absolute inset-0 bg-cover bg-center hero-image"
             style={{
               backgroundImage: `url('${getHeroImage(selectedObjekt)}')`,
-              animation: "heroTravel 28s ease-in-out infinite alternate",
             }}
           />
 
-          <div className="absolute inset-0 bg-gradient-to-r from-black/75 via-black/35 to-black/10" />
+          <div className="absolute inset-0 bg-gradient-to-r from-black/75 via-black/38 to-black/10" />
 
-          <div className="relative z-10 flex min-h-[360px] flex-col justify-between p-6 text-white md:p-9">
+          <div className="relative z-10 flex min-h-[390px] flex-col justify-between p-5 text-white md:p-8">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <p className="text-sm font-black uppercase tracking-[0.35em] text-[#d6b36a]">
+                <p className="text-xs font-black uppercase tracking-[0.32em] text-[#d6b36a]">
                   Malinska · Otok Krk
                 </p>
 
@@ -586,9 +590,9 @@ export default function CalendarClient({
                   Dostupnost
                 </h1>
 
-                <p className="mt-5 max-w-2xl text-lg leading-relaxed text-white/90">
-                  Odaberite objekt, zatim smještajnu jedinicu i provjerite
-                  slobodne termine za vaš boravak.
+                <p className="mt-5 max-w-2xl text-base leading-relaxed text-white/90 md:text-lg">
+                  Odaberite objekt, smještajnu jedinicu i provjerite slobodne
+                  termine za vaš boravak.
                 </p>
               </div>
 
@@ -600,22 +604,36 @@ export default function CalendarClient({
               </Link>
             </div>
 
-            <div className="max-w-xl border border-white/25 bg-black/35 p-5 backdrop-blur">
-              <div className="text-xs font-black uppercase tracking-[0.25em] text-[#d6b36a]">
-                Odabrani objekt
+            <div className="grid gap-3 lg:grid-cols-[1fr_auto] lg:items-end">
+              <div className="max-w-2xl border border-white/25 bg-black/35 p-5 backdrop-blur">
+                <div className="text-xs font-black uppercase tracking-[0.25em] text-[#d6b36a]">
+                  Odabrani objekt
+                </div>
+
+                <div className="mt-2 text-3xl font-black">{selectedObjekt}</div>
+
+                <div className="mt-1 text-base text-white/80">
+                  {opisObjekta(selectedObjekt)}
+                </div>
               </div>
 
-              <div className="mt-2 text-3xl font-black">{selectedObjekt}</div>
-
-              <div className="mt-1 text-base text-white/80">
-                {opisObjekta(selectedObjekt)}
+              <div className="flex flex-wrap gap-2 text-xs font-black">
+                <span style={legend(UI_COLORS.slobodno, "#5b21b6")}>
+                  Slobodno
+                </span>
+                <span style={legend(UI_COLORS.zauzeto, "#991b1b")}>
+                  Zauzeto
+                </span>
+                <span style={legend(UI_COLORS.odabrano, "white")}>
+                  Odabrano
+                </span>
               </div>
             </div>
           </div>
         </section>
 
         {adminMode && (
-          <div className="mb-4 border border-[#ead8b8] bg-[#fff7e8] p-4 text-sm font-bold text-[#9b6b12]">
+          <div className="mb-4 border border-[#ead8b8] bg-[#fff7e8] p-4 text-sm font-bold text-[#9b6b12] shadow-[0_10px_25px_rgba(0,0,0,0.06)]">
             Admin način: klikni OD i DO, provjeri obojani raspon, zatim klikni
             Potvrdi.
           </div>
@@ -627,60 +645,14 @@ export default function CalendarClient({
           </div>
         )}
 
-        <section className="mb-5 border border-white/70 bg-white p-5 shadow-[0_12px_35px_rgba(0,0,0,0.08)]">
-          <div className="mb-4 flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
-            <div>
-              <h2 className="text-2xl font-black text-[#2e2923]">
-                Odaberite objekt
-              </h2>
-              <p className="mt-1 text-sm text-[#6f665a]">
-                Nakon odabira objekta prikazuju se dostupne smještajne jedinice.
-              </p>
-            </div>
-
-            {!adminMode && (
-              <div className="flex flex-wrap gap-2 text-sm font-black">
-                <span
-                  className="px-4 py-2"
-                  style={{
-                    backgroundColor: CALENDAR_COLORS.slobodno,
-                    border: `1px solid ${CALENDAR_COLORS.slobodnoBorder}`,
-                    color: "#12351a",
-                  }}
-                >
-                  Slobodno
-                </span>
-
-                <span
-                  className="px-4 py-2 text-white"
-                  style={{
-                    backgroundColor: CALENDAR_COLORS.zauzeto,
-                    border: `1px solid ${CALENDAR_COLORS.zauzetoBorder}`,
-                  }}
-                >
-                  Zauzeto
-                </span>
-
-                <span
-                  className="bg-white px-4 py-2 text-[#2e2923]"
-                  style={{
-                    border: `1px solid ${CALENDAR_COLORS.zauzetoBorder}`,
-                  }}
-                >
-                  Odlazak / slobodno
-                </span>
-
-                <span
-                  className="px-4 py-2 text-white"
-                  style={{
-                    backgroundColor: CALENDAR_COLORS.odabrano,
-                    border: `1px solid ${CALENDAR_COLORS.odabranoBorder}`,
-                  }}
-                >
-                  Odabrano
-                </span>
-              </div>
-            )}
+        <section className="mb-5 border border-white/80 bg-white p-4 shadow-[0_10px_25px_rgba(0,0,0,0.06)]">
+          <div className="mb-4">
+            <p className="text-xs font-black uppercase tracking-[0.18em] text-[#9b7a4c]">
+              Objekti
+            </p>
+            <h2 className="mt-1 text-2xl font-black text-[#2e2923]">
+              Odaberite objekt
+            </h2>
           </div>
 
           <div className="grid gap-3 md:grid-cols-3">
@@ -694,47 +666,58 @@ export default function CalendarClient({
                   setSelection(null);
                   setAdminSelection(null);
                 }}
-                className={`cursor-pointer border p-5 text-left transition hover:-translate-y-0.5 hover:shadow-[0_12px_30px_rgba(0,0,0,0.12)] ${
+                className={`cursor-pointer border p-4 text-left transition hover:-translate-y-0.5 hover:shadow-[0_12px_30px_rgba(0,0,0,0.10)] ${
                   o === selectedObjekt
                     ? "border-[#c79a57] bg-[#c79a57] text-white"
                     : "border-[#eadfcd] bg-[#fbf8f2] text-[#2e2923]"
                 }`}
               >
-                <div className="text-xl font-black">{o}</div>
-                <div className="mt-2 text-sm opacity-85">{opisObjekta(o)}</div>
+                <div className="text-lg font-black">{o}</div>
+                <div className="mt-1 text-sm opacity-85">{opisObjekta(o)}</div>
               </button>
             ))}
           </div>
         </section>
 
-        <section className="mb-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {filtriraneJedinice.map((j) => (
-            <button
-              key={j.id}
-              type="button"
-              onClick={() => {
-                setSelectedJedinicaId(j.id);
-                setSelection(null);
-                setAdminSelection(null);
-              }}
-              className={`cursor-pointer border p-5 text-left transition hover:-translate-y-0.5 hover:shadow-[0_12px_30px_rgba(0,0,0,0.12)] ${
-                j.id === aktivnaJedinica?.id
-                  ? "border-[#0b252b] bg-[#0b252b] text-white"
-                  : "border-white/70 bg-white text-[#2e2923]"
-              }`}
-            >
-              <div className="text-lg font-black">{getNaziv(j)}</div>
+        <section className="mb-5 border border-white/80 bg-white p-4 shadow-[0_10px_25px_rgba(0,0,0,0.06)]">
+          <div className="mb-4">
+            <p className="text-xs font-black uppercase tracking-[0.18em] text-[#9b7a4c]">
+              Jedinice
+            </p>
+            <h2 className="mt-1 text-2xl font-black text-[#2e2923]">
+              {selectedObjekt}
+            </h2>
+          </div>
 
-              <div className="mt-4 space-y-1 text-sm font-bold opacity-90">
-                <div>
-                  Kapacitet: {j.osnovniKapacitet}
-                  {j.dodatniKapacitet ? ` + ${j.dodatniKapacitet}` : ""} osoba
+          <div className={jediniceGridClass}>
+            {filtriraneJedinice.map((j) => (
+              <button
+                key={j.id}
+                type="button"
+                onClick={() => {
+                  setSelectedJedinicaId(j.id);
+                  setSelection(null);
+                  setAdminSelection(null);
+                }}
+                className={`cursor-pointer border p-4 text-left transition hover:-translate-y-0.5 hover:shadow-[0_12px_30px_rgba(0,0,0,0.10)] ${
+                  j.id === aktivnaJedinica?.id
+                    ? "border-[#0b252b] bg-[#0b252b] text-white"
+                    : "border-[#eadfcd] bg-[#fbf8f2] text-[#2e2923]"
+                }`}
+              >
+                <div className="text-base font-black">{getNaziv(j)}</div>
+
+                <div className="mt-3 space-y-1 text-xs font-bold opacity-90">
+                  <div>
+                    Kapacitet: {j.osnovniKapacitet}
+                    {j.dodatniKapacitet ? ` + ${j.dodatniKapacitet}` : ""} osoba
+                  </div>
+                  <div>Sobe: {j.brojSpavacihSoba ?? "-"}</div>
+                  <div>Kupaone: {j.brojKupaona ?? "-"}</div>
                 </div>
-                <div>Spavaće sobe: {j.brojSpavacihSoba ?? "-"}</div>
-                <div>Kupaone: {j.brojKupaona ?? "-"}</div>
-              </div>
-            </button>
-          ))}
+              </button>
+            ))}
+          </div>
         </section>
 
         {adminMode && adminSelection && (
@@ -778,17 +761,17 @@ export default function CalendarClient({
           </div>
         )}
 
-        <div id="kalendar" className="scroll-mt-6 grid gap-4 lg:grid-cols-2">
+        <div id="kalendar" className="scroll-mt-6 grid gap-4 xl:grid-cols-2">
           {months.map((month, monthIndex) => (
             <div
               key={month.label}
-              className="border border-white/70 bg-white p-4 shadow-[0_12px_35px_rgba(0,0,0,0.08)]"
+              className="border border-white/80 bg-white p-4 shadow-[0_10px_25px_rgba(0,0,0,0.06)]"
             >
               <div className="mb-4 grid grid-cols-[48px_1fr_48px] items-center">
                 {monthIndex === 0 ? (
                   <Link
                     href={monthHref(prevMonth)}
-                    className="cursor-pointer border border-[#d9cfbf] bg-[#f4efe6] px-2 py-2 text-center text-lg font-black transition hover:bg-[#efe1cc]"
+                    className="cursor-pointer border border-[#d8c8aa] bg-[#f8f3ea] px-2 py-2 text-center text-lg font-black text-[#7a5a22] transition hover:bg-[#fff6e2]"
                   >
                     ←
                   </Link>
@@ -803,7 +786,7 @@ export default function CalendarClient({
                 {monthIndex === 1 ? (
                   <Link
                     href={monthHref(nextMonth)}
-                    className="cursor-pointer border border-[#d9cfbf] bg-[#f4efe6] px-2 py-2 text-center text-lg font-black transition hover:bg-[#efe1cc]"
+                    className="cursor-pointer border border-[#d8c8aa] bg-[#f8f3ea] px-2 py-2 text-center text-lg font-black text-[#7a5a22] transition hover:bg-[#fff6e2]"
                   >
                     →
                   </Link>
@@ -812,15 +795,24 @@ export default function CalendarClient({
                 )}
               </div>
 
-              <div className="mb-2 grid grid-cols-7 gap-1 text-center text-[11px] font-black text-[#7b7165]">
-                {["Po", "Ut", "Sr", "Če", "Pe", "Su", "Ne"].map((d) => (
-                  <div key={d}>{d}</div>
+              <div className="grid grid-cols-7 border-l border-t text-center text-xs font-black text-[#6f665a]">
+                {["Pon", "Uto", "Sri", "Čet", "Pet", "Sub", "Ned"].map((d) => (
+                  <div key={d} className="border-b border-r bg-[#f8f3ea] p-2">
+                    {d}
+                  </div>
                 ))}
               </div>
 
-              <div className="grid grid-cols-7 gap-1">
+              <div className="grid grid-cols-7 border-l">
                 {month.days.map((dayIso, idx) => {
-                  if (!dayIso) return <div key={idx} />;
+                  if (!dayIso) {
+                    return (
+                      <div
+                        key={idx}
+                        className="min-h-[64px] border-b border-r bg-[#f7f1e8]"
+                      />
+                    );
+                  }
 
                   const booked = isDayOccupied(
                     dayIso,
@@ -830,10 +822,7 @@ export default function CalendarClient({
                     dayIso,
                     aktivnaJedinica.rezervacije
                   );
-                  const blocked = isDayBlocked(
-                    dayIso,
-                    aktivnaJedinica.blokade
-                  );
+                  const blocked = isDayBlocked(dayIso, aktivnaJedinica.blokade);
                   const price = getPrice(dayIso, aktivnaJedinica.cjenici);
                   const selected = isSelected(dayIso, selection);
                   const adminSelected = isSelected(dayIso, adminSelection);
@@ -882,7 +871,7 @@ export default function CalendarClient({
                       disabled={!!booked || (!adminMode && unavailable)}
                       onClick={() => handleClick(dayIso)}
                       title={title}
-                      className="relative h-13 min-h-[52px] cursor-pointer overflow-hidden border text-xs font-black transition hover:brightness-95 disabled:cursor-not-allowed"
+                      className="relative min-h-[64px] cursor-pointer overflow-hidden border-b border-r p-1 text-xs font-black transition hover:brightness-[0.98] disabled:cursor-not-allowed"
                       style={style}
                     >
                       {splitCheckout && (
@@ -890,36 +879,40 @@ export default function CalendarClient({
                           <span
                             className="absolute inset-0"
                             style={{
-                              backgroundColor: CALENDAR_COLORS.zauzeto,
+                              backgroundColor: UI_COLORS.zauzeto,
                               clipPath: "polygon(0 0, 0 100%, 100% 0)",
                             }}
                           />
                           <span
                             className="absolute inset-0"
                             style={{
-                              backgroundColor: CALENDAR_COLORS.slobodno,
+                              backgroundColor: UI_COLORS.slobodno,
                               clipPath: "polygon(100% 0, 100% 100%, 0 100%)",
                             }}
                           />
                         </>
                       )}
 
-                      <div className="relative z-10">{dayIso.slice(-2)}</div>
+                      <div className="relative z-10 flex h-full min-h-[56px] flex-col justify-between">
+                        <div className="text-left text-sm font-black">
+                          {dayIso.slice(-2)}
+                        </div>
 
-                      <div className="relative z-10 text-[10px]">
-                        {adminMode
-                          ? booked
-                            ? "REZ"
-                            : blocked
-                            ? "ZAT"
+                        <div className="text-right text-[10px] font-black leading-tight">
+                          {adminMode
+                            ? booked
+                              ? "REZ"
+                              : blocked
+                              ? "ZAT"
+                              : price
+                              ? `€${price}`
+                              : "-"
+                            : booked
+                            ? "Zauzeto"
                             : price
                             ? `€${price}`
-                            : "-"
-                          : booked
-                          ? "Zauzeto"
-                          : price
-                          ? `€${price}`
-                          : "-"}
+                            : "-"}
+                        </div>
                       </div>
                     </button>
                   );
@@ -973,21 +966,31 @@ export default function CalendarClient({
       </div>
 
       <style>{`
-        @keyframes heroTravel {
+        .hero-image {
+          transform: scale(1.08);
+          animation: heroTravelSmooth 36s ease-in-out infinite alternate;
+          will-change: transform;
+        }
+
+        @keyframes heroTravelSmooth {
           0% {
-            transform: scale(1.08) translateX(-1.5%);
-            background-position: center center;
-          }
-          50% {
-            transform: scale(1.14) translateX(1.5%);
-            background-position: 58% center;
+            transform: scale(1.08) translate3d(-1.2%, 0, 0);
           }
           100% {
-            transform: scale(1.1) translateX(-1%);
-            background-position: 45% center;
+            transform: scale(1.13) translate3d(1.2%, 0, 0);
           }
         }
       `}</style>
     </main>
   );
+}
+
+function legend(bg: string, color: string): React.CSSProperties {
+  return {
+    background: bg,
+    color,
+    padding: "7px 10px",
+    border: "1px solid rgba(255,255,255,0.35)",
+    boxShadow: "0 8px 20px rgba(0,0,0,0.12)",
+  };
 }

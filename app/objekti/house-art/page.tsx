@@ -2,27 +2,50 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import GalerijaSlika from "@/components/GalerijaSlika";
 
-const detalji = [
-  {
-    naziv: "Master soba",
-    opis: "Master bedroom s vlastitom kupaonom.",
-  },
-  {
-    naziv: "Prvi kat",
-    opis: "2 spavaće sobe + 1 kupaona.",
-  },
-  {
-    naziv: "Drugi kat",
-    opis: "2 spavaće sobe + 1 kupaona.",
-  },
+const infoKartice = [
+  { label: "Tip", value: "Privatna kuća" },
+  { label: "Spavaće sobe", value: "5" },
+  { label: "Kupaone", value: "3" },
+  { label: "Kapacitet", value: "10 osoba" },
 ];
+
+type OpremaItem = {
+  oprema: {
+    naziv: string;
+    kategorija: string | null;
+    sortOrder: number;
+  };
+};
+
+function groupOpremaByKategorija(oprema: OpremaItem[]) {
+  return oprema.reduce<Record<string, string[]>>((acc, item) => {
+    const kategorija = item.oprema.kategorija || "Ostalo";
+    if (!acc[kategorija]) acc[kategorija] = [];
+    acc[kategorija].push(item.oprema.naziv);
+    return acc;
+  }, {});
+}
+
+function formatKapacitet(osnovni: number, dodatni: number) {
+  if (dodatni > 0) return `${osnovni} osobe + ${dodatni} osobe`;
+  return `${osnovni} osoba`;
+}
 
 export const dynamic = "force-dynamic";
 
 export default async function HouseArtPage() {
   const objekt = await prisma.objekt.findFirst({
-    where: {
-      naziv: "House Art",
+    where: { naziv: "House Art" },
+    include: {
+      jedinice: {
+        orderBy: [{ sortOrder: "asc" }, { naziv: "asc" }],
+        include: {
+          oprema: {
+            include: { oprema: true },
+            orderBy: { oprema: { sortOrder: "asc" } },
+          },
+        },
+      },
     },
   });
 
@@ -31,52 +54,63 @@ export default async function HouseArtPage() {
         where: {
           aktivna: true,
           OR: [
-            {
-              objektId: objekt.id,
-            },
-            {
-              jedinica: {
-                objektId: objekt.id,
-              },
-            },
+            { objektId: objekt.id },
+            { jedinica: { objektId: objekt.id } },
           ],
         },
-        orderBy: [
-          { sortOrder: "asc" },
-          { createdAt: "desc" },
-        ],
+        orderBy: [{ sortOrder: "asc" }, { createdAt: "desc" }],
       })
     : [];
 
-  const heroSlika = slike[0]?.url || "/images/2-malinska.webp";
+  const heroImages = slike
+    .filter((s) => s.objektId === objekt?.id && s.prikaziNaDashboardu)
+    .map((s) => s.url)
+    .filter(Boolean);
 
   return (
     <main className="min-h-screen bg-[#f4efe6]">
-      <section
-        className="relative h-[62vh] bg-cover bg-center"
-        style={{ backgroundImage: `url('${heroSlika}')` }}
-      >
+      <section className="relative h-[62vh] overflow-hidden bg-[#0b252b]">
+        {heroImages.length > 0 &&
+          heroImages.map((src, index) => (
+            <div
+              key={`${src}-${index}`}
+              className="absolute inset-0 bg-cover bg-center opacity-0"
+              style={{
+                backgroundImage: `url(${src})`,
+                animation: `heroFade ${heroImages.length * 6}s infinite`,
+                animationDelay: `${index * 6}s`,
+                willChange: "opacity, transform",
+                transform: "translateZ(0)",
+              }}
+            />
+          ))}
+
         <div className="absolute inset-0 bg-black/40" />
 
-        <div className="relative z-10 flex h-full items-end p-10">
-          <div className="text-white">
-            <p className="mb-2 text-sm font-bold uppercase tracking-[0.3em] text-[#d6b36a]">
-              Malinska · Otok Krk
-            </p>
+        <div className="absolute left-6 top-6 z-20">
+          <Link
+            href="/"
+            className="inline-block bg-white/90 px-4 py-2 text-sm font-bold text-[#2e2923] shadow hover:bg-white"
+          >
+            ← Natrag
+          </Link>
+        </div>
 
-            <h1 className="text-6xl font-bold">House Art</h1>
+        <div className="absolute bottom-10 left-10 z-20 text-white">
+          <p className="mb-2 text-sm font-bold uppercase tracking-[0.3em] text-[#d6b36a]">
+            Malinska · Otok Krk
+          </p>
 
-            <p className="mt-3 text-xl">
-              Privatna kuća za do 10 osoba · zajednički bazen
-            </p>
-          </div>
+          <h1 className="text-6xl font-bold">House Art</h1>
+
+          <p className="mt-3 text-xl">
+            Privatna kuća za do 10 osoba · zajednički bazen
+          </p>
         </div>
       </section>
 
       <section className="mx-auto max-w-6xl px-6 py-14">
-        <h2 className="text-4xl font-bold text-[#2e2923]">
-          House Art
-        </h2>
+        <h2 className="text-4xl font-bold text-[#2e2923]">House Art</h2>
 
         <p className="mt-5 max-w-3xl text-lg leading-relaxed text-[#6f665a]">
           House Art je privatna kuća za obiteljski odmor s 5 spavaćih soba,
@@ -84,48 +118,7 @@ export default async function HouseArtPage() {
           Apartments Marty.
         </p>
 
-        <div className="mt-8 grid gap-4 md:grid-cols-4">
-          <div className="border border-[#e4d6c0] bg-white p-5 shadow-[0_12px_35px_rgba(0,0,0,0.08)]">
-            <b>Tip</b>
-            <div>Privatna kuća</div>
-          </div>
-
-          <div className="border border-[#e4d6c0] bg-white p-5 shadow-[0_12px_35px_rgba(0,0,0,0.08)]">
-            <b>Spavaće sobe</b>
-            <div>5</div>
-          </div>
-
-          <div className="border border-[#e4d6c0] bg-white p-5 shadow-[0_12px_35px_rgba(0,0,0,0.08)]">
-            <b>Kupaone</b>
-            <div>3</div>
-          </div>
-
-          <div className="border border-[#e4d6c0] bg-white p-5 shadow-[0_12px_35px_rgba(0,0,0,0.08)]">
-            <b>Kapacitet</b>
-            <div>10 osoba</div>
-          </div>
-        </div>
-
-        <div className="mt-10 grid gap-4 md:grid-cols-3">
-          {detalji.map((d) => (
-            <div
-              key={d.naziv}
-              className="border border-[#e4d6c0] bg-white p-6 shadow-[0_12px_35px_rgba(0,0,0,0.08)]"
-            >
-              <h3 className="text-2xl font-bold text-[#2e2923]">
-                {d.naziv}
-              </h3>
-
-              <p className="mt-3 text-[#6f665a]">{d.opis}</p>
-            </div>
-          ))}
-        </div>
-
-        <section className="mt-14">
-          <h2 className="mb-6 text-4xl font-bold text-[#2e2923]">
-            Galerija slika
-          </h2>
-
+        <section className="mt-10">
           {slike.length > 0 ? (
             <GalerijaSlika slike={slike} />
           ) : (
@@ -135,6 +128,118 @@ export default async function HouseArtPage() {
           )}
         </section>
 
+        <div className="mt-10 grid gap-3 md:grid-cols-4">
+          {infoKartice.map((item) => (
+            <div
+              key={item.label}
+              className="border border-[#e4d6c0] bg-white px-4 py-4 shadow-[0_10px_28px_rgba(0,0,0,0.06)]"
+            >
+              <p className="text-[11px] font-black uppercase tracking-[0.16em] text-[#9b7b45]">
+                {item.label}
+              </p>
+
+              <p className="mt-2 text-base font-black leading-snug text-[#2e2923]">
+                {item.value}
+              </p>
+            </div>
+          ))}
+        </div>
+
+        <div className="mt-10 grid gap-5 md:grid-cols-2">
+          {objekt?.jedinice.map((jedinica) => {
+            const opis =
+              jedinica.napomena ||
+              "Privatna kuća s više spavaćih soba, kupaonicama, dnevnim prostorom i kuhinjom.";
+
+            const opremaPoKategoriji = groupOpremaByKategorija(
+              jedinica.oprema
+            );
+
+            return (
+              <div
+                key={jedinica.id}
+                className="border border-[#e4d6c0] bg-white p-6 shadow-[0_12px_35px_rgba(0,0,0,0.08)]"
+              >
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <h3 className="text-2xl font-bold text-[#2e2923]">
+                      {jedinica.naziv}
+                    </h3>
+
+                    <p className="mt-3 text-[#6f665a]">{opis}</p>
+                  </div>
+
+                  <div className="min-w-[128px] border border-[#e4d6c0] bg-[#f8f2e8] px-3 py-2 text-right">
+                    <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#9b7b45]">
+                      Kapacitet
+                    </p>
+
+                    <p className="mt-1 text-sm font-black leading-snug text-[#2e2923]">
+                      {formatKapacitet(
+                        jedinica.osnovniKapacitet,
+                        jedinica.dodatniKapacitet
+                      )}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="mt-5 grid gap-3 border-y border-[#eee1cc] py-4 text-sm text-[#6f665a] md:grid-cols-3">
+                  <div>
+                    <b className="text-[#2e2923]">Spavaće sobe</b>
+                    <div>{jedinica.brojSpavacihSoba ?? 0}</div>
+                  </div>
+
+                  <div>
+                    <b className="text-[#2e2923]">Kupaonice</b>
+                    <div>{jedinica.brojKupaona}</div>
+                  </div>
+
+                  <div>
+                    <b className="text-[#2e2923]">Bazen</b>
+                    <div>{jedinica.sharedPool ? "Zajednički" : "Ne"}</div>
+                  </div>
+                </div>
+
+                {jedinica.oprema.length > 0 && (
+                  <div className="mt-5">
+                    <h4 className="mb-4 text-lg font-black text-[#2e2923]">
+                      Oprema kuće
+                    </h4>
+
+                    <div className="space-y-4">
+                      {Object.entries(opremaPoKategoriji).map(
+                        ([kategorija, items]) => (
+                          <div
+                            key={kategorija}
+                            className="border-t border-[#eadcc5] pt-4"
+                          >
+                            <p className="mb-2 text-xs font-black uppercase tracking-[0.16em] text-[#9b7b45]">
+                              {kategorija}
+                            </p>
+
+                            <div className="flex flex-wrap gap-x-3 gap-y-2 text-sm leading-7 text-[#3b332a]">
+                              {items.map((naziv, index) => (
+                                <span key={naziv} className="font-semibold">
+                                  {naziv}
+                                  {index < items.length - 1 && (
+                                    <span className="ml-3 text-[#c79a57]">
+                                      •
+                                    </span>
+                                  )}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
         <Link
           href="/kalendar?objekt=house-art"
           className="mt-10 inline-block bg-[#c79a57] px-7 py-4 font-bold text-white"
@@ -142,6 +247,16 @@ export default async function HouseArtPage() {
           Provjeri dostupnost
         </Link>
       </section>
+
+      <style>{`
+        @keyframes heroFade {
+          0% { opacity: 0; transform: scale(1.04); }
+          8% { opacity: 1; }
+          30% { opacity: 1; }
+          40% { opacity: 0; transform: scale(1.10); }
+          100% { opacity: 0; }
+        }
+      `}</style>
     </main>
   );
 }

@@ -41,12 +41,12 @@ export default function AdminSlikeClient({
   const [tip, setTip] = useState<TipSlike>("OBJEKT");
   const [files, setFiles] = useState<File[]>([]);
   const [fileInputKey, setFileInputKey] = useState(0);
-
   const [slike, setSlike] = useState<Slika[]>(pocetneSlike);
 
   const [objektId, setObjektId] = useState("");
   const [jedinicaId, setJedinicaId] = useState("");
 
+  const [aktivnaUpload, setAktivnaUpload] = useState(true);
   const [dashboard, setDashboard] = useState(false);
   const [pocetna, setPocetna] = useState(false);
 
@@ -54,10 +54,7 @@ export default function AdminSlikeClient({
   const [uploadInfo, setUploadInfo] = useState("");
 
   async function ucitajSlike() {
-    const res = await fetch("/api/slike", {
-      cache: "no-store",
-    });
-
+    const res = await fetch("/api/slike", { cache: "no-store" });
     if (!res.ok) return;
 
     const data = await res.json();
@@ -80,34 +77,24 @@ export default function AdminSlikeClient({
       return;
     }
 
-    if (tip === "DASHBOARD" && !dashboard && !pocetna) {
-      alert("Označi barem Dashboard ili Početna");
-      return;
-    }
-
     setLoading(true);
     setUploadInfo("");
 
     try {
       for (let i = 0; i < files.length; i++) {
         const formData = new FormData();
+
         formData.append("file", files[i]);
+        formData.append("aktivna", String(aktivnaUpload));
+        formData.append("dashboard", String(dashboard));
+        formData.append("pocetna", String(pocetna));
 
         if (tip === "OBJEKT") {
           formData.append("objektId", objektId);
-          formData.append("dashboard", "false");
-          formData.append("pocetna", "false");
         }
 
         if (tip === "JEDINICA") {
           formData.append("jedinicaId", jedinicaId);
-          formData.append("dashboard", "false");
-          formData.append("pocetna", "false");
-        }
-
-        if (tip === "DASHBOARD") {
-          formData.append("dashboard", String(dashboard));
-          formData.append("pocetna", String(pocetna));
         }
 
         setUploadInfo(`Spremam ${i + 1} / ${files.length}...`);
@@ -128,10 +115,6 @@ export default function AdminSlikeClient({
 
       setFiles([]);
       setFileInputKey((v) => v + 1);
-
-      // Namjerno NE brišemo objektId, jedinicaId, dashboard i pocetna.
-      // Tako možeš odmah dodati drugu sliku za isti objekt/jedinicu.
-
       await ucitajSlike();
 
       alert(
@@ -151,9 +134,7 @@ export default function AdminSlikeClient({
 
     const res = await fetch(`/api/slike/${id}`, {
       method: "PATCH",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         aktivna: data.aktivna ?? stara.aktivna,
         prikaziNaPocetnoj: data.prikaziNaPocetnoj ?? stara.prikaziNaPocetnoj,
@@ -195,11 +176,7 @@ export default function AdminSlikeClient({
       return slika.objekt.naziv;
     }
 
-    if (slika.prikaziNaDashboardu || slika.prikaziNaPocetnoj) {
-      return "Dashboard / početna";
-    }
-
-    return "Slika";
+    return "Početna / dashboard";
   }
 
   return (
@@ -223,8 +200,8 @@ export default function AdminSlikeClient({
             </h1>
 
             <p className="mt-3 text-[#6f665a]">
-              Ovdje uploadaš slike po objektu, po jedinici ili posebno za
-              dashboard / početnu.
+              Upload po objektu, po jedinici ili za glavnu početnu. Svakoj
+              slici možeš odrediti gdje se prikazuje.
             </p>
           </div>
 
@@ -254,18 +231,15 @@ export default function AdminSlikeClient({
                   setTip(noviTip);
 
                   if (noviTip === "DASHBOARD") {
-                    setDashboard(true);
-                    setPocetna(false);
-                  } else {
                     setDashboard(false);
-                    setPocetna(false);
+                    setPocetna(true);
                   }
                 }}
                 className="w-full cursor-pointer border border-[#d8c7aa] bg-white p-3 font-bold text-[#2e2923]"
               >
                 <option value="OBJEKT">Objekt</option>
                 <option value="JEDINICA">Jedinica / apartman</option>
-                <option value="DASHBOARD">Dashboard / početna</option>
+                <option value="DASHBOARD">Samo početna / glavni dashboard</option>
               </select>
             </div>
 
@@ -311,33 +285,41 @@ export default function AdminSlikeClient({
               </div>
             )}
 
-            {tip === "DASHBOARD" && (
-              <div>
-                <label className="mb-2 block text-sm font-black text-[#5f5549]">
-                  Prikaz slike
+            <div>
+              <label className="mb-2 block text-sm font-black text-[#5f5549]">
+                Prikaz slike
+              </label>
+
+              <div className="space-y-2 border border-[#d8c7aa] bg-[#fbf8f2] p-3">
+                <label className="flex cursor-pointer items-center gap-2 font-bold text-[#2e2923]">
+                  <input
+                    type="checkbox"
+                    checked={aktivnaUpload}
+                    onChange={(e) => setAktivnaUpload(e.target.checked)}
+                  />
+                  Aktivna / galerija
                 </label>
 
-                <div className="space-y-3 border border-[#d8c7aa] bg-[#fbf8f2] p-3">
-                  <label className="flex cursor-pointer items-center gap-2 font-bold text-[#2e2923]">
-                    <input
-                      type="checkbox"
-                      checked={dashboard}
-                      onChange={(e) => setDashboard(e.target.checked)}
-                    />
-                    Prikaži na dashboardu
-                  </label>
+                <label className="flex cursor-pointer items-center gap-2 font-bold text-[#2e2923]">
+                  <input
+                    type="checkbox"
+                    checked={pocetna}
+                    onChange={(e) => setPocetna(e.target.checked)}
+                  />
+                  Početna / glavni dashboard
+                </label>
 
-                  <label className="flex cursor-pointer items-center gap-2 font-bold text-[#2e2923]">
-                    <input
-                      type="checkbox"
-                      checked={pocetna}
-                      onChange={(e) => setPocetna(e.target.checked)}
-                    />
-                    Prikaži na početnoj
-                  </label>
-                </div>
+                <label className="flex cursor-pointer items-center gap-2 font-bold text-[#2e2923]">
+                  <input
+                    type="checkbox"
+                    checked={dashboard}
+                    onChange={(e) => setDashboard(e.target.checked)}
+                    disabled={tip === "DASHBOARD"}
+                  />
+                  Dashboard objekta
+                </label>
               </div>
-            )}
+            </div>
 
             <div>
               <label className="mb-2 block text-sm font-black text-[#5f5549]">
@@ -412,19 +394,19 @@ export default function AdminSlikeClient({
                         </span>
                       ) : (
                         <span className="bg-red-100 px-2 py-1 text-red-800">
-                          Ugašena
-                        </span>
-                      )}
-
-                      {slika.prikaziNaDashboardu && (
-                        <span className="bg-blue-100 px-2 py-1 text-blue-800">
-                          Dashboard
+                          Neaktivna
                         </span>
                       )}
 
                       {slika.prikaziNaPocetnoj && (
                         <span className="bg-yellow-100 px-2 py-1 text-yellow-800">
                           Početna
+                        </span>
+                      )}
+
+                      {slika.prikaziNaDashboardu && (
+                        <span className="bg-blue-100 px-2 py-1 text-blue-800">
+                          Dashboard objekta
                         </span>
                       )}
                     </div>
@@ -446,19 +428,6 @@ export default function AdminSlikeClient({
                       <label className="flex cursor-pointer items-center gap-2 font-bold text-[#5f5549]">
                         <input
                           type="checkbox"
-                          checked={slika.prikaziNaDashboardu}
-                          onChange={(e) =>
-                            updateSlika(slika.id, {
-                              prikaziNaDashboardu: e.target.checked,
-                            })
-                          }
-                        />
-                        Dashboard
-                      </label>
-
-                      <label className="flex cursor-pointer items-center gap-2 font-bold text-[#5f5549]">
-                        <input
-                          type="checkbox"
                           checked={slika.prikaziNaPocetnoj}
                           onChange={(e) =>
                             updateSlika(slika.id, {
@@ -467,6 +436,19 @@ export default function AdminSlikeClient({
                           }
                         />
                         Početna
+                      </label>
+
+                      <label className="flex cursor-pointer items-center gap-2 font-bold text-[#5f5549]">
+                        <input
+                          type="checkbox"
+                          checked={slika.prikaziNaDashboardu}
+                          onChange={(e) =>
+                            updateSlika(slika.id, {
+                              prikaziNaDashboardu: e.target.checked,
+                            })
+                          }
+                        />
+                        Dashboard objekta
                       </label>
 
                       <label className="font-bold text-[#5f5549]">

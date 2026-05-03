@@ -6,6 +6,7 @@ export const dynamic = "force-dynamic";
 type SearchParams = Promise<{
   datum?: string;
   rezervacijaId?: string;
+  mjesec?: string;
 }>;
 
 function startOfDay(d: Date) {
@@ -22,6 +23,21 @@ function addMonths(d: Date, months: number) {
   const x = new Date(d);
   x.setMonth(x.getMonth() + months);
   return x;
+}
+
+function parseMonth(value?: string | null) {
+  if (!value) return null;
+
+  const [year, month] = value.split("-").map(Number);
+  if (!year || !month) return null;
+
+  return new Date(year, month - 1, 1);
+}
+
+function monthParam(value: Date) {
+  const y = value.getFullYear();
+  const m = String(value.getMonth() + 1).padStart(2, "0");
+  return `${y}-${m}`;
 }
 
 function toIsoDate(d: Date) {
@@ -67,8 +83,27 @@ export default async function AdminMonitorPage({
     ? startOfDay(new Date(params.datum))
     : danas;
 
-  const kalendarOd = new Date(danas.getFullYear(), danas.getMonth(), 1);
+  const mjesecIzParametra = parseMonth(params.mjesec);
+  const kalendarOd =
+    mjesecIzParametra || new Date(danas.getFullYear(), danas.getMonth(), 1);
+
   const kalendarDo = addMonths(kalendarOd, 4);
+
+  const prevMonth = addMonths(kalendarOd, -1);
+  const nextMonth = addMonths(kalendarOd, 1);
+
+  function buildMonthHref(targetMonth: Date) {
+    const q = new URLSearchParams();
+
+    q.set("mjesec", monthParam(targetMonth));
+    q.set("datum", toIsoDate(odabraniDatum));
+
+    if (params.rezervacijaId) {
+      q.set("rezervacijaId", params.rezervacijaId);
+    }
+
+    return `/admin/monitor?${q.toString()}`;
+  }
 
   const rezervacije = await prisma.rezervacija.findMany({
     where: {
@@ -102,7 +137,7 @@ export default async function AdminMonitorPage({
     : null;
 
   const mjeseci = [0, 1, 2, 3].map((i) => {
-    const m = addMonths(danas, i);
+    const m = addMonths(kalendarOd, i);
     return new Date(m.getFullYear(), m.getMonth(), 1);
   });
 
@@ -275,6 +310,35 @@ export default async function AdminMonitorPage({
           </section>
         )}
 
+        <section className="mb-5 border border-white/80 bg-white p-4 shadow-[0_10px_25px_rgba(0,0,0,0.06)]">
+          <div className="flex items-center justify-between gap-3">
+            <Link
+              href={buildMonthHref(prevMonth)}
+              className="cursor-pointer border border-[#d8c8aa] bg-[#f8f3ea] px-4 py-2 text-lg font-black text-[#7a5a22] hover:bg-[#fff6e2]"
+            >
+              ←
+            </Link>
+
+            <div className="text-center">
+              <div className="text-xs font-black uppercase tracking-[0.18em] text-[#9b7a4c]">
+                Prikaz kalendara
+              </div>
+              <div className="mt-1 text-xl font-black capitalize text-[#2e2923]">
+                {monthName(kalendarOd)} / {monthName(addMonths(kalendarOd, 1))}{" "}
+                / {monthName(addMonths(kalendarOd, 2))} /{" "}
+                {monthName(addMonths(kalendarOd, 3))}
+              </div>
+            </div>
+
+            <Link
+              href={buildMonthHref(nextMonth)}
+              className="cursor-pointer border border-[#d8c8aa] bg-[#f8f3ea] px-4 py-2 text-lg font-black text-[#7a5a22] hover:bg-[#fff6e2]"
+            >
+              →
+            </Link>
+          </div>
+        </section>
+
         <div className="grid gap-3 xl:grid-cols-2">
           {mjeseci.map((mjesec) => (
             <MonthCalendar
@@ -364,7 +428,9 @@ function MonthCalendar({
           return (
             <Link
               key={iso}
-              href={`/admin/monitor?datum=${iso}`}
+              href={`/admin/monitor?datum=${iso}&mjesec=${monthParam(
+                mjesec
+              )}`}
               className="min-h-[60px] border-b border-r bg-white p-1 transition hover:bg-[#fff8eb]"
               style={{
                 outline: selected ? "2px solid #9b6b12" : "none",

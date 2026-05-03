@@ -2,31 +2,6 @@ import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 import fs from "fs";
 import path from "path";
 
-function formatDate(value: any) {
-  if (!value) return "-";
-
-  const d = new Date(value);
-
-  if (Number.isNaN(d.getTime())) return "-";
-
-  return d.toLocaleDateString("hr-HR");
-}
-
-function formatDateTime(value: any) {
-  const d = value ? new Date(value) : new Date();
-
-  if (Number.isNaN(d.getTime())) return "-";
-
-  return d.toLocaleTimeString("hr-HR", {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
-
-function money(value: any) {
-  return `${Number(value || 0).toFixed(2)} EUR`;
-}
-
 function safeFileName(value: string) {
   return String(value || "racun")
     .replace(/[\\/]/g, "-")
@@ -47,43 +22,35 @@ function text(value: any) {
     .replace(/Đ/g, "D");
 }
 
-function drawLine(page: any, y: number) {
-  page.drawLine({
-    start: { x: 50, y },
-    end: { x: 545, y },
-    thickness: 1,
-    color: rgb(0.82, 0.76, 0.66),
+function formatDate(value: any) {
+  if (!value) return "-";
+
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return "-";
+
+  return d.toLocaleDateString("hr-HR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
   });
 }
 
-function drawLabel(
-  page: any,
-  label: string,
-  value: string,
-  x: number,
-  y: number,
-  font: any,
-  bold: any
-) {
-  page.drawText(text(label), {
-    x,
-    y,
-    size: 8,
-    font: bold,
-    color: rgb(0.58, 0.45, 0.24),
-  });
+function formatTime(value: any) {
+  const d = value ? new Date(value) : new Date();
+  if (Number.isNaN(d.getTime())) return "-";
 
-  page.drawText(text(value || "-"), {
-    x,
-    y: y - 15,
-    size: 11,
-    font,
-    color: rgb(0.16, 0.15, 0.13),
+  return d.toLocaleTimeString("hr-HR", {
+    hour: "2-digit",
+    minute: "2-digit",
   });
 }
 
-function wrapText(value: string, maxChars = 95) {
-  const words = text(value).split(" ");
+function money(value: any) {
+  return `${Number(value || 0).toFixed(2)} EUR`;
+}
+
+function wrapText(value: string, maxChars = 78) {
+  const words = text(value).split(/\s+/).filter(Boolean);
   const lines: string[] = [];
   let current = "";
 
@@ -99,8 +66,36 @@ function wrapText(value: string, maxChars = 95) {
   }
 
   if (current) lines.push(current);
-
   return lines;
+}
+
+function drawLine(page: any, y: number) {
+  page.drawLine({
+    start: { x: 50, y },
+    end: { x: 545, y },
+    thickness: 1,
+    color: rgb(0.86, 0.8, 0.7),
+  });
+}
+
+function drawSmallLabel(page: any, label: string, x: number, y: number, bold: any) {
+  page.drawText(text(label), {
+    x,
+    y,
+    size: 8,
+    font: bold,
+    color: rgb(0.48, 0.34, 0.14),
+  });
+}
+
+function drawValue(page: any, value: string, x: number, y: number, font: any) {
+  page.drawText(text(value || "-"), {
+    x,
+    y,
+    size: 10,
+    font,
+    color: rgb(0.18, 0.16, 0.13),
+  });
 }
 
 async function drawLogo(pdfDoc: PDFDocument, page: any, racun: any) {
@@ -118,12 +113,7 @@ async function drawLogo(pdfDoc: PDFDocument, page: any, racun: any) {
   } else if (objektNaziv.includes("eva")) {
     logoPath = path.join(process.cwd(), "public", "logos", "eva_logo.png");
   } else if (objektNaziv.includes("art")) {
-    logoPath = path.join(
-      process.cwd(),
-      "public",
-      "logos",
-      "house_art_logo.png"
-    );
+    logoPath = path.join(process.cwd(), "public", "logos", "house_art_logo.png");
   }
 
   if (!logoPath || !fs.existsSync(logoPath)) return;
@@ -131,13 +121,13 @@ async function drawLogo(pdfDoc: PDFDocument, page: any, racun: any) {
   const bytes = fs.readFileSync(logoPath);
   const image = await pdfDoc.embedPng(bytes);
 
-  const maxWidth = 120;
-  const maxHeight = 80;
+  const maxWidth = 115;
+  const maxHeight = 70;
   const scale = Math.min(maxWidth / image.width, maxHeight / image.height);
 
   page.drawImage(image, {
     x: 50,
-    y: 742,
+    y: 745,
     width: image.width * scale,
     height: image.height * scale,
   });
@@ -160,23 +150,12 @@ export async function generateRacunPdf(racun: any) {
   const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
   const bold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
 
-  await drawLogo(pdfDoc, page, racun);
-
   const rezervacija = racun.rezervacija || {};
   const gost = racun.gost || rezervacija.gost || {};
   const jedinica = racun.jedinica || rezervacija.jedinica || {};
   const objekt = racun.objekt || jedinica.objekt || {};
 
-  const datumOd = rezervacija.datumOd;
-  const datumDo = rezervacija.datumDo;
-  const brojNocenja = rezervacija.brojNocenja || "";
-  const brojOsoba = rezervacija.brojOsoba || "";
-
-  const gostImePrezime = [gost.ime, gost.prezime].filter(Boolean).join(" ");
-  const gostDrzava = gost.drzava || gost.drzavaNaziv || "";
-
-  const nazivJedinice = jedinica.naziv || "";
-  const nazivObjekta = objekt.naziv || "";
+  const datumRacuna = racun.createdAt || new Date();
 
   const nazivIzdavatelja =
     racun.nazivIzdavatelja ||
@@ -184,236 +163,172 @@ export async function generateRacunPdf(racun: any) {
     objekt.naziv ||
     "Izdavatelj";
 
-  const oibIzdavatelja =
-    racun.oibIzdavatelja || objekt.oibZaRacun || "";
-
   const adresaIzdavatelja =
     racun.adresaIzdavatelja || objekt.adresaZaRacun || "";
 
   const mjestoIzdavatelja =
-    racun.mjestoIzdavatelja ||
-    objekt.mjestoZaRacun ||
-    objekt.mjesto ||
-    "Malinska";
+    racun.mjestoIzdavatelja || objekt.mjestoZaRacun || objekt.mjesto || "";
 
-  const ibanIzdavatelja =
-    racun.ibanIzdavatelja || objekt.ibanZaRacun || "";
-
+  const oibIzdavatelja = racun.oibIzdavatelja || objekt.oibZaRacun || "";
+  const ibanIzdavatelja = racun.ibanIzdavatelja || objekt.ibanZaRacun || "";
+  const emailIzdavatelja = racun.emailIzdavatelja || objekt.emailZaRacun || "";
   const telefonIzdavatelja =
     racun.telefonIzdavatelja || objekt.telefonZaRacun || "";
 
-  const emailIzdavatelja =
-    racun.emailIzdavatelja || objekt.emailZaRacun || "";
-
   const napomenaNaRacunu =
-    objekt.napomenaNaRacunu ||
     racun.napomenaNaRacunu ||
+    objekt.napomenaNaRacunu ||
     "Privatni iznajmljivac nije u sustavu PDV-a. PDV nije obracunat.";
 
+  const gostImePrezime = [gost.ime, gost.prezime].filter(Boolean).join(" ");
+  const gostAdresa = gost.adresa || "";
+  const gostGrad = gost.grad || "";
+  const gostDrzava = gost.drzava || gost.drzavaNaziv || "";
+  const gostEmail = gost.email || "";
+  const gostTelefon = gost.telefon || "";
+
+  const nazivObjekta = objekt.naziv || "";
+  const nazivJedinice = jedinica.naziv || "";
+
+  const datumOd = rezervacija.datumOd;
+  const datumDo = rezervacija.datumDo;
+  const brojNocenja = Number(rezervacija.brojNocenja || 1);
+  const brojOsoba = Number(rezervacija.brojOsoba || 1);
+
   const iznos = Number(racun.iznos || 0);
-  const ukupnoRezervacija = Number(rezervacija.iznosUkupno || iznos);
-  const ukupnoPlaceno = Number(rezervacija.iznosPlaceno || iznos);
-  const preostaloZaPlatiti = Math.max(ukupnoRezervacija - ukupnoPlaceno, 0);
+  const jedinicnaCijena = brojNocenja > 0 ? iznos / brojNocenja : iznos;
 
-  const jedinicnaCijena =
-    brojNocenja && Number(brojNocenja) > 0
-      ? iznos / Number(brojNocenja)
-      : iznos;
+  const ukupnoRezervacija = Number(
+    rezervacija.dogovoreniIznos || rezervacija.iznosUkupno || iznos
+  );
+  const placeno = Number(rezervacija.iznosPlaceno || 0);
+  const zaPlatiti = Math.max(ukupnoRezervacija - placeno, 0);
 
-  const datumRacuna = racun.createdAt || new Date();
+  await drawLogo(pdfDoc, page, racun);
 
   // HEADER
   page.drawText("RACUN", {
     x: 410,
-    y: 785,
-    size: 28,
+    y: 790,
+    size: 30,
     font: bold,
-    color: rgb(0.12, 0.22, 0.34),
+    color: rgb(0.18, 0.16, 0.13),
   });
 
   page.drawText(`Broj: ${text(brojRacuna)}`, {
     x: 410,
-    y: 758,
+    y: 760,
     size: 11,
     font: bold,
-    color: rgb(0.16, 0.15, 0.13),
+    color: rgb(0.18, 0.16, 0.13),
   });
 
   page.drawText(`Datum: ${formatDate(datumRacuna)}`, {
     x: 410,
-    y: 740,
+    y: 742,
     size: 10,
     font,
-    color: rgb(0.38, 0.35, 0.3),
+    color: rgb(0.42, 0.38, 0.32),
   });
 
-  page.drawText(`Vrijeme: ${formatDateTime(datumRacuna)}`, {
+  page.drawText(`Vrijeme: ${formatTime(datumRacuna)}`, {
     x: 410,
-    y: 724,
+    y: 726,
     size: 10,
     font,
-    color: rgb(0.38, 0.35, 0.3),
+    color: rgb(0.42, 0.38, 0.32),
   });
 
   page.drawText(`Mjesto: ${text(mjestoIzdavatelja || "Malinska")}`, {
     x: 410,
-    y: 708,
+    y: 710,
     size: 10,
     font,
-    color: rgb(0.38, 0.35, 0.3),
+    color: rgb(0.42, 0.38, 0.32),
   });
 
-  drawLine(page, 700);
+  drawLine(page, 695);
 
-  // IZDAVATELJ
-  page.drawText("IZDAVATELJ", {
-    x: 50,
-    y: 675,
-    size: 9,
-    font: bold,
-    color: rgb(0.58, 0.45, 0.24),
-  });
-
+  // IZDAVATELJ / GOST
+  drawSmallLabel(page, "IZDAVATELJ", 50, 670, bold);
   page.drawText(text(nazivIzdavatelja), {
     x: 50,
-    y: 655,
+    y: 650,
     size: 12,
     font: bold,
-    color: rgb(0.16, 0.15, 0.13),
+    color: rgb(0.18, 0.16, 0.13),
   });
 
-  page.drawText(text(adresaIzdavatelja || "-"), {
-    x: 50,
-    y: 638,
-    size: 10,
-    font,
-    color: rgb(0.38, 0.35, 0.3),
-  });
+  let leftY = 633;
+  const izdavateljLines = [
+    adresaIzdavatelja,
+    mjestoIzdavatelja,
+    oibIzdavatelja ? `OIB: ${oibIzdavatelja}` : "",
+    telefonIzdavatelja ? `Tel: ${telefonIzdavatelja}` : "",
+    emailIzdavatelja ? `Email: ${emailIzdavatelja}` : "",
+    ibanIzdavatelja ? `IBAN: ${ibanIzdavatelja}` : "",
+  ].filter(Boolean);
 
-  page.drawText(text(mjestoIzdavatelja || "-"), {
-    x: 50,
-    y: 623,
-    size: 10,
-    font,
-    color: rgb(0.38, 0.35, 0.3),
-  });
-
-  page.drawText(text(`OIB: ${oibIzdavatelja || "-"}`), {
-    x: 50,
-    y: 608,
-    size: 10,
-    font,
-    color: rgb(0.38, 0.35, 0.3),
-  });
-
-  if (telefonIzdavatelja) {
-    page.drawText(text(`Tel: ${telefonIzdavatelja}`), {
-      x: 50,
-      y: 593,
-      size: 10,
-      font,
-      color: rgb(0.38, 0.35, 0.3),
-    });
+  for (const line of izdavateljLines) {
+    drawValue(page, line, 50, leftY, font);
+    leftY -= 15;
   }
 
-  if (emailIzdavatelja) {
-    page.drawText(text(`Email: ${emailIzdavatelja}`), {
-      x: 50,
-      y: 578,
-      size: 10,
-      font,
-      color: rgb(0.38, 0.35, 0.3),
-    });
-  }
-
-  if (ibanIzdavatelja) {
-    page.drawText(text(`IBAN: ${ibanIzdavatelja}`), {
-      x: 50,
-      y: 563,
-      size: 10,
-      font,
-      color: rgb(0.38, 0.35, 0.3),
-    });
-  }
-
-  // GOST
-  page.drawText("GOST", {
-    x: 330,
-    y: 675,
-    size: 9,
-    font: bold,
-    color: rgb(0.58, 0.45, 0.24),
-  });
-
+  drawSmallLabel(page, "GOST", 330, 670, bold);
   page.drawText(text(gostImePrezime || "-"), {
     x: 330,
-    y: 655,
+    y: 650,
     size: 12,
     font: bold,
-    color: rgb(0.16, 0.15, 0.13),
+    color: rgb(0.18, 0.16, 0.13),
   });
 
-  if (gostDrzava) {
-    page.drawText(text(gostDrzava), {
-      x: 330,
-      y: 638,
-      size: 10,
-      font,
-      color: rgb(0.38, 0.35, 0.3),
-    });
+  let rightY = 633;
+  const gostLines = [
+    gostAdresa,
+    [gostGrad, gostDrzava].filter(Boolean).join(", "),
+    gostEmail,
+    gostTelefon ? `Tel: ${gostTelefon}` : "",
+  ].filter(Boolean);
+
+  for (const line of gostLines.length ? gostLines : ["-"]) {
+    drawValue(page, line, 330, rightY, font);
+    rightY -= 15;
   }
 
-  if (gost.email) {
-    page.drawText(text(gost.email), {
-      x: 330,
-      y: gostDrzava ? 623 : 638,
-      size: 10,
-      font,
-      color: rgb(0.38, 0.35, 0.3),
-    });
-  }
-
-  if (gost.telefon) {
-    page.drawText(text(`Tel: ${gost.telefon}`), {
-      x: 330,
-      y: gostDrzava ? 608 : 623,
-      size: 10,
-      font,
-      color: rgb(0.38, 0.35, 0.3),
-    });
-  }
-
-  // BORAVAK BOX
+  // BORAVAK
   page.drawRectangle({
     x: 50,
-    y: 488,
+    y: 492,
     width: 495,
-    height: 70,
-    color: rgb(0.96, 0.93, 0.87),
-    borderColor: rgb(0.82, 0.76, 0.66),
+    height: 68,
+    color: rgb(0.97, 0.95, 0.9),
+    borderColor: rgb(0.86, 0.8, 0.7),
     borderWidth: 1,
   });
 
-  drawLabel(page, "BORAVAK OD", formatDate(datumOd), 68, 532, font, bold);
-  drawLabel(page, "BORAVAK DO", formatDate(datumDo), 185, 532, font, bold);
-  drawLabel(page, "NOCENJA", String(brojNocenja || "-"), 302, 532, font, bold);
-  drawLabel(page, "OSOBA", String(brojOsoba || "-"), 410, 532, font, bold);
+  const boxY = 535;
+  drawSmallLabel(page, "DOLAZAK", 70, boxY, bold);
+  drawValue(page, formatDate(datumOd), 70, boxY - 16, font);
+
+  drawSmallLabel(page, "ODLAZAK", 190, boxY, bold);
+  drawValue(page, formatDate(datumDo), 190, boxY - 16, font);
+
+  drawSmallLabel(page, "NOCENJA", 315, boxY, bold);
+  drawValue(page, String(brojNocenja || "-"), 315, boxY - 16, font);
+
+  drawSmallLabel(page, "OSOBA", 430, boxY, bold);
+  drawValue(page, String(brojOsoba || "-"), 430, boxY - 16, font);
 
   // REZERVACIJA
-  page.drawText("REZERVACIJA", {
-    x: 50,
-    y: 460,
-    size: 10,
-    font: bold,
-    color: rgb(0.58, 0.45, 0.24),
-  });
+  drawSmallLabel(page, "REZERVACIJA", 50, 465, bold);
 
-  page.drawText(text(`${nazivObjekta} - ${nazivJedinice}`), {
+  page.drawText(text(`${nazivObjekta} / ${nazivJedinice}`), {
     x: 50,
-    y: 442,
+    y: 445,
     size: 13,
     font: bold,
-    color: rgb(0.16, 0.15, 0.13),
+    color: rgb(0.18, 0.16, 0.13),
   });
 
   // TABLICA
@@ -424,10 +339,10 @@ export async function generateRacunPdf(racun: any) {
     y: y - 8,
     width: 495,
     height: 28,
-    color: rgb(0.12, 0.22, 0.34),
+    color: rgb(0.2, 0.17, 0.13),
   });
 
-  page.drawText("Vrsta usluge", {
+  page.drawText("Usluga", {
     x: 62,
     y,
     size: 10,
@@ -435,24 +350,24 @@ export async function generateRacunPdf(racun: any) {
     color: rgb(1, 1, 1),
   });
 
-  page.drawText("Kolicina", {
-    x: 305,
+  page.drawText("Kol.", {
+    x: 320,
     y,
     size: 10,
     font: bold,
     color: rgb(1, 1, 1),
   });
 
-  page.drawText("Jed. cijena", {
-    x: 370,
+  page.drawText("Cijena", {
+    x: 375,
     y,
     size: 10,
     font: bold,
     color: rgb(1, 1, 1),
   });
 
-  page.drawText("Ukupno", {
-    x: 475,
+  page.drawText("Iznos", {
+    x: 485,
     y,
     size: 10,
     font: bold,
@@ -461,12 +376,12 @@ export async function generateRacunPdf(racun: any) {
 
   y -= 36;
 
-  page.drawText(text(`1. Nocenje u apartmanu ${nazivJedinice}`), {
+  page.drawText(text(`Smjestaj - ${nazivJedinice || "jedinica"}`), {
     x: 62,
     y,
     size: 10,
     font,
-    color: rgb(0.16, 0.15, 0.13),
+    color: rgb(0.18, 0.16, 0.13),
   });
 
   page.drawText(String(brojNocenja || 1), {
@@ -474,15 +389,15 @@ export async function generateRacunPdf(racun: any) {
     y,
     size: 10,
     font,
-    color: rgb(0.16, 0.15, 0.13),
+    color: rgb(0.18, 0.16, 0.13),
   });
 
   page.drawText(money(jedinicnaCijena), {
-    x: 370,
+    x: 365,
     y,
     size: 10,
     font,
-    color: rgb(0.16, 0.15, 0.13),
+    color: rgb(0.18, 0.16, 0.13),
   });
 
   page.drawText(money(iznos), {
@@ -490,38 +405,38 @@ export async function generateRacunPdf(racun: any) {
     y,
     size: 10,
     font: bold,
-    color: rgb(0.16, 0.15, 0.13),
+    color: rgb(0.18, 0.16, 0.13),
   });
 
   drawLine(page, y - 18);
 
-  // TOTAL
+  // UKUPNO
   y -= 55;
 
-  page.drawText("IZNOS RACUNA:", {
-    x: 330,
+  page.drawText("Iznos racuna:", {
+    x: 335,
     y,
-    size: 11,
+    size: 10,
     font: bold,
-    color: rgb(0.16, 0.15, 0.13),
+    color: rgb(0.42, 0.38, 0.32),
   });
 
   page.drawText(money(iznos), {
     x: 455,
     y,
-    size: 11,
-    font: bold,
-    color: rgb(0.16, 0.15, 0.13),
+    size: 10,
+    font,
+    color: rgb(0.42, 0.38, 0.32),
   });
 
-  y -= 22;
+  y -= 20;
 
-  page.drawText("UKUPNO REZERVACIJA:", {
-    x: 330,
+  page.drawText("Ukupno rezervacija:", {
+    x: 335,
     y,
     size: 10,
     font: bold,
-    color: rgb(0.38, 0.35, 0.3),
+    color: rgb(0.42, 0.38, 0.32),
   });
 
   page.drawText(money(ukupnoRezervacija), {
@@ -529,68 +444,68 @@ export async function generateRacunPdf(racun: any) {
     y,
     size: 10,
     font,
-    color: rgb(0.38, 0.35, 0.3),
+    color: rgb(0.42, 0.38, 0.32),
   });
 
   y -= 20;
 
-  page.drawText("PLACENO:", {
-    x: 330,
+  page.drawText("Placeno:", {
+    x: 335,
     y,
     size: 10,
     font: bold,
-    color: rgb(0.38, 0.35, 0.3),
+    color: rgb(0.42, 0.38, 0.32),
   });
 
-  page.drawText(money(ukupnoPlaceno), {
+  page.drawText(money(placeno), {
     x: 455,
     y,
     size: 10,
     font,
-    color: rgb(0.38, 0.35, 0.3),
+    color: rgb(0.42, 0.38, 0.32),
   });
 
-  y -= 32;
+  y -= 36;
 
   page.drawRectangle({
     x: 320,
     y: y - 8,
     width: 225,
-    height: 30,
-    color: rgb(0.96, 0.93, 0.87),
-    borderColor: rgb(0.82, 0.76, 0.66),
+    height: 32,
+    color: rgb(0.97, 0.95, 0.9),
+    borderColor: rgb(0.86, 0.8, 0.7),
     borderWidth: 1,
   });
 
-  page.drawText("ZA PLATITI:", {
+  page.drawText(zaPlatiti > 0 ? "ZA PLATITI:" : "PLACENO:", {
     x: 335,
     y,
     size: 12,
     font: bold,
-    color: rgb(0.16, 0.15, 0.13),
+    color: rgb(0.18, 0.16, 0.13),
   });
 
-  page.drawText(money(preostaloZaPlatiti), {
+  page.drawText(money(zaPlatiti > 0 ? zaPlatiti : iznos), {
     x: 455,
     y,
     size: 12,
     font: bold,
-    color: rgb(0.16, 0.15, 0.13),
+    color: rgb(0.18, 0.16, 0.13),
   });
 
   // FOOTER
-  drawLine(page, 140);
+  drawLine(page, 142);
 
-  const napomenaLines = wrapText(napomenaNaRacunu, 95);
-  let footerY = 118;
+  let footerY = 120;
+  const napomenaLines = wrapText(napomenaNaRacunu, 90).slice(0, 3);
 
-  for (const line of napomenaLines.slice(0, 3)) {
+  for (const line of napomenaLines) {
     page.drawText(line, {
       x: 50,
       y: footerY,
       size: 9,
       font,
-      color: rgb(0.38, 0.35, 0.3),
+      color: rgb(0.42, 0.38, 0.32),
     });
 
     footerY -= 13;
@@ -598,10 +513,10 @@ export async function generateRacunPdf(racun: any) {
 
   page.drawText("Racun je izraden racunalno i vazeci je bez potpisa i pecata.", {
     x: 50,
-    y: footerY - 6,
+    y: footerY - 8,
     size: 8,
     font,
-    color: rgb(0.38, 0.35, 0.3),
+    color: rgb(0.42, 0.38, 0.32),
   });
 
   page.drawText("Hvala na povjerenju.", {
@@ -609,11 +524,10 @@ export async function generateRacunPdf(racun: any) {
     y: 62,
     size: 10,
     font: bold,
-    color: rgb(0.58, 0.45, 0.24),
+    color: rgb(0.48, 0.34, 0.14),
   });
 
   const pdfBytes = await pdfDoc.save();
-
   fs.writeFileSync(filePath, pdfBytes);
 
   return `/racuni/${fileName}`;

@@ -37,28 +37,33 @@ export default async function PostavkeRacunaPage({
       style={{
         fontFamily: "Calibri, Segoe UI, Arial, sans-serif",
         background:
-          "radial-gradient(circle at top left, #2dd4bf 0%, transparent 28%), radial-gradient(circle at top right, #7c3aed 0%, transparent 32%), linear-gradient(135deg, #060816 0%, #0b1024 45%, #120818 100%)",
+          "linear-gradient(180deg, #f4f1ec 0%, #eee8df 48%, #e7dfd3 100%)",
       }}
     >
-      <div className="mx-auto max-w-7xl text-white">
-        <section className="mb-6 border border-white/15 bg-white/10 p-6 shadow-[0_25px_80px_rgba(0,0,0,0.45)] backdrop-blur-2xl">
-          <Link href="/admin" className="text-sm font-black text-cyan-200">
+      <div className="mx-auto max-w-7xl text-[#2e2923]">
+        <section className="mb-6 border border-white/80 bg-white p-6 shadow-[0_18px_45px_rgba(0,0,0,0.08)]">
+          {saved && (
+            <div className="mb-6 border border-green-300 bg-green-50 p-4 text-green-800 shadow">
+              <div className="text-sm font-black uppercase tracking-[0.14em]">
+                ✔ Postavke računa spremljene
+              </div>
+            </div>
+          )}
+
+          <Link
+            href="/admin"
+            className="cursor-pointer text-sm font-black text-[#9b6b12] hover:text-[#2e2923]"
+          >
             ← Admin
           </Link>
 
           <h1 className="mt-4 text-4xl font-black">Postavke računa</h1>
 
-          <p className="mt-2 max-w-3xl text-slate-300">
+          <p className="mt-2 max-w-3xl text-[#6f665a]">
             Ovdje upisuješ podatke izdavatelja računa za svaki objekt. PDF račun
             automatski uzima ove podatke, podatke gosta i podatke rezervacije.
           </p>
         </section>
-
-        {saved && (
-          <div className="mb-6 border border-emerald-300/40 bg-emerald-400/15 p-4 text-sm font-black text-emerald-100">
-            ✅ Postavke računa su spremljene.
-          </div>
-        )}
 
         <section className="grid gap-6 lg:grid-cols-3">
           {objekti.map((objekt) => {
@@ -69,156 +74,125 @@ export default async function PostavkeRacunaPage({
               <form
                 key={objekt.id}
                 action={spremiPostavkeRacuna}
-                className="border border-white/15 bg-white/10 p-5 shadow-[0_20px_65px_rgba(0,0,0,0.38)] backdrop-blur-xl"
+                className="border border-white/80 bg-white p-5 shadow-[0_18px_45px_rgba(0,0,0,0.08)]"
               >
                 <input type="hidden" name="objektId" value={objekt.id} />
 
-                <div className="mb-5 border-b border-white/10 pb-4">
-                  <p className="text-xs font-black uppercase tracking-[0.22em] text-cyan-200">
+                <div className="mb-5 border-b border-[#e2d8c8] pb-4">
+                  <p className="text-xs font-black uppercase tracking-[0.18em] text-[#9b7a4c]">
                     Objekt
                   </p>
 
-                  <h2 className="mt-2 text-2xl font-black text-white">
+                  <h2 className="mt-2 text-2xl font-black text-[#2e2923]">
                     {objekt.naziv}
                   </h2>
 
-                  <p className="mt-1 text-sm text-slate-300">
+                  <p className="mt-1 text-sm text-[#6f665a]">
                     Ovi podaci ulaze u PDF račun.
                   </p>
                 </div>
 
                 <div className="space-y-4">
-                  <label className="block">
-                    <span className="mb-1 block text-xs font-black uppercase tracking-[0.16em] text-slate-300">
-                      Izdavatelj računa
-                    </span>
+                  <Field label="Izdavatelj računa">
                     <input
                       name="nazivZaRacun"
                       defaultValue={objekt.nazivZaRacun || ""}
                       placeholder="npr. Blažica Kostanjevec"
-                      className="w-full border border-white/15 bg-black/25 px-3 py-3 text-sm font-bold text-white outline-none placeholder:text-slate-500 focus:border-cyan-300"
+                      className="input"
                     />
-                  </label>
+                  </Field>
 
-                  <label className="block">
-                    <span className="mb-1 block text-xs font-black uppercase tracking-[0.16em] text-slate-300">
-                      OIB
-                    </span>
+                  <Field label="OIB">
                     <input
                       name="oibZaRacun"
                       defaultValue={objekt.oibZaRacun || ""}
                       placeholder="OIB iznajmljivača"
-                      className="w-full border border-white/15 bg-black/25 px-3 py-3 text-sm font-bold text-white outline-none placeholder:text-slate-500 focus:border-cyan-300"
+                      className="input"
                     />
-                  </label>
+                  </Field>
 
-                  <label className="block">
-                    <span className="mb-1 block text-xs font-black uppercase tracking-[0.16em] text-slate-300">
-                      Adresa
-                    </span>
+                  <Field label="Adresa">
                     <input
                       name="adresaZaRacun"
                       defaultValue={objekt.adresaZaRacun || ""}
                       placeholder="npr. Braće Turčić 25a"
-                      className="w-full border border-white/15 bg-black/25 px-3 py-3 text-sm font-bold text-white outline-none placeholder:text-slate-500 focus:border-cyan-300"
+                      className="input"
                     />
-                  </label>
+                  </Field>
 
-                  <label className="block">
-                    <span className="mb-1 block text-xs font-black uppercase tracking-[0.16em] text-slate-300">
-                      Mjesto
-                    </span>
+                  <Field label="Mjesto">
                     <input
                       name="mjestoZaRacun"
                       defaultValue={objekt.mjestoZaRacun || objekt.mjesto || ""}
                       placeholder="npr. Malinska"
-                      className="w-full border border-white/15 bg-black/25 px-3 py-3 text-sm font-bold text-white outline-none placeholder:text-slate-500 focus:border-cyan-300"
+                      className="input"
                     />
-                  </label>
+                  </Field>
 
-                  <label className="block">
-                    <span className="mb-1 block text-xs font-black uppercase tracking-[0.16em] text-slate-300">
-                      Telefon
-                    </span>
+                  <Field label="Telefon">
                     <input
                       name="telefonZaRacun"
                       defaultValue={objekt.telefonZaRacun || ""}
                       placeholder="npr. 098 700 415"
-                      className="w-full border border-white/15 bg-black/25 px-3 py-3 text-sm font-bold text-white outline-none placeholder:text-slate-500 focus:border-cyan-300"
+                      className="input"
                     />
-                  </label>
+                  </Field>
 
-                  <label className="block">
-                    <span className="mb-1 block text-xs font-black uppercase tracking-[0.16em] text-slate-300">
-                      Email izdavatelja
-                    </span>
+                  <Field label="Email izdavatelja">
                     <input
                       name="emailZaRacun"
                       defaultValue={objekt.emailZaRacun || ""}
-                      placeholder="npr. info@malinska-stay.hr"
-                      className="w-full border border-white/15 bg-black/25 px-3 py-3 text-sm font-bold text-white outline-none placeholder:text-slate-500 focus:border-cyan-300"
+                      placeholder="npr. rezervacije@malinska-stay.hr"
+                      className="input"
                     />
-                  </label>
+                  </Field>
 
-                  <label className="block">
-                    <span className="mb-1 block text-xs font-black uppercase tracking-[0.16em] text-slate-300">
-                      CC mail za račune
-                    </span>
+                  <Field
+                    label="CC mail za račune"
+                    help="Na ove mailove dolazi kopija svakog poslanog računa. Više mailova odvoji zarezom."
+                  >
                     <input
                       name="ccEmailZaRacun"
                       defaultValue={objekt.ccEmailZaRacun || ""}
-                      placeholder="npr. goran.ligo@gmail.com, info@malinska-stay.hr"
-                      className="w-full border border-white/15 bg-black/25 px-3 py-3 text-sm font-bold text-white outline-none placeholder:text-slate-500 focus:border-cyan-300"
+                      placeholder="goran@gmail.com, rezervacije@malinska-stay.hr"
+                      className="input"
                     />
-                    <p className="mt-1 text-xs text-slate-400">
-                      Na ove mailove dolazi kopija svakog poslanog računa.
-                      Više mailova odvoji zarezom.
-                    </p>
-                  </label>
+                  </Field>
 
-                  <label className="block">
-                    <span className="mb-1 block text-xs font-black uppercase tracking-[0.16em] text-slate-300">
-                      IBAN
-                    </span>
+                  <Field label="IBAN">
                     <input
                       name="ibanZaRacun"
                       defaultValue={objekt.ibanZaRacun || ""}
                       placeholder="IBAN ako ga želiš prikazati na računu"
-                      className="w-full border border-white/15 bg-black/25 px-3 py-3 text-sm font-bold text-white outline-none placeholder:text-slate-500 focus:border-cyan-300"
+                      className="input"
                     />
-                  </label>
+                  </Field>
 
-                  <label className="block">
-                    <span className="mb-1 block text-xs font-black uppercase tracking-[0.16em] text-slate-300">
-                      Prefiks računa
-                    </span>
+                  <Field
+                    label="Prefiks računa"
+                    help={`Primjer broja: ${prefix}-001-2026`}
+                  >
                     <input
                       name="prefixRacuna"
                       defaultValue={prefix}
                       placeholder="MARTY / EVA / ART"
-                      className="w-full border border-white/15 bg-black/25 px-3 py-3 text-sm font-bold uppercase text-white outline-none placeholder:text-slate-500 focus:border-cyan-300"
+                      className="input uppercase"
                     />
-                    <p className="mt-1 text-xs text-slate-400">
-                      Primjer broja: {prefix}-001-2026
-                    </p>
-                  </label>
+                  </Field>
 
-                  <label className="block">
-                    <span className="mb-1 block text-xs font-black uppercase tracking-[0.16em] text-slate-300">
-                      Napomena na računu
-                    </span>
+                  <Field label="Napomena na računu">
                     <textarea
                       name="napomenaNaRacunu"
                       defaultValue={napomena}
                       rows={4}
-                      className="w-full resize-none border border-white/15 bg-black/25 px-3 py-3 text-sm font-bold text-white outline-none placeholder:text-slate-500 focus:border-cyan-300"
+                      className="input resize-none"
                     />
-                  </label>
+                  </Field>
                 </div>
 
                 <button
                   type="submit"
-                  className="mt-5 w-full border border-cyan-300 bg-cyan-300 px-5 py-3 text-sm font-black uppercase tracking-[0.16em] text-slate-950 transition hover:bg-white"
+                  className="mt-5 w-full cursor-pointer border border-[#caa870] bg-[#c79a57] px-5 py-3 text-sm font-black uppercase tracking-[0.14em] text-white transition hover:brightness-95"
                 >
                   Spremi postavke
                 </button>
@@ -227,16 +201,61 @@ export default async function PostavkeRacunaPage({
           })}
         </section>
 
-        <section className="mt-8 border border-white/15 bg-white/10 p-5 text-sm leading-6 text-slate-300 backdrop-blur-xl">
-          <p className="font-black text-white">Napomena:</p>
+        <section className="mt-8 border border-[#ead7b6] bg-[#fff9ef] p-5 text-sm leading-6 text-[#7a5a22] shadow-[0_14px_35px_rgba(0,0,0,0.06)]">
+          <p className="font-black text-[#2e2923]">Napomena:</p>
           <p className="mt-2">
             Za privatne iznajmljivače ne radimo fiskalizaciju u ovoj fazi.
             Račun se izrađuje kao PDF račun s podacima iznajmljivača,
-            rezervacije i gosta. Tekst porezne napomene ostavljamo kao polje
-            koje se može upisati posebno za svaki objekt.
+            rezervacije i gosta. Tekst porezne napomene ostaje kao polje koje se
+            može upisati posebno za svaki objekt.
           </p>
         </section>
       </div>
+
+      <style>{`
+        .input {
+          width: 100%;
+          border: 1px solid #d8c8aa;
+          background: #ffffff;
+          padding: 12px;
+          color: #2e2923;
+          outline: none;
+          font-size: 14px;
+          font-weight: 700;
+        }
+
+        .input::placeholder {
+          color: #a89b88;
+          font-weight: 600;
+        }
+
+        .input:focus {
+          border-color: #c79a57;
+          box-shadow: 0 0 0 3px rgba(199, 154, 87, 0.16);
+        }
+      `}</style>
     </main>
+  );
+}
+
+function Field({
+  label,
+  help,
+  children,
+}: {
+  label: string;
+  help?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <label className="block">
+      <span className="mb-1 block text-xs font-black uppercase tracking-[0.14em] text-[#7a5a22]">
+        {label}
+      </span>
+
+      {children}
+
+      {help && <p className="mt-1 text-xs text-[#6f665a]">{help}</p>}
+    </label>
   );
 }

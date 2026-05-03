@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { stripe } from "@/lib/stripe";
 import { generateRacunPdf } from "@/lib/generateRacunPdf";
 import fs from "fs";
 import path from "path";
@@ -47,9 +48,7 @@ async function getNextBrojRacuna(tx: any, prefixRaw?: string | null) {
     }
   }
 
-  const sljedeciBroj = najveciBroj + 1;
-
-  return `${prefix}-${String(sljedeciBroj).padStart(3, "0")}-${godina}`;
+  return `${prefix}-${String(najveciBroj + 1).padStart(3, "0")}-${godina}`;
 }
 
 function getCcEmails(objekt: any) {
@@ -65,6 +64,23 @@ function getCcEmails(objekt: any) {
   const unique = cc.filter((email, index, arr) => arr.indexOf(email) === index);
 
   return unique.length > 0 ? unique : undefined;
+}
+
+async function getStripePaymentIntentId(placanje: any) {
+  if (placanje.paymentIntentId) {
+    return placanje.paymentIntentId;
+  }
+
+  if (!placanje.providerId) {
+    return null;
+  }
+
+  const session = await stripe.checkout.sessions.retrieve(placanje.providerId);
+  const pi = session.payment_intent;
+
+  if (!pi) return null;
+
+  return typeof pi === "string" ? pi : pi.id;
 }
 
 export async function POST(req: Request) {
@@ -109,10 +125,58 @@ export async function POST(req: Request) {
       });
     }
 
+    let paymentIntentId: string | null = null;
+
+    if (placanje.provider === "STRIPE") {
+      paymentIntentId = await getStripePaymentIntentId(placanje);
+
+      if (!paymentIntentId) {
+        return NextResponse.json(
+          {
+            error:
+              "Stripe autorizacija nije pronađena. Gost možda nije dovršio kartično plaćanje.",
+          },
+          { status: 400 }
+        );
+      }
+
+      const paymentIntent = await stripe.paymentIntents.retrieve(
+        paymentIntentId
+      );
+
+      if (paymentIntent.status === "requires_capture") {
+        await stripe.paymentIntents.capture(paymentIntentId);
+      } else if (paymentIntent.status === "succeeded") {
+        // već je naplaćeno, nastavljamo samo s evidencijom u sustavu
+      } else {
+        return NextResponse.json(
+          {
+            error: `Kartica nije spremna za naplatu. Stripe status: ${paymentIntent.status}`,
+          },
+          { status: 400 }
+        );
+      }
+    }
+
+    const ukupnoRezervacije = Number(
+      placanje.rezervacija.dogovoreniIznos ||
+        placanje.rezervacija.iznosUkupno ||
+        placanje.rezervacija.iznosOsnovni ||
+        0
+    );
+
+    const novoPlaceno =
+      Number(placanje.rezervacija.iznosPlaceno || 0) +
+      Number(placanje.iznos || 0);
+
+    const noviOstatak = Math.max(ukupnoRezervacije - novoPlaceno, 0);
+
     const noviStatus =
-      placanje.tip === "OSTATAK" || placanje.tip === "CIJELI_IZNOS"
+      noviOstatak <= 0
         ? "PLACENO"
-        : "POTVRDENO";
+        : placanje.tip === "POTVRDA_REZERVACIJE"
+        ? "POTVRDENO"
+        : "CEKA_OSTATAK";
 
     const objekt = placanje.rezervacija.jedinica.objekt;
 
@@ -125,27 +189,25 @@ export async function POST(req: Request) {
         objekt.prefixRacuna || objekt.naziv
       );
 
-      // 1. označi plaćanje
       await tx.placanje.update({
         where: { id: placanjeId },
         data: {
           status: "PLACENO",
           placenoAt: new Date(),
+          paymentIntentId: paymentIntentId || placanje.paymentIntentId,
         },
       });
 
-      // 2. ažuriraj rezervaciju
       await tx.rezervacija.update({
         where: { id: placanje.rezervacijaId },
         data: {
           status: noviStatus as any,
-          iznosPlaceno: {
-            increment: placanje.iznos,
-          },
+          iznosPlaceno: novoPlaceno,
+          iznosOstatka: noviOstatak,
+          placenoKarticom: placanje.provider === "STRIPE" ? true : undefined,
         },
       });
 
-      // 3. kreiraj račun
       const noviRacun = await tx.racun.create({
         data: {
           rezervacijaId: placanje.rezervacijaId,
@@ -166,7 +228,6 @@ export async function POST(req: Request) {
         },
       });
 
-      // 4. generiraj PDF račun s podacima rezervacije, gosta, jedinice i objekta
       pdfUrl = await generateRacunPdf({
         ...noviRacun,
         rezervacija: placanje.rezervacija,
@@ -175,7 +236,6 @@ export async function POST(req: Request) {
         objekt: placanje.rezervacija.jedinica.objekt,
       });
 
-      // 5. spremi PDF link u račun
       await tx.racun.update({
         where: { id: noviRacun.id },
         data: {
@@ -183,7 +243,6 @@ export async function POST(req: Request) {
         },
       });
 
-      // 6. pošalji mail gostu + CC iz postavki računa
       if (pdfUrl) {
         const cleanPdfUrl = pdfUrl.startsWith("/") ? pdfUrl.slice(1) : pdfUrl;
         const filePath = path.join(process.cwd(), "public", cleanPdfUrl);
@@ -211,98 +270,49 @@ export async function POST(req: Request) {
           },
         ];
 
-        if (placanje.tip === "POTVRDA_REZERVACIJE") {
-          await resend.emails.send({
-            from: "Apartmani <info@malinska-stay.hr>",
-            to: email,
-            cc: ccEmails,
-            subject: "Vaša rezervacija je potvrđena",
-            html: `
-              <h2>Hvala na rezervaciji</h2>
+        await resend.emails.send({
+          from: "Apartmani <rezervacije@malinska-stay.hr>",
+          to: email,
+          cc: ccEmails,
+          subject:
+            noviStatus === "PLACENO"
+              ? "Rezervacija i plaćanje potvrđeni"
+              : "Vaša rezervacija je potvrđena",
+          html: `
+            <h2>${
+              noviStatus === "PLACENO"
+                ? "Rezervacija i plaćanje potvrđeni"
+                : "Rezervacija potvrđena"
+            }</h2>
 
-              <p>Poštovani ${gostIme},</p>
+            <p>Poštovani ${gostIme},</p>
 
-              <p>Vaša rezervacija je uspješno potvrđena.</p>
+            <p>
+              ${
+                noviStatus === "PLACENO"
+                  ? "Vaše plaćanje je uspješno zaprimljeno i rezervacija je potvrđena."
+                  : "Vaša rezervacija je uspješno potvrđena."
+              }
+            </p>
 
-              <p>
-                <strong>Objekt:</strong> ${nazivObjekta}<br/>
-                <strong>Smještajna jedinica:</strong> ${nazivJedinice}<br/>
-                <strong>Dolazak:</strong> ${datumOd}<br/>
-                <strong>Odlazak:</strong> ${datumDo}
-              </p>
+            <p>
+              <strong>Objekt:</strong> ${nazivObjekta}<br/>
+              <strong>Smještajna jedinica:</strong> ${nazivJedinice}<br/>
+              <strong>Dolazak:</strong> ${datumOd}<br/>
+              <strong>Odlazak:</strong> ${datumDo}
+            </p>
 
-              <p>U privitku vam šaljemo račun za potvrdu rezervacije.</p>
+            <p>U privitku vam šaljemo račun.</p>
 
-              <p>Veselimo se vašem dolasku!</p>
+            <p>Veselimo se vašem dolasku!</p>
 
-              <br/>
-              <p>Lijep pozdrav,<br/>Malinska Stay</p>
-            `,
-            attachments: attachment,
-          });
-        }
-
-        if (placanje.tip === "OSTATAK") {
-          await resend.emails.send({
-            from: "Apartmani <info@malinska-stay.hr>",
-            to: email,
-            cc: ccEmails,
-            subject: "Plaćanje zaprimljeno",
-            html: `
-              <h2>Hvala na uplati</h2>
-
-              <p>Poštovani ${gostIme},</p>
-
-              <p>Vaša uplata ostatka rezervacije je zaprimljena.</p>
-
-              <p>
-                <strong>Objekt:</strong> ${nazivObjekta}<br/>
-                <strong>Smještajna jedinica:</strong> ${nazivJedinice}<br/>
-                <strong>Dolazak:</strong> ${datumOd}<br/>
-                <strong>Odlazak:</strong> ${datumDo}
-              </p>
-
-              <p>Vaša rezervacija je sada u potpunosti plaćena.</p>
-              <p>U privitku vam šaljemo račun.</p>
-
-              <br/>
-              <p>Lijep pozdrav,<br/>Malinska Stay</p>
-            `,
-            attachments: attachment,
-          });
-        }
-
-        if (placanje.tip === "CIJELI_IZNOS") {
-          await resend.emails.send({
-            from: "Apartmani <info@malinska-stay.hr>",
-            to: email,
-            cc: ccEmails,
-            subject: "Rezervacija i plaćanje potvrđeni",
-            html: `
-              <h2>Hvala na uplati</h2>
-
-              <p>Poštovani ${gostIme},</p>
-
-              <p>Vaše plaćanje je uspješno zaprimljeno i rezervacija je potvrđena.</p>
-
-              <p>
-                <strong>Objekt:</strong> ${nazivObjekta}<br/>
-                <strong>Smještajna jedinica:</strong> ${nazivJedinice}<br/>
-                <strong>Dolazak:</strong> ${datumOd}<br/>
-                <strong>Odlazak:</strong> ${datumDo}
-              </p>
-
-              <p>U privitku vam šaljemo račun.</p>
-
-              <br/>
-              <p>Lijep pozdrav,<br/>Malinska Stay</p>
-            `,
-            attachments: attachment,
-          });
-        }
+            <br/>
+            <p>Lijep pozdrav,<br/>Malinska Stay</p>
+          `,
+          attachments: attachment,
+        });
       }
 
-      // 7. email log
       await tx.emailLog.create({
         data: {
           rezervacijaId: placanje.rezervacijaId,
@@ -314,6 +324,27 @@ export async function POST(req: Request) {
               : "HVALA_NA_PLACANJU",
         },
       });
+
+      await tx.rezervacijaPromjena.create({
+        data: {
+          rezervacijaId: placanje.rezervacijaId,
+          tip: "POTVRDA_NAPLATE",
+          opis:
+            placanje.provider === "STRIPE"
+              ? "Admin je potvrdio rezervaciju i naplatio Stripe autorizaciju."
+              : "Admin je potvrdio plaćanje.",
+          noviPodaci: JSON.stringify({
+            placanjeId: placanje.id,
+            iznos: placanje.iznos,
+            valuta: placanje.valuta,
+            provider: placanje.provider,
+            paymentIntentId,
+            statusRezervacije: noviStatus,
+            brojRacuna,
+          }),
+          korisnikIme: "Admin",
+        },
+      });
     });
 
     return NextResponse.json({
@@ -321,12 +352,13 @@ export async function POST(req: Request) {
       brojRacuna,
       pdfUrl,
       statusRezervacije: noviStatus,
+      captured: placanje.provider === "STRIPE",
     });
   } catch (err) {
     console.error(err);
 
     return NextResponse.json(
-      { error: "Greška servera" },
+      { error: "Greška servera kod potvrde i naplate." },
       { status: 500 }
     );
   }

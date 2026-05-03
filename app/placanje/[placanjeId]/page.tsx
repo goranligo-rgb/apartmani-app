@@ -96,7 +96,7 @@ export default async function PlacanjePage({ params }: Props) {
           </div>
         ) : (
           <Link
-            href={`/api/placanja/potvrdi-demo?placanjeId=${placanje.id}`}
+            href={`/api/rezervacije/create-payment?placanjeId=${placanje.id}`}
             style={{
               display: "inline-block",
               marginTop: "24px",
@@ -107,7 +107,7 @@ export default async function PlacanjePage({ params }: Props) {
               fontWeight: 700,
             }}
           >
-            Plati ostatak
+            Plati karticom
           </Link>
         )}
       </div>
