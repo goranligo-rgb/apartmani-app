@@ -13,7 +13,7 @@ async function main() {
     where: {
       aktivna: true,
       objekt: {
-        naziv: "House Eva",
+        naziv: "Apartments Eva",
       },
     },
     include: {
@@ -31,7 +31,7 @@ async function main() {
 
   if (!jedinica) {
     throw new Error(
-      "Nema aktivne jedinice za House Eva. Provjeri postoje li Eva jedinice u bazi."
+      "Nema aktivne jedinice za Apartments Eva. Provjeri postoje li Eva jedinice u bazi."
     );
   }
 
@@ -44,7 +44,7 @@ async function main() {
       prezime: "Eva",
       email: "goran.ligo@gmail.com",
       telefon: "000000000",
-      napomena: "Test gost za probu računa House Eva.",
+      napomena: "Test gost za probu računa Apartments Eva.",
     },
   });
 
@@ -63,7 +63,7 @@ async function main() {
       iznosPlaceno: 0,
       placenoKarticom: false,
       valuta: "EUR",
-      napomena: "Test rezervacija za probu automatskog računa House Eva.",
+      napomena: "Test rezervacija za probu automatskog računa Apartments Eva.",
     },
   });
 
@@ -80,7 +80,7 @@ async function main() {
   });
 
   console.log("");
-  console.log("✅ Test rezervacija i plaćanje kreirani za House Eva");
+  console.log("✅ Test rezervacija i plaćanje kreirani za Apartments Eva");
   console.log("----------------------------------------");
   console.log("OBJEKT =", jedinica.objekt.naziv);
   console.log("JEDINICA =", jedinica.naziv);

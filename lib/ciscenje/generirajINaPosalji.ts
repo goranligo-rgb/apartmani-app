@@ -77,11 +77,11 @@ async function findOrCreateZadatak(data: {
   rezervacijaId?: string | null;
   datum: Date;
   tip:
-    | "ZAVRSNO_CISCENJE"
-    | "MEDJUCISCENJE"
-    | "PROMJENA_POSTELJINE"
-    | "MEDJUCISCENJE_I_POSTELJINA"
-    | "DODATNO_CISCENJE";
+  | "ZAVRSNO_CISCENJE"
+  | "MEDJUCISCENJE"
+  | "PROMJENA_POSTELJINE"
+  | "MEDJUCISCENJE_I_POSTELJINA"
+  | "DODATNO_CISCENJE";
   naslov: string;
   opis: string;
   prioritet?: boolean;
@@ -115,7 +115,12 @@ export async function generirajINaPosalji() {
   const agencija = await prisma.ciscenjeAgencija.findFirst();
   const postavke = await prisma.ciscenjeMailPostavke.findFirst();
 
-  if (!agencija?.email) throw new Error("Nije upisan email agencije");
+  if (!agencija?.email) {
+    return {
+      error: "Molimo prije slanja upišite email agencije za čišćenje.",
+    };
+  }
+  
   if (!postavke) throw new Error("Nisu spremljene postavke čišćenja");
 
   const danas = startOfDay(new Date());
@@ -154,8 +159,8 @@ export async function generirajINaPosalji() {
 
       const sljedeciUlazak = sljedecaRezervacija
         ? `${formatDate(sljedecaRezervacija.datumOd)} — ${guestName(
-            sljedecaRezervacija.gost
-          )}`
+          sljedecaRezervacija.gost
+        )}`
         : "Nema najavljenog ulaska";
 
       const opis =
@@ -363,9 +368,9 @@ export async function generirajINaPosalji() {
 
   const ccList = agencija.ccEmails
     ? agencija.ccEmails
-        .split(",")
-        .map((e) => e.trim())
-        .filter(Boolean)
+      .split(",")
+      .map((e) => e.trim())
+      .filter(Boolean)
     : [];
 
   const html = `
@@ -391,8 +396,8 @@ export async function generirajINaPosalji() {
         </tr>
 
         ${sveStavkeZaMail
-          .map(
-            (s) => `
+      .map(
+        (s) => `
               <tr>
                 <td>${escapeHtml(formatDate(s.datum))}</td>
                 <td>${escapeHtml(s.nazivObjekta || "")}</td>
@@ -403,8 +408,8 @@ export async function generirajINaPosalji() {
                 <td><b>${escapeHtml(s.sljedeciUlazak || "-")}</b></td>
               </tr>
             `
-          )
-          .join("")}
+      )
+      .join("")}
       </table>
 
       <p style="margin-top:20px;">
@@ -420,7 +425,7 @@ export async function generirajINaPosalji() {
     cc: ccList,
     subject: narudzba.subject || "Raspored čišćenja",
     html,
-    reply_to: "goran@malinska-stay.hr",
+    replyTo: "goran@malinska-stay.hr",
   });
 
   await prisma.ciscenjeNarudzba.update({

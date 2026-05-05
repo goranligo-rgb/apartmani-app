@@ -57,9 +57,9 @@ function getCcEmails(objekt: any) {
 
   const cc = raw
     ? raw
-        .split(",")
-        .map((email) => email.trim())
-        .filter(Boolean)
+      .split(",")
+      .map((email) => email.trim())
+      .filter(Boolean)
     : [];
 
   const unique = cc.filter((email, index, arr) => arr.indexOf(email) === index);
@@ -129,6 +129,30 @@ async function getPlacanjeIdFromRequest(req: Request) {
   };
 }
 
+function mailWrapper({
+  title,
+  subtitle,
+  children,
+}: {
+  title: string;
+  subtitle: string;
+  children: string;
+}) {
+  return `
+    <div style="font-family: Arial, sans-serif; background:#f4efe6; padding:24px;">
+      <div style="max-width:640px; margin:0 auto; background:white; border:1px solid #eadfce;">
+        <div style="background:#2e2923; color:white; padding:22px;">
+          <h2 style="margin:0;">${title}</h2>
+          <p style="margin:8px 0 0; color:#eadfce;">${subtitle}</p>
+        </div>
+        <div style="padding:24px; color:#2e2923; line-height:1.55;">
+          ${children}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
 export async function POST(req: Request) {
   let placanjeId = "";
   let wantsJson = false;
@@ -187,9 +211,9 @@ export async function POST(req: Request) {
 
     const ukupnoRezervacije = Number(
       rezervacija.dogovoreniIznos ||
-        rezervacija.iznosUkupno ||
-        rezervacija.iznosOsnovni ||
-        0
+      rezervacija.iznosUkupno ||
+      rezervacija.iznosOsnovni ||
+      0
     );
 
     const trenutnoPlaceno = Number(rezervacija.iznosPlaceno || 0);
@@ -300,14 +324,17 @@ export async function POST(req: Request) {
     });
 
     if (pdfUrl && racunId) {
-      const cleanPdfUrl = pdfUrl.startsWith("/") ? pdfUrl.slice(1) : pdfUrl;
+      const cleanPdfUrl =
+        (pdfUrl as string).startsWith("/")
+          ? (pdfUrl as string).slice(1)
+          : (pdfUrl as string);
       const filePath = path.join(process.cwd(), "public", cleanPdfUrl);
 
       let attachments:
         | {
-            filename: string;
-            content: Buffer;
-          }[]
+          filename: string;
+          content: Buffer;
+        }[]
         | undefined;
 
       if (fs.existsSync(filePath)) {
@@ -371,42 +398,45 @@ export async function POST(req: Request) {
             to: email,
             cc: ccEmails,
             subject,
-            html: `
-              <div style="font-family: Arial, sans-serif; line-height: 1.5; color: #222;">
-                <h2>${naslov}</h2>
-
-                <p>Poštovani ${gostIme},</p>
+            html: mailWrapper({
+              title: naslov,
+              subtitle:
+                noviOstatak > 0
+                  ? "Rezervacija je potvrđena uz uplatu akontacije."
+                  : "Rezervacija je potvrđena i plaćena u cijelosti.",
+              children: `
+                <p>Poštovani <strong>${gostIme}</strong>,</p>
 
                 <p>${poruka}</p>
 
-                <p>
-                  <strong>Objekt:</strong> ${nazivObjekta}<br/>
-                  <strong>Smještajna jedinica:</strong> ${nazivJedinice}<br/>
-                  <strong>Dolazak:</strong> ${datumOd}<br/>
-                  <strong>Odlazak:</strong> ${datumDo}
-                </p>
-
-                <p>
-                  <strong>Zaprimljena uplata:</strong> ${money(
-                    placanje.iznos
-                  )}<br/>
-                  <strong>Broj računa:</strong> ${brojRacuna}
-                </p>
-
-                ${
-                  noviOstatak > 0
-                    ? `<p><strong>Preostali iznos za uplatu:</strong> ${money(
-                        noviOstatak
-                      )}</p>`
-                    : `<p>Rezervacija je plaćena u cijelosti.</p>`
+                <div style="margin:22px 0; padding:18px; background:#fcfaf6; border:1px solid #eadfce;">
+                  <h3 style="margin:0 0 14px;">Detalji rezervacije</h3>
+                  <p><strong>Objekt:</strong> ${nazivObjekta}</p>
+                  <p><strong>Smještajna jedinica:</strong> ${nazivJedinice}</p>
+                  <p><strong>Dolazak:</strong> ${datumOd}</p>
+                  <p><strong>Odlazak:</strong> ${datumDo}</p>
+                  <p><strong>Zaprimljena uplata:</strong> ${money(placanje.iznos)}</p>
+                  <p><strong>Broj računa:</strong> ${brojRacuna}</p>
+                  ${noviOstatak > 0
+                  ? `<p><strong>Preostali iznos za uplatu:</strong> ${money(noviOstatak)}</p>`
+                  : `<p><strong>Status:</strong> Rezervacija je plaćena u cijelosti.</p>`
                 }
+                </div>
 
-                <p>U privitku vam šaljemo račun.</p>
+                <div style="padding:16px; background:#fff6e2; border:1px solid #c79a57; color:#7a5a22;">
+                  U privitku vam šaljemo račun.
+                </div>
 
-                <br/>
-                <p>Lijep pozdrav,<br/>Malinska Stay</p>
-              </div>
-            `,
+                <p style="margin-top:28px;">
+                  Veselimo se vašem dolasku u Malinsku.
+                </p>
+
+                <p>
+                  Lijep pozdrav,<br/>
+                  <strong>Malinska Stay</strong>
+                </p>
+              `,
+            }),
             attachments,
           });
 
@@ -433,7 +463,7 @@ export async function POST(req: Request) {
           subject,
           tip:
             placanje.tip === "POTVRDA_REZERVACIJE" ||
-            placanje.tip === "AKONTACIJA"
+              placanje.tip === "AKONTACIJA"
               ? "POTVRDA_REZERVACIJE"
               : "HVALA_NA_PLACANJU",
           status: emailStatus,

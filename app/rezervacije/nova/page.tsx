@@ -15,6 +15,7 @@ type SearchParams = Promise<{
   drzava?: string;
   brojOsoba?: string;
   napomena?: string;
+  error?: string;
 }>;
 
 const DRZAVE = [
@@ -120,6 +121,46 @@ export default async function NovaRezervacijaPage(props: {
       (doDatuma.getTime() - od.getTime()) / 86400000
     );
 
+    const jedinica = await prisma.jedinica.findUnique({
+      where: { id: jedinicaId },
+      select: {
+        naziv: true,
+        osnovniKapacitet: true,
+        dodatniKapacitet: true,
+        ukupniKapacitet: true,
+      },
+    });
+
+    if (!jedinica) {
+      throw new Error("Smještajna jedinica nije pronađena.");
+    }
+
+    const kapacitet =
+      Number(jedinica.ukupniKapacitet || 0) ||
+      Number(jedinica.osnovniKapacitet || 0) +
+      Number(jedinica.dodatniKapacitet || 0);
+
+    if (kapacitet > 0 && brojOsoba > kapacitet) {
+      const params = new URLSearchParams({
+        jedinicaId,
+        ime,
+        prezime,
+        email,
+        telefon,
+        adresa,
+        grad,
+        drzava,
+        datumOd,
+        datumDo,
+        brojOsoba: String(brojOsoba),
+        iznosUkupno: String(iznosUkupno),
+        napomena,
+        error: `${jedinica.naziv} prima maksimalno ${kapacitet} osoba. Odabrali ste ${brojOsoba}.`,
+      });
+
+      redirect(`/rezervacije/nova?${params.toString()}`);
+    }
+
     const postojiPreklapanje = await prisma.rezervacija.findFirst({
       where: {
         jedinicaId,
@@ -175,6 +216,12 @@ export default async function NovaRezervacijaPage(props: {
           Unesi podatke gosta. Sva polja za gosta su obavezna za potvrdu
           rezervacije.
         </p>
+
+        {searchParams.error && (
+          <div className="mt-5 border border-red-300 bg-red-50 p-4 font-bold text-red-800">
+            {searchParams.error}
+          </div>
+        )}
 
         <form action={createReservation} className="mt-8 space-y-5">
           <div>

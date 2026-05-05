@@ -4,6 +4,29 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 
+export async function spremiVanjskiKalendar(formData: FormData) {
+  const jedinicaId = String(formData.get("jedinicaId") || "");
+  const naziv = String(formData.get("naziv") || "Booking.com").trim();
+  const icalUrl = String(formData.get("icalUrl") || "").trim();
+
+  if (!jedinicaId || !icalUrl) {
+    redirect("/admin/ical?error=1");
+  }
+
+  await prisma.vanjskiKalendar.create({
+    data: {
+      jedinicaId,
+      naziv: naziv || "Booking.com",
+      izvor: "BOOKING",
+      icalUrl,
+      aktivan: true,
+    },
+  });
+
+  revalidatePath("/admin/ical");
+  redirect("/admin/ical?saved=1");
+}
+
 export async function syncSveKalendare(formData: FormData) {
   const kalendarId = String(formData.get("kalendarId") || "");
 

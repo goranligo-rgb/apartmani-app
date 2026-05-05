@@ -92,7 +92,7 @@ export async function posaljiHitnoAkoJeSkoriDolazak(rezervacijaId: string) {
     cc: ccList,
     subject: "⚠ HITNO: rezervacija unutar 7 dana",
     html,
-    reply_to: "goran@malinska-stay.hr",
+    replyTo: "goran@malinska-stay.hr",
   });
 
   // spremi kao evidenciju da ne ide duplo

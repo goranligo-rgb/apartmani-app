@@ -384,14 +384,48 @@ export default async function RezervacijaDetaljPage({
         to: r.gost.email,
         subject: "Rezervacija nije potvrđena",
         html: `
-        <h2>Rezervacija nije potvrđena</h2>
-        <p>Poštovani ${r.gost.ime},</p>
-        <p>Nažalost, rezervacija nije potvrđena.</p>
-        <p>${r.jedinica.objekt.naziv} / ${r.jedinica.naziv}</p>
-        <p>${formatDate(r.datumOd)} - ${formatDate(r.datumDo)}</p>
-        <p>Ako je kartica bila autorizirana, autorizacija se poništava i iznos se ne naplaćuje.</p>
-        <p>Malinska Stay</p>
-      `,
+  <div style="font-family: Arial, sans-serif; background:#f4efe6; padding:24px;">
+    <div style="max-width:640px; margin:0 auto; background:white; border:1px solid #eadfce;">
+      <div style="background:#7f1d1d; color:white; padding:22px;">
+        <h2 style="margin:0;">Rezervacija nije potvrđena</h2>
+        <p style="margin:8px 0 0; color:#fee2e2;">
+          Žao nam je, vašu rezervaciju trenutno nismo u mogućnosti potvrditi.
+        </p>
+      </div>
+
+      <div style="padding:24px; color:#2e2923; line-height:1.55;">
+        <p>Poštovani <strong>${r.gost.ime || "goste"} ${r.gost.prezime || ""}</strong>,</p>
+
+        <p>
+          Hvala vam na poslanom zahtjevu za rezervaciju. Nažalost, nakon provjere
+          dostupnosti nismo u mogućnosti potvrditi ovu rezervaciju.
+        </p>
+
+        <div style="margin:22px 0; padding:18px; background:#fcfaf6; border:1px solid #eadfce;">
+          <h3 style="margin:0 0 14px;">Detalji zahtjeva</h3>
+          <p><strong>Objekt:</strong> ${r.jedinica.objekt.naziv}</p>
+          <p><strong>Smještajna jedinica:</strong> ${r.jedinica.naziv}</p>
+          <p><strong>Dolazak:</strong> ${formatDate(r.datumOd)}</p>
+          <p><strong>Odlazak:</strong> ${formatDate(r.datumDo)}</p>
+        </div>
+
+        <div style="padding:16px; background:#fff6e2; border:1px solid #c79a57; color:#7a5a22;">
+          Ako je kartica bila autorizirana, autorizacija se poništava i iznos se ne naplaćuje.
+        </div>
+
+        <p style="margin-top:22px;">
+          Ispričavamo se zbog neugodnosti. Slobodno nam se javite za drugi termin
+          ili drugu smještajnu jedinicu.
+        </p>
+
+        <p style="margin-top:28px;">
+          Lijep pozdrav,<br/>
+          <strong>Malinska Stay</strong>
+        </p>
+      </div>
+    </div>
+  </div>
+`,
       });
 
       await prisma.emailLog.create({
@@ -615,8 +649,7 @@ export default async function RezervacijaDetaljPage({
         ibanIzdavatelja: objekt.ibanZaRacun || null,
         emailIzdavatelja: objekt.emailZaRacun || null,
         telefonIzdavatelja: objekt.telefonZaRacun || null,
-        napomenaNaRacunu: objekt.napomenaNaRacunu || null,
-
+        
         pdfUrl: null,
         poslanGostu: false,
       },
@@ -802,6 +835,13 @@ export default async function RezervacijaDetaljPage({
     const rezervacijaId = String(formData.get("rezervacijaId") || "");
     const gostId = String(formData.get("gostId") || "");
 
+    const ime = String(formData.get("ime") || "").trim();
+    const prezime = String(formData.get("prezime") || "").trim();
+    const email = String(formData.get("email") || "").trim();
+    const telefon = String(formData.get("telefon") || "").trim();
+    const adresa = String(formData.get("adresa") || "").trim();
+    const grad = String(formData.get("grad") || "").trim();
+    const drzava = String(formData.get("drzava") || "").trim();
     const napomena = String(formData.get("napomenaGosta") || "").trim();
     const oznake = formData.getAll("oznake").map(String).join(",");
 
@@ -812,6 +852,13 @@ export default async function RezervacijaDetaljPage({
     await prisma.gost.update({
       where: { id: gostId },
       data: {
+        ime,
+        prezime,
+        email,
+        telefon,
+        adresa,
+        grad,
+        drzava,
         napomena,
         oznake,
       },
@@ -821,8 +868,15 @@ export default async function RezervacijaDetaljPage({
       data: {
         rezervacijaId,
         tip: "GOST_NAPOMENA",
-        opis: "Ažurirane oznake i napomena gosta.",
+        opis: "Ažurirani podaci gosta.",
         noviPodaci: JSON.stringify({
+          ime,
+          prezime,
+          email,
+          telefon,
+          adresa,
+          grad,
+          drzava,
           oznake,
           napomena,
         }),
@@ -832,6 +886,7 @@ export default async function RezervacijaDetaljPage({
 
     revalidatePath(`/admin/rezervacije/${rezervacijaId}`);
     revalidatePath("/admin/rezervacije");
+    revalidatePath("/admin/gosti");
 
     redirect(`/admin/rezervacije/${rezervacijaId}`);
   }
@@ -969,18 +1024,41 @@ export default async function RezervacijaDetaljPage({
             </div>
           )}
 
-          {rezervacija.status !== "CEKA_POTVRDU" &&
-            rezervacija.status !== "OTKAZANO" && (
-              <div className="mt-5 border-2 border-green-300 bg-green-50 p-5 text-green-800">
-                <h2 className="text-2xl font-black">
-                  ✅ Rezervacija potvrđena
-                </h2>
+          {rezervacija.status === "CEKA_AKONTACIJU" && (
+            <div className="mt-5 border-2 border-amber-300 bg-amber-50 p-5 text-amber-800">
+              <h2 className="text-2xl font-black">
+                ⏳ Čeka uplatu akontacije
+              </h2>
 
-                <p className="mt-2 text-sm font-bold">
-                  Rezervacija je potvrđena i više ne čeka ručno odobrenje.
-                </p>
-              </div>
-            )}
+              <p className="mt-2 text-sm font-bold">
+                Gostu je poslan link za plaćanje. Rezervacija još nije potvrđena.
+              </p>
+            </div>
+          )}
+
+          {rezervacija.status === "CEKA_POTVRDU" && (
+            <div className="mt-5 border-2 border-blue-300 bg-blue-50 p-5 text-blue-800">
+              <h2 className="text-2xl font-black">
+                🔎 Uplata zaprimljena — čeka provjeru
+              </h2>
+
+              <p className="mt-2 text-sm font-bold">
+                Potrebno je provjeriti uplatu i ručno potvrditi rezervaciju.
+              </p>
+            </div>
+          )}
+
+          {["POTVRDENO", "PLACENO", "CEKA_OSTATAK"].includes(rezervacija.status) && (
+            <div className="mt-5 border-2 border-green-300 bg-green-50 p-5 text-green-800">
+              <h2 className="text-2xl font-black">
+                ✅ Rezervacija potvrđena
+              </h2>
+
+              <p className="mt-2 text-sm font-bold">
+                Rezervacija je potvrđena.
+              </p>
+            </div>
+          )}
         </div>
 
 
@@ -1007,6 +1085,9 @@ export default async function RezervacijaDetaljPage({
             />
             <Detail label="Email" value={rezervacija.gost?.email || "-"} />
             <Detail label="Telefon" value={rezervacija.gost?.telefon || "-"} />
+            <Detail label="Adresa" value={rezervacija.gost?.adresa || "-"} />
+            <Detail label="Grad / mjesto" value={rezervacija.gost?.grad || "-"} />
+            <Detail label="Država" value={rezervacija.gost?.drzava || "-"} />
 
             {gostOznake.length > 0 && (
               <div className="mb-3 flex flex-wrap gap-2">
@@ -1057,6 +1138,65 @@ export default async function RezervacijaDetaljPage({
                   value={rezervacija.id}
                 />
                 <input type="hidden" name="gostId" value={rezervacija.gost.id} />
+
+                <div className="mb-4 grid gap-3 sm:grid-cols-2">
+                  <Field label="Ime">
+                    <input
+                      name="ime"
+                      defaultValue={rezervacija.gost.ime || ""}
+                      className="w-full border border-[#d8c8aa] bg-white px-3 py-2 text-[#2e2923] outline-none"
+                    />
+                  </Field>
+
+                  <Field label="Prezime">
+                    <input
+                      name="prezime"
+                      defaultValue={rezervacija.gost.prezime || ""}
+                      className="w-full border border-[#d8c8aa] bg-white px-3 py-2 text-[#2e2923] outline-none"
+                    />
+                  </Field>
+
+                  <Field label="Email">
+                    <input
+                      name="email"
+                      type="email"
+                      defaultValue={rezervacija.gost.email || ""}
+                      className="w-full border border-[#d8c8aa] bg-white px-3 py-2 text-[#2e2923] outline-none"
+                    />
+                  </Field>
+
+                  <Field label="Telefon">
+                    <input
+                      name="telefon"
+                      defaultValue={rezervacija.gost.telefon || ""}
+                      className="w-full border border-[#d8c8aa] bg-white px-3 py-2 text-[#2e2923] outline-none"
+                    />
+                  </Field>
+
+                  <Field label="Adresa">
+                    <input
+                      name="adresa"
+                      defaultValue={rezervacija.gost.adresa || ""}
+                      className="w-full border border-[#d8c8aa] bg-white px-3 py-2 text-[#2e2923] outline-none"
+                    />
+                  </Field>
+
+                  <Field label="Grad / mjesto">
+                    <input
+                      name="grad"
+                      defaultValue={rezervacija.gost.grad || ""}
+                      className="w-full border border-[#d8c8aa] bg-white px-3 py-2 text-[#2e2923] outline-none"
+                    />
+                  </Field>
+
+                  <Field label="Država">
+                    <input
+                      name="drzava"
+                      defaultValue={rezervacija.gost.drzava || ""}
+                      className="w-full border border-[#d8c8aa] bg-white px-3 py-2 text-[#2e2923] outline-none"
+                    />
+                  </Field>
+                </div>
 
                 <div className="mb-3 text-xs font-black uppercase tracking-[0.16em] text-[#7a5a22]">
                   Oznake gosta

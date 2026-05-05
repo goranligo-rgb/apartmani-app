@@ -18,6 +18,13 @@ export default function CijenaPreview({
   const [popustPostotak, setPopustPostotak] = useState("");
   const [dogovoreniIznos, setDogovoreniIznos] = useState("");
 
+  const [tipAkontacije, setTipAkontacije] = useState<"POSTOTAK" | "IZNOS">(
+    "POSTOTAK"
+  );
+  const [vrijednostAkontacije, setVrijednostAkontacije] = useState(
+    defaultAkontacijaPostotak
+  );
+
   const izracun = useMemo(() => {
     const popust = Number(String(popustPostotak).replace(",", ".") || 0);
     const rucno = Number(String(dogovoreniIznos).replace(",", ".") || 0);
@@ -48,95 +55,103 @@ export default function CijenaPreview({
     };
   }, [osnovnaCijena, popustPostotak, dogovoreniIznos]);
 
-  const akontacija = (izracun.konacno * defaultAkontacijaPostotak) / 100;
+  const akontacija =
+    tipAkontacije === "POSTOTAK"
+      ? (izracun.konacno * vrijednostAkontacije) / 100
+      : vrijednostAkontacije;
+
   const ostatak = Math.max(izracun.konacno - akontacija, 0);
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-4 border border-[#ead7b6] bg-[#fff9ef] p-4">
+      {/* POPUST I RUČNA CIJENA */}
       <div className="grid gap-3 md:grid-cols-2">
-        <label className="block">
-          <div className="mb-1 text-xs font-black uppercase tracking-[0.14em] text-[#7a5a22]">
-            Popust %
-          </div>
+        <label>
+          <div className="text-xs font-black text-[#7a5a22]">Popust (%)</div>
           <input
             name="popustPostotak"
             type="number"
             min={0}
             max={100}
             step="0.01"
-            placeholder="npr. 10"
             value={popustPostotak}
             onChange={(e) => setPopustPostotak(e.target.value)}
-            className="w-full border border-[#d8c8aa] bg-white px-3 py-2 text-[#2e2923] outline-none"
+            className="w-full border px-3 py-2"
           />
         </label>
 
-        <label className="block">
-          <div className="mb-1 text-xs font-black uppercase tracking-[0.14em] text-[#7a5a22]">
-            Ručna dogovorena cijena
+        <label>
+          <div className="text-xs font-black text-[#7a5a22]">
+            Ručna cijena
           </div>
           <input
             name="dogovoreniIznos"
             type="number"
-            min={0}
             step="0.01"
-            placeholder="ako se dogovorite ručno"
             value={dogovoreniIznos}
             onChange={(e) => setDogovoreniIznos(e.target.value)}
-            className="w-full border border-[#d8c8aa] bg-white px-3 py-2 text-[#2e2923] outline-none"
+            className="w-full border px-3 py-2"
           />
         </label>
       </div>
 
-      <div className="border border-[#d8c8aa] bg-[#fff6e2] p-4">
-        <div className="text-xs font-black uppercase tracking-[0.14em] text-[#8a641d]">
-          Cijena nakon popusta / dogovora
+      {/* AKONTACIJA */}
+      <div className="space-y-3">
+        <div className="text-xs font-black text-[#7a5a22]">Akontacija</div>
+
+        <div className="grid gap-3 md:grid-cols-2">
+          <label className="flex gap-2 border p-2">
+            <input
+              type="radio"
+              name="tipAkontacije"
+              value="POSTOTAK"
+              checked={tipAkontacije === "POSTOTAK"}
+              onChange={() => setTipAkontacije("POSTOTAK")}
+            />
+            Postotak
+          </label>
+
+          <label className="flex gap-2 border p-2">
+            <input
+              type="radio"
+              name="tipAkontacije"
+              value="IZNOS"
+              checked={tipAkontacije === "IZNOS"}
+              onChange={() => setTipAkontacije("IZNOS")}
+            />
+            Iznos
+          </label>
         </div>
 
-        <div className="mt-1 text-3xl font-black text-[#2e2923]">
-          {money(izracun.konacno)}
-        </div>
-
-        <div className="mt-1 text-sm text-[#6f665a]">{izracun.opis}</div>
-
-        <div className="mt-3 grid gap-2 md:grid-cols-4">
-          <div className="border border-[#e7dece] bg-white p-3">
-            <div className="text-xs font-bold text-[#8a8175]">
-              Osnovna cijena
-            </div>
-            <div className="font-black text-[#2e2923]">
-              {money(osnovnaCijena)}
-            </div>
-          </div>
-
-          <div className="border border-[#e7dece] bg-white p-3">
-            <div className="text-xs font-bold text-[#8a8175]">
-              Popust
-            </div>
-            <div className="font-black text-[#2e2923]">
-              {money(izracun.popustIznos)}
-            </div>
-          </div>
-
-          <div className="border border-[#e7dece] bg-white p-3">
-            <div className="text-xs font-bold text-[#8a8175]">
-              Akontacija {defaultAkontacijaPostotak}%
-            </div>
-            <div className="font-black text-[#2e2923]">
-              {money(akontacija)}
-            </div>
-          </div>
-
-          <div className="border border-[#e7dece] bg-white p-3">
-            <div className="text-xs font-bold text-[#8a8175]">
-              Ostatak
-            </div>
-            <div className="font-black text-[#2e2923]">
-              {money(ostatak)}
-            </div>
-          </div>
-        </div>
+        <input
+          name="vrijednostAkontacije"
+          type="number"
+          step="0.01"
+          value={vrijednostAkontacije}
+          onChange={(e) =>
+            setVrijednostAkontacije(Number(e.target.value || 0))
+          }
+          className="w-full border px-3 py-2"
+        />
       </div>
+
+      {/* PREVIEW */}
+      <div className="grid gap-2 md:grid-cols-5">
+        <Box label="Osnovna" value={money(osnovnaCijena)} />
+        <Box label="Popust" value={money(izracun.popustIznos)} />
+        <Box label="Dogovorena" value={money(izracun.konacno)} />
+        <Box label="Akontacija" value={money(akontacija)} />
+        <Box label="Ostatak" value={money(ostatak)} />
+      </div>
+    </div>
+  );
+}
+
+function Box({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="border bg-white p-2">
+      <div className="text-xs text-gray-500">{label}</div>
+      <div className="font-bold">{value}</div>
     </div>
   );
 }

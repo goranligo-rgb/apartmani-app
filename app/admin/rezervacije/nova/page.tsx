@@ -150,16 +150,6 @@ function parseMoney(value: FormDataEntryValue | null) {
   return Number(n.toFixed(2));
 }
 
-function parseRequiredMoney(value: FormDataEntryValue | null, label: string) {
-  const n = parseMoney(value);
-
-  if (n <= 0) {
-    throw new Error(`${label} mora biti veći od 0.`);
-  }
-
-  return n;
-}
-
 async function getAppUrl() {
   const postavke = await prisma.postavkeNaplate.findFirst({
     orderBy: { createdAt: "asc" },
@@ -228,23 +218,15 @@ function izracunajDogovorenuCijenu({
   return Number(osnovna.toFixed(2));
 }
 
-function izracunajAkontaciju({
-  tipAkontacije,
-  vrijednostAkontacije,
-  dogovoreniIznos,
-}: {
-  tipAkontacije: string;
-  vrijednostAkontacije: number;
-  dogovoreniIznos: number;
-}) {
-  if (tipAkontacije === "POSTOTAK") {
-    return Number(((dogovoreniIznos * vrijednostAkontacije) / 100).toFixed(2));
+function statusBoja(status: string, izvor?: string) {
+  if (izvor === "BOOKING") {
+    return {
+      bg: COLOR_BOOKING,
+      border: COLOR_BOOKING_BORDER,
+      marker: "B",
+    };
   }
 
-  return Number(vrijednostAkontacije.toFixed(2));
-}
-
-function statusBoja(status: string) {
   if (status === "CEKA_AKONTACIJU" || status === "REZERVIRANO") {
     return {
       bg: COLOR_REZERVIRANO,
@@ -329,9 +311,9 @@ export default async function NovaAdminRezervacijaPage({
 
   const jedinica = odabranaJedinicaId
     ? await prisma.jedinica.findUnique({
-        where: { id: odabranaJedinicaId },
-        include: { objekt: true },
-      })
+      where: { id: odabranaJedinicaId },
+      include: { objekt: true },
+    })
     : null;
 
   const postavke =
@@ -351,54 +333,39 @@ export default async function NovaAdminRezervacijaPage({
 
   const rezervacije = jedinica
     ? await prisma.rezervacija.findMany({
-        where: {
-          jedinicaId: jedinica.id,
-          status: {
-            notIn: ["OTKAZANO", "OBRISANO"],
-          },
-          datumOd: {
-            lt: kalendarDo,
-          },
-          datumDo: {
-            gt: kalendarOd,
-          },
+      where: {
+        jedinicaId: jedinica.id,
+        status: {
+          notIn: ["OTKAZANO", "OBRISANO"],
         },
-        include: {
-          gost: true,
+        datumOd: {
+          lt: kalendarDo,
         },
-        orderBy: [{ datumOd: "asc" }],
-      })
-    : [];
-
-  const bookingBlokade = jedinica
-    ? await prisma.blokadaVanjskogKalendara.findMany({
-        where: {
-          jedinicaId: jedinica.id,
-          datumOd: {
-            lt: kalendarDo,
-          },
-          datumDo: {
-            gt: kalendarOd,
-          },
+        datumDo: {
+          gt: kalendarOd,
         },
-        orderBy: [{ datumOd: "asc" }],
-      })
+      },
+      include: {
+        gost: true,
+      },
+      orderBy: [{ datumOd: "asc" }],
+    })
     : [];
 
   const cjenici = jedinica
     ? await prisma.cjenik.findMany({
-        where: {
-          jedinicaId: jedinica.id,
-          aktivno: true,
-          datumOd: {
-            lt: kalendarDo,
-          },
-          datumDo: {
-            gte: kalendarOd,
-          },
+      where: {
+        jedinicaId: jedinica.id,
+        aktivno: true,
+        datumOd: {
+          lt: kalendarDo,
         },
-        orderBy: [{ datumOd: "asc" }],
-      })
+        datumDo: {
+          gte: kalendarOd,
+        },
+      },
+      orderBy: [{ datumOd: "asc" }],
+    })
     : [];
 
   const mjeseci = [0, 1].map((i) => {
@@ -414,52 +381,33 @@ export default async function NovaAdminRezervacijaPage({
   const osnovnaCijena =
     jedinica && odabraniOd && odabraniDo && odabraniOd < odabraniDo
       ? await izracunajCijenuTermina({
-          jedinicaId: jedinica.id,
-          datumOd: odabraniOd,
-          datumDo: odabraniDo,
-        })
+        jedinicaId: jedinica.id,
+        datumOd: odabraniOd,
+        datumDo: odabraniDo,
+      })
       : 0;
 
   const defaultAkontacijaPostotak = Number(jedinica?.postotakAkontacije || 30);
-  const defaultAkontacija = Number(
-    ((osnovnaCijena * defaultAkontacijaPostotak) / 100).toFixed(2)
-  );
 
   const postojiPreklapanjeRezervacija =
     jedinica && odabraniOd && odabraniDo && odabraniOd < odabraniDo
       ? await prisma.rezervacija.findFirst({
-          where: {
-            jedinicaId: jedinica.id,
-            status: {
-              notIn: ["OTKAZANO", "OBRISANO"],
-            },
-            datumOd: {
-              lt: odabraniDo,
-            },
-            datumDo: {
-              gt: odabraniOd,
-            },
+        where: {
+          jedinicaId: jedinica.id,
+          status: {
+            notIn: ["OTKAZANO", "OBRISANO"],
           },
-        })
+          datumOd: {
+            lt: odabraniDo,
+          },
+          datumDo: {
+            gt: odabraniOd,
+          },
+        },
+      })
       : null;
 
-  const postojiPreklapanjeBooking =
-    jedinica && odabraniOd && odabraniDo && odabraniOd < odabraniDo
-      ? await prisma.blokadaVanjskogKalendara.findFirst({
-          where: {
-            jedinicaId: jedinica.id,
-            datumOd: {
-              lt: odabraniDo,
-            },
-            datumDo: {
-              gt: odabraniOd,
-            },
-          },
-        })
-      : null;
-
-  const postojiPreklapanje =
-    postojiPreklapanjeRezervacija || postojiPreklapanjeBooking;
+  const postojiPreklapanje = postojiPreklapanjeRezervacija;
 
   async function kreirajAdminRezervaciju(formData: FormData) {
     "use server";
@@ -480,13 +428,8 @@ export default async function NovaAdminRezervacijaPage({
     const popustPostotak = parseMoney(formData.get("popustPostotak"));
     const rucnaDogovorenaCijena = parseMoney(formData.get("dogovoreniIznos"));
 
-    const tipAkontacije = String(
-      formData.get("tipAkontacije") || "POSTOTAK"
-    ).trim();
-
-    const vrijednostAkontacije = parseRequiredMoney(
-      formData.get("vrijednostAkontacije"),
-      "Vrijednost akontacije"
+    const vrijednostAkontacijeIzForme = parseMoney(
+      formData.get("vrijednostAkontacije")
     );
 
     const danaVrijediAkontacija = Number(
@@ -504,14 +447,6 @@ export default async function NovaAdminRezervacijaPage({
 
     if (!jedinicaId || !datumOdRaw || !datumDoRaw || !ime) {
       throw new Error("Nedostaju obavezni podaci za rezervaciju.");
-    }
-
-    if (!["POSTOTAK", "IZNOS"].includes(tipAkontacije)) {
-      throw new Error("Odaberite ispravan način unosa akontacije.");
-    }
-
-    if (tipAkontacije === "POSTOTAK" && vrijednostAkontacije > 100) {
-      throw new Error("Postotak akontacije ne može biti veći od 100%.");
     }
 
     if (!Number.isFinite(danaVrijediAkontacija) || danaVrijediAkontacija < 1) {
@@ -541,6 +476,16 @@ export default async function NovaAdminRezervacijaPage({
       throw new Error("Jedinica nije pronađena.");
     }
 
+    const vrijednostAkontacijeAuto = Math.min(
+      Math.max(
+        vrijednostAkontacijeIzForme > 0
+          ? vrijednostAkontacijeIzForme
+          : Number(jedinica.postotakAkontacije || 30),
+        1
+      ),
+      99
+    );
+
     const preklapanjeRezervacija = await prisma.rezervacija.findFirst({
       where: {
         jedinicaId,
@@ -558,22 +503,6 @@ export default async function NovaAdminRezervacijaPage({
 
     if (preklapanjeRezervacija) {
       throw new Error("Odabrani termin je zauzet.");
-    }
-
-    const preklapanjeBooking = await prisma.blokadaVanjskogKalendara.findFirst({
-      where: {
-        jedinicaId,
-        datumOd: {
-          lt: datumDo,
-        },
-        datumDo: {
-          gt: datumOd,
-        },
-      },
-    });
-
-    if (preklapanjeBooking) {
-      throw new Error("Odabrani termin je zauzet preko Booking iCal kalendara.");
     }
 
     const nocenja = countNights(datumOd, datumDo);
@@ -608,11 +537,18 @@ export default async function NovaAdminRezervacijaPage({
       throw new Error("Dogovoreni iznos mora biti veći od 0.");
     }
 
-    const iznosAkontacije = izracunajAkontaciju({
-      tipAkontacije,
-      vrijednostAkontacije,
+    console.log("ADMIN IZNOSI", {
+      iznosOsnovni,
+      popustPostotak,
+      rucnaDogovorenaCijena,
       dogovoreniIznos,
+      tipAkontacije: "POSTOTAK",
+      vrijednostAkontacije: vrijednostAkontacijeAuto,
     });
+
+    const iznosAkontacije = Number(
+      ((dogovoreniIznos * vrijednostAkontacijeAuto) / 100).toFixed(2)
+    );
 
     if (iznosAkontacije <= 0) {
       throw new Error("Akontacija mora biti veća od 0.");
@@ -749,8 +685,8 @@ export default async function NovaAdminRezervacijaPage({
           napomena: naplataPunogIznosa
             ? `Poziv za kartično plaćanje cijelog iznosa. Dolazak je za ${danaDoDolaska} dana. Prag pune naplate: ${pragPuneNaplateDana} dana.`
             : `Poziv za kartično plaćanje akontacije. Rok uplate: ${rokUplateAkontacije.toLocaleDateString(
-                "hr-HR"
-              )}`,
+              "hr-HR"
+            )}`,
         },
       });
 
@@ -770,11 +706,10 @@ export default async function NovaAdminRezervacijaPage({
             : "Poziv za plaćanje akontacije",
           html: `
             <div style="font-family: Arial, sans-serif; line-height: 1.5; color: #222; max-width: 640px;">
-              <h2>${
-                naplataPunogIznosa
-                  ? "Poziv za plaćanje rezervacije"
-                  : "Poziv za plaćanje akontacije"
-              }</h2>
+              <h2>${naplataPunogIznosa
+              ? "Poziv za plaćanje rezervacije"
+              : "Poziv za plaćanje akontacije"
+            }</h2>
 
               <p>Poštovani ${ime}${prezime ? " " + prezime : ""},</p>
 
@@ -788,8 +723,8 @@ export default async function NovaAdminRezervacijaPage({
                 Termin:
                 <br />
                 <strong>${datumOd.toLocaleDateString(
-                  "hr-HR"
-                )} – ${datumDo.toLocaleDateString("hr-HR")}</strong>
+              "hr-HR"
+            )} – ${datumDo.toLocaleDateString("hr-HR")}</strong>
               </p>
 
               <p>
@@ -799,48 +734,45 @@ export default async function NovaAdminRezervacijaPage({
               </p>
 
               <p>
-                ${
-                  naplataPunogIznosa
-                    ? `Za potvrdu rezervacije potrebno je platiti puni iznos:<br /><strong>${iznosZaKarticniPoziv.toFixed(
-                        2
-                      )} €</strong>`
-                    : `Za potvrdu rezervacije potrebno je platiti akontaciju:<br /><strong>${iznosZaKarticniPoziv.toFixed(
-                        2
-                      )} €</strong>`
-                }
+                ${naplataPunogIznosa
+              ? `Za potvrdu rezervacije potrebno je platiti puni iznos:<br /><strong>${iznosZaKarticniPoziv.toFixed(
+                2
+              )} €</strong>`
+              : `Za potvrdu rezervacije potrebno je platiti akontaciju:<br /><strong>${iznosZaKarticniPoziv.toFixed(
+                2
+              )} €</strong>`
+            }
               </p>
 
               <p>
                 Ostatak:
                 <br />
                 <strong>${Math.max(
-                  dogovoreniIznos - iznosZaKarticniPoziv,
-                  0
-                ).toFixed(2)} €</strong>
+              dogovoreniIznos - iznosZaKarticniPoziv,
+              0
+            ).toFixed(2)} €</strong>
               </p>
 
-              ${
-                naplataPunogIznosa
-                  ? `<p>Budući da je dolazak za ${danaDoDolaska} dana, prema pravilima rezervacije naplaćuje se puni iznos.</p>`
-                  : `<p>Ostatak je potrebno platiti najkasnije ${danaPrijeDolaskaOstatak} dana prije dolaska.</p>`
-              }
+              ${naplataPunogIznosa
+              ? `<p>Budući da je dolazak za ${danaDoDolaska} dana, prema pravilima rezervacije naplaćuje se puni iznos.</p>`
+              : `<p>Ostatak je potrebno platiti najkasnije ${danaPrijeDolaskaOstatak} dana prije dolaska.</p>`
+            }
 
               <p>
                 Rok plaćanja:
                 <br />
                 <strong>${rokUplateAkontacije.toLocaleDateString(
-                  "hr-HR"
-                )}</strong>
+              "hr-HR"
+            )}</strong>
               </p>
 
               <p style="margin: 28px 0;">
                 <a href="${paymentLink}"
                    style="background:#c79a57;color:#ffffff;padding:14px 22px;text-decoration:none;font-weight:bold;display:inline-block;">
-                  ${
-                    naplataPunogIznosa
-                      ? "Plati rezervaciju karticom"
-                      : "Plati akontaciju karticom"
-                  }
+                  ${naplataPunogIznosa
+              ? "Plati rezervaciju karticom"
+              : "Plati akontaciju karticom"
+            }
                 </a>
               </p>
 
@@ -954,8 +886,7 @@ export default async function NovaAdminRezervacijaPage({
           iznosOsnovni,
           popustPostotak,
           dogovoreniIznos,
-          tipAkontacije,
-          vrijednostAkontacije,
+          postotakAkontacije: vrijednostAkontacijeAuto,
           iznosAkontacije,
           iznosZaKarticniPoziv:
             nacinKreiranja === "POZIV_KARTICA" ? iznosZaKarticniPoziv : null,
@@ -1029,11 +960,10 @@ export default async function NovaAdminRezervacijaPage({
                         <Link
                           key={j.id}
                           href={`/admin/rezervacije/nova?${q.toString()}#kalendar`}
-                          className={`block cursor-pointer border px-3 py-2 text-sm font-black transition ${
-                            odabranaJedinicaId === j.id
-                              ? "border-[#c79a57] bg-[#fff6e2] text-[#2e2923]"
-                              : "border-[#e2d8c8] bg-white text-[#6f665a] hover:bg-[#f8f3ea]"
-                          }`}
+                          className={`block cursor-pointer border px-3 py-2 text-sm font-black transition ${odabranaJedinicaId === j.id
+                            ? "border-[#c79a57] bg-[#fff6e2] text-[#2e2923]"
+                            : "border-[#e2d8c8] bg-white text-[#6f665a] hover:bg-[#f8f3ea]"
+                            }`}
                         >
                           {j.naziv}
                         </Link>
@@ -1058,7 +988,7 @@ export default async function NovaAdminRezervacijaPage({
                   </h2>
                   <p className="mt-1 text-sm text-[#6f665a]">
                     Zelena je slobodno, narančasto čeka uplatu, crveno je
-                    potvrđeno/plaćeno, ljubičasto je Booking iCal, plavo je novi
+                    potvrđeno/plaćeno, ljubičasto je Booking, plavo je novi
                     odabir.
                   </p>
                 </div>
@@ -1067,7 +997,7 @@ export default async function NovaAdminRezervacijaPage({
                   <Legend color="#86efac" label="Slobodno" />
                   <Legend color="#f59e0b" label="Rezervirano / čeka uplatu" />
                   <Legend color={COLOR_POTVRDENO} label="Potvrđeno / plaćeno" />
-                  <Legend color={COLOR_BOOKING} label="Booking iCal" />
+                  <Legend color={COLOR_BOOKING} label="Booking" />
                   <Legend color="#3b82f6" label="Novi odabrani termin" />
                 </section>
 
@@ -1110,7 +1040,6 @@ export default async function NovaAdminRezervacijaPage({
                       mjesecParam={monthParam(kalendarOd)}
                       jedinicaId={jedinica.id}
                       rezervacije={rezervacije}
-                      bookingBlokade={bookingBlokade}
                       cjenici={cjenici}
                       odabraniOd={odabraniOd}
                       odabraniDo={odabraniDo}
@@ -1149,9 +1078,9 @@ export default async function NovaAdminRezervacijaPage({
               {postojiPreklapanje && (
                 <div className="mt-5 border border-red-300 bg-red-50 p-4 text-sm font-black text-red-700">
                   Odabrani termin je zauzet. Odaberi drugi termin.
-                  {postojiPreklapanjeBooking && (
+                  {postojiPreklapanje.izvor === "BOOKING" && (
                     <div className="mt-1 text-purple-800">
-                      Termin je zauzet preko Booking iCal kalendara.
+                      Termin je zauzet preko Booking rezervacije.
                     </div>
                   )}
                 </div>
@@ -1273,6 +1202,24 @@ export default async function NovaAdminRezervacijaPage({
                       defaultAkontacijaPostotak={defaultAkontacijaPostotak}
                     />
 
+                    <Field label="Akontacija za potvrdu rezervacije">
+                      <div className="flex border border-[#d8c8aa] bg-white">
+                        <input
+                          name="vrijednostAkontacije"
+                          type="number"
+                          min={1}
+                          max={99}
+                          step="1"
+                          defaultValue={defaultAkontacijaPostotak}
+                          className="w-full px-3 py-2 text-[#2e2923] outline-none"
+                          required
+                        />
+                        <span className="border-l border-[#d8c8aa] bg-[#f8f3ea] px-3 py-2 text-sm font-black text-[#7a5a22]">
+                          %
+                        </span>
+                      </div>
+                    </Field>
+
                     <Field label="Razlog popusta / dogovor">
                       <textarea
                         name="razlogPopusta"
@@ -1281,89 +1228,6 @@ export default async function NovaAdminRezervacijaPage({
                         placeholder="npr. stari gost, telefonski dogovor..."
                       />
                     </Field>
-
-                    <div className="border border-[#ead7b6] bg-[#fff9ef] p-4">
-                      <div className="text-xs font-black uppercase tracking-[0.14em] text-[#7a5a22]">
-                        Akontacija
-                      </div>
-
-                      <p className="mt-1 text-sm text-[#6f665a]">
-                        Akontaciju možeš upisati kao postotak ili kao direktni
-                        dogovoreni iznos. Ako je dolazak blizu, sustav će kod
-                        kartičnog poziva automatski tražiti puni iznos prema
-                        postavkama naplate.
-                      </p>
-
-                      <div className="mt-4 grid gap-3 md:grid-cols-2">
-                        <label className="flex cursor-pointer gap-3 border border-[#c79a57] bg-white p-3">
-                          <input
-                            type="radio"
-                            name="tipAkontacije"
-                            value="POSTOTAK"
-                            defaultChecked
-                            className="mt-1"
-                          />
-                          <span>
-                            <span className="block font-black text-[#7a5a22]">
-                              Postotak (%)
-                            </span>
-                            <span className="text-sm text-[#6f665a]">
-                              Npr. 30 znači 30% od ukupne cijene.
-                            </span>
-                          </span>
-                        </label>
-
-                        <label className="flex cursor-pointer gap-3 border border-[#e2d8c8] bg-white p-3">
-                          <input
-                            type="radio"
-                            name="tipAkontacije"
-                            value="IZNOS"
-                            className="mt-1"
-                          />
-                          <span>
-                            <span className="block font-black text-[#7a5a22]">
-                              Direktni iznos (€)
-                            </span>
-                            <span className="text-sm text-[#6f665a]">
-                              Npr. 300 znači akontacija 300 €.
-                            </span>
-                          </span>
-                        </label>
-                      </div>
-
-                      <div className="mt-4 grid gap-3 md:grid-cols-2">
-                        <Field label="Vrijednost akontacije">
-                          <input
-                            name="vrijednostAkontacije"
-                            type="number"
-                            min={0.01}
-                            step="0.01"
-                            defaultValue={defaultAkontacijaPostotak.toFixed(0)}
-                            className="w-full border border-[#d8c8aa] bg-white px-3 py-2 text-[#2e2923] outline-none"
-                            required
-                          />
-                        </Field>
-
-                        <Field label="Poziv za akontaciju vrijedi dana">
-                          <input
-                            name="danaVrijediAkontacija"
-                            type="number"
-                            min={1}
-                            defaultValue={postavke.danaVrijediPozivAkontacije}
-                            className="w-full border border-[#d8c8aa] bg-white px-3 py-2 text-[#2e2923] outline-none"
-                            required
-                          />
-                        </Field>
-                      </div>
-
-                      <div className="mt-3 border border-[#e2d8c8] bg-white p-3 text-sm text-[#6f665a]">
-                        Primjer: ako je ukupno {money(osnovnaCijena)} i upišeš{" "}
-                        {defaultAkontacijaPostotak.toFixed(0)}% → akontacija je{" "}
-                        <strong>{money(defaultAkontacija)}</strong>. Ako
-                        odabereš direktni iznos i upišeš 300 → akontacija je{" "}
-                        <strong>300.00 €</strong>.
-                      </div>
-                    </div>
 
                     <Field label="Ostatak platiti najkasnije">
                       <div className="flex border border-[#d8c8aa] bg-white">
@@ -1475,7 +1339,6 @@ function MonthCalendar({
   mjesecParam,
   jedinicaId,
   rezervacije,
-  bookingBlokade,
   cjenici,
   odabraniOd,
   odabraniDo,
@@ -1484,7 +1347,6 @@ function MonthCalendar({
   mjesecParam: string;
   jedinicaId: string;
   rezervacije: any[];
-  bookingBlokade: any[];
   cjenici: any[];
   odabraniOd: Date | null;
   odabraniDo: Date | null;
@@ -1552,18 +1414,6 @@ function MonthCalendar({
             (r) => dan > startOfDay(r.datumOd) && dan < startOfDay(r.datumDo)
           );
 
-          const bookingDolazak = bookingBlokade.find((b) =>
-            isSameDate(dan, startOfDay(b.datumOd))
-          );
-
-          const bookingOdlazak = bookingBlokade.find((b) =>
-            isSameDate(dan, startOfDay(b.datumDo))
-          );
-
-          const bookingBoravi = bookingBlokade.find(
-            (b) => dan > startOfDay(b.datumOd) && dan < startOfDay(b.datumDo)
-          );
-
           const selectedStart = odabraniOd && isSameDate(dan, odabraniOd);
           const selectedEnd = odabraniDo && isSameDate(dan, odabraniDo);
           const selectedMiddle = isInMiddleOfRange(dan, odabraniOd, odabraniDo);
@@ -1593,30 +1443,9 @@ function MonthCalendar({
           let title = "Slobodno";
           let marker = "";
 
-          if (bookingOdlazak && bookingDolazak) {
-            leftColor = COLOR_BOOKING;
-            rightColor = COLOR_BOOKING;
-            background = diagonalBg(leftColor, rightColor);
-            borderColor = COLOR_BOOKING_BORDER;
-            title = "Booking odlazak i dolazak";
-            marker = "B";
-          } else if (bookingOdlazak) {
-            leftColor = COLOR_BOOKING;
-            rightColor = COLOR_SLOBODNO;
-            background = diagonalBg(leftColor, rightColor);
-            borderColor = COLOR_BOOKING_BORDER;
-            title = "Booking odlazak / moguće novi dolazak";
-            marker = "B";
-          } else if (bookingDolazak) {
-            leftColor = COLOR_SLOBODNO;
-            rightColor = COLOR_BOOKING;
-            background = diagonalBg(leftColor, rightColor);
-            borderColor = COLOR_BOOKING_BORDER;
-            title = "Booking dolazak";
-            marker = "B";
-          } else if (odlazak && dolazak) {
-            const bojaOdlazak = statusBoja(odlazak.status);
-            const bojaDolazak = statusBoja(dolazak.status);
+          if (odlazak && dolazak) {
+            const bojaOdlazak = statusBoja(odlazak.status, odlazak.izvor);
+            const bojaDolazak = statusBoja(dolazak.status, dolazak.izvor);
 
             leftColor = bojaOdlazak.bg;
             rightColor = bojaDolazak.bg;
@@ -1625,26 +1454,33 @@ function MonthCalendar({
             title = "Istog dana odlazak i dolazak";
             marker = "↔";
           } else if (odlazak) {
-            const boja = statusBoja(odlazak.status);
+            const boja = statusBoja(odlazak.status, odlazak.izvor);
 
             leftColor = boja.bg;
             rightColor = COLOR_SLOBODNO;
             background = diagonalBg(leftColor, rightColor);
-            borderColor = "rgba(255,255,255,0.18)";
-            title = "Odlazak gosta / moguće novi dolazak";
+            borderColor = boja.border;
+            title =
+              odlazak.izvor === "BOOKING"
+                ? "Booking odlazak / moguće novi dolazak"
+                : "Odlazak gosta / moguće novi dolazak";
+            marker = odlazak.izvor === "BOOKING" ? "B" : "";
           } else if (dolazak) {
-            const boja = statusBoja(dolazak.status);
+            const boja = statusBoja(dolazak.status, dolazak.izvor);
 
             leftColor = COLOR_SLOBODNO;
             rightColor = boja.bg;
             background = diagonalBg(leftColor, rightColor);
-            borderColor = "rgba(255,255,255,0.18)";
-            title = "Dolazak gosta / moguće samo kao odlazak";
+            borderColor = boja.border;
+            title =
+              dolazak.izvor === "BOOKING"
+                ? "Booking dolazak"
+                : "Dolazak gosta / moguće samo kao odlazak";
+            marker = dolazak.izvor === "BOOKING" ? "B" : "";
           }
 
           if (boravi && !selectedStart && !selectedEnd && !selectedMiddle) {
-            const boja = statusBoja(boravi.status);
-
+            const boja = statusBoja(boravi.status, boravi.izvor);
             return (
               <div
                 key={iso}
@@ -1661,28 +1497,6 @@ function MonthCalendar({
             );
           }
 
-          if (
-            bookingBoravi &&
-            !selectedStart &&
-            !selectedEnd &&
-            !selectedMiddle
-          ) {
-            return (
-              <div
-                key={iso}
-                className="min-h-[60px] border-b border-r p-1 text-left"
-                style={{
-                  background: COLOR_BOOKING,
-                  borderColor: COLOR_BOOKING_BORDER,
-                  cursor: "not-allowed",
-                }}
-                title="Booking iCal zauzeće"
-              >
-                <DayContent day={dan} price={cijena} marker="B" />
-              </div>
-            );
-          }
-
           if (dolazak && !mozeBitiOdlazak && !selectedStart && !selectedEnd) {
             return (
               <div
@@ -1695,29 +1509,11 @@ function MonthCalendar({
                 }}
                 title={title}
               >
-                <DayContent day={dan} price={cijena} marker={marker || "X"} />
-              </div>
-            );
-          }
-
-          if (
-            bookingDolazak &&
-            !mozeBitiOdlazak &&
-            !selectedStart &&
-            !selectedEnd
-          ) {
-            return (
-              <div
-                key={iso}
-                className="min-h-[60px] border-b border-r p-1 text-left"
-                style={{
-                  background,
-                  borderColor,
-                  cursor: "not-allowed",
-                }}
-                title={title}
-              >
-                <DayContent day={dan} price={cijena} marker="B" />
+                <DayContent
+                  day={dan}
+                  price={cijena}
+                  marker={marker || statusBoja(dolazak.status, dolazak.izvor).marker}
+                />
               </div>
             );
           }

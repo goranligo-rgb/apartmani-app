@@ -23,7 +23,7 @@ export async function potvrdiPlacanje(placanjeId: string) {
       );
 
       const pi = session.payment_intent;
-      paymentIntentId = typeof pi === "string" ? pi : pi?.id;
+      paymentIntentId = typeof pi === "string" ? pi : pi?.id ?? null;
     }
 
     if (!paymentIntentId) {

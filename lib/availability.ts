@@ -37,7 +37,7 @@ export async function pronadiSlobodneJedinice(
       rezervacije: {
         where: {
           status: {
-            in: ["KAPARA", "PLACENO", "REZERVIRANO"],
+            in: ["POTVRDENO", "CEKA_OSTATAK", "PLACENO", "REZERVIRANO"],
           },
           datumOd: {
             lt: datumDo,

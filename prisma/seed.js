@@ -175,7 +175,7 @@ const objektiSeed = [
     ],
   },
   {
-    naziv: "House Eva",
+    naziv: "Apartments Eva",
     mjesto: "Malinska",
     imaBazen: false,
     grupaBazena: null,

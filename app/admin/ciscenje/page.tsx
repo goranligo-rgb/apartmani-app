@@ -79,7 +79,12 @@ async function spremiPostavke(formData: FormData) {
 async function posaljiOdmah() {
   "use server";
 
-  await generirajINaPosalji();
+  const result = await generirajINaPosalji();
+
+  if (result?.error) {
+    redirect(`/admin/ciscenje?error=${encodeURIComponent(result.error)}`);
+  }
+
   redirect("/admin/ciscenje?sent=1");
 }
 
@@ -253,8 +258,8 @@ export default async function CiscenjeAdminPage({
 
     const sljedeciUlazak = sljedecaRezervacija
       ? `${formatDatum(sljedecaRezervacija.datumOd)} — ${guestName(
-          sljedecaRezervacija.gost
-        )}`
+        sljedecaRezervacija.gost
+      )}`
       : "Nema najavljenog ulaska";
 
     planItems.push({
@@ -364,8 +369,12 @@ export default async function CiscenjeAdminPage({
         </div>
       )}
 
-      {params?.error === "email" && (
-        <div style={errorStyle}>Email agencije je obavezan.</div>
+      {params?.error && (
+        <div style={errorStyle}>
+          {params.error === "email"
+            ? "Email agencije je obavezan."
+            : params.error}
+        </div>
       )}
 
       <div style={layoutStyle}>

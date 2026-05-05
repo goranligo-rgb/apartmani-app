@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 
 type Objekt = {
   id: string;
@@ -27,7 +27,29 @@ type Slika = {
   jedinica?: Jedinica | null;
 };
 
-type TipSlike = "OBJEKT" | "JEDINICA" | "DASHBOARD";
+type GrupaSlika = {
+  url: string;
+  slike: Slika[];
+  aktivna: boolean;
+};
+
+function kraticaObjekta(naziv: string) {
+  if (naziv === "House Art") return "HA";
+  if (naziv === "Luxury Apartments Marty") return "AM";
+  if (naziv === "Apartments Eva") return "AE";
+  return naziv;
+}
+
+function kraticaJedinice(j: Jedinica) {
+  if (j.objekt.naziv === "House Art") return "HA";
+  if (j.objekt.naziv === "Luxury Apartments Marty") {
+    return `AM${j.naziv.replace("Marty ", "")}`;
+  }
+  if (j.objekt.naziv === "Apartments Eva") {
+    return `AE${j.naziv.replace("Eva ", "")}`;
+  }
+  return j.naziv;
+}
 
 export default function AdminSlikeClient({
   objekti,
@@ -38,20 +60,26 @@ export default function AdminSlikeClient({
   jedinice: Jedinica[];
   slike: Slika[];
 }) {
-  const [tip, setTip] = useState<TipSlike>("OBJEKT");
   const [files, setFiles] = useState<File[]>([]);
   const [fileInputKey, setFileInputKey] = useState(0);
   const [slike, setSlike] = useState<Slika[]>(pocetneSlike);
-
-  const [objektId, setObjektId] = useState("");
-  const [jedinicaId, setJedinicaId] = useState("");
-
-  const [aktivnaUpload, setAktivnaUpload] = useState(true);
-  const [dashboard, setDashboard] = useState(false);
-  const [pocetna, setPocetna] = useState(false);
-
   const [loading, setLoading] = useState(false);
   const [uploadInfo, setUploadInfo] = useState("");
+
+  const grupe = useMemo<GrupaSlika[]>(() => {
+    const map = new Map<string, Slika[]>();
+
+    for (const slika of slike) {
+      if (!map.has(slika.url)) map.set(slika.url, []);
+      map.get(slika.url)!.push(slika);
+    }
+
+    return Array.from(map.entries()).map(([url, slike]) => ({
+      url,
+      slike,
+      aktivna: slike.some((s) => s.aktivna),
+    }));
+  }, [slike]);
 
   async function ucitajSlike() {
     const res = await fetch("/api/slike", { cache: "no-store" });
@@ -67,116 +95,94 @@ export default function AdminSlikeClient({
       return;
     }
 
-    if (tip === "OBJEKT" && !objektId) {
-      alert("Odaberi objekt");
-      return;
-    }
-
-    if (tip === "JEDINICA" && !jedinicaId) {
-      alert("Odaberi jedinicu");
-      return;
-    }
-
     setLoading(true);
-    setUploadInfo("");
+    setUploadInfo(`Spremam ${files.length} slika...`);
 
     try {
-      for (let i = 0; i < files.length; i++) {
-        const formData = new FormData();
+      const formData = new FormData();
 
-        formData.append("file", files[i]);
-        formData.append("aktivna", String(aktivnaUpload));
-        formData.append("dashboard", String(dashboard));
-        formData.append("pocetna", String(pocetna));
+      for (const file of files) {
+        formData.append("files", file);
+      }
 
-        if (tip === "OBJEKT") {
-          formData.append("objektId", objektId);
-        }
+      const res = await fetch("/api/slike/upload", {
+        method: "POST",
+        body: formData,
+      });
 
-        if (tip === "JEDINICA") {
-          formData.append("jedinicaId", jedinicaId);
-        }
-
-        setUploadInfo(`Spremam ${i + 1} / ${files.length}...`);
-
-        const res = await fetch("/api/slike/upload", {
-          method: "POST",
-          body: formData,
-        });
-
-        if (!res.ok) {
-          const text = await res.text();
-          console.error(text);
-          alert(`Greška kod uploada slike: ${files[i].name}`);
-          setLoading(false);
-          return;
-        }
+      if (!res.ok) {
+        alert("Greška kod uploada slika");
+        return;
       }
 
       setFiles([]);
       setFileInputKey((v) => v + 1);
       await ucitajSlike();
 
-      alert(
-        files.length === 1
-          ? "Slika je spremljena"
-          : `Spremljeno je ${files.length} slika`
-      );
+      alert(`Spremljeno je ${files.length} slika`);
     } finally {
       setLoading(false);
       setUploadInfo("");
     }
   }
 
-  async function updateSlika(id: string, data: Partial<Slika>) {
-    const stara = slike.find((s) => s.id === id);
-    if (!stara) return;
-
-    const res = await fetch(`/api/slike/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        aktivna: data.aktivna ?? stara.aktivna,
-        prikaziNaPocetnoj: data.prikaziNaPocetnoj ?? stara.prikaziNaPocetnoj,
-        prikaziNaDashboardu:
-          data.prikaziNaDashboardu ?? stara.prikaziNaDashboardu,
-        sortOrder: data.sortOrder ?? stara.sortOrder,
-      }),
+  async function dodijeliSliku(payload: {
+    url: string;
+    checked: boolean;
+    tip: "AKTIVNA" | "OBJEKT" | "JEDINICA" | "DASHBOARD_OBJEKTA";
+    objektId?: string;
+    jedinicaId?: string;
+  }) {
+    const res = await fetch("/api/slike/dodjela", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
     });
 
     if (!res.ok) {
-      alert("Greška kod spremanja");
+      alert("Greška kod spremanja dodjele slike");
       return;
     }
 
     await ucitajSlike();
   }
 
-  async function obrisiSliku(id: string) {
-    if (!confirm("Obrisati sliku?")) return;
+  async function obrisiGrupu(url: string) {
+    if (!confirm("Obrisati ovu sliku i sve njezine dodjele?")) return;
 
-    const res = await fetch(`/api/slike/${id}`, {
-      method: "DELETE",
-    });
+    const zapisi = slike.filter((s) => s.url === url);
 
-    if (!res.ok) {
-      alert("Greška kod brisanja");
-      return;
+    for (const zapis of zapisi) {
+      await fetch(`/api/slike/${zapis.id}`, {
+        method: "DELETE",
+      });
     }
 
     await ucitajSlike();
   }
 
-  function nazivSlike(slika: Slika) {
-    if (slika.jedinica) {
-      return `${slika.jedinica.objekt.naziv} · ${slika.jedinica.naziv}`;
-    }
+  function imaObjekt(grupa: GrupaSlika, objektId: string) {
+    return grupa.slike.some(
+      (s) =>
+        s.objekt?.id === objektId &&
+        !s.jedinica &&
+        !s.prikaziNaDashboardu
+    );
+  }
 
-    if (slika.objekt) {
-      return slika.objekt.naziv;
-    }
+  function imaJedinicu(grupa: GrupaSlika, jedinicaId: string) {
+    return grupa.slike.some((s) => s.jedinica?.id === jedinicaId);
+  }
 
-    return "Početna / dashboard";
+  function imaDashboardObjekta(grupa: GrupaSlika, objektId: string) {
+    return grupa.slike.some(
+      (s) =>
+        s.objekt?.id === objektId &&
+        !s.jedinica &&
+        s.prikaziNaDashboardu
+    );
   }
 
   return (
@@ -196,12 +202,12 @@ export default function AdminSlikeClient({
             </p>
 
             <h1 className="text-4xl font-black text-[#2e2923]">
-              Slike objekata i dashboarda
+              Slike objekata i jedinica
             </h1>
 
             <p className="mt-3 text-[#6f665a]">
-              Upload po objektu, po jedinici ili za glavnu početnu. Svakoj
-              slici možeš odrediti gdje se prikazuje.
+              Uploadaj više slika odjednom, a zatim kućicama označi gdje se
+              svaka slika prikazuje.
             </p>
           </div>
 
@@ -215,264 +221,185 @@ export default function AdminSlikeClient({
 
         <section className="mb-8 border border-[#e4d6c0] bg-white p-6 shadow-[0_18px_45px_rgba(0,0,0,0.08)]">
           <h2 className="text-2xl font-black text-[#2e2923]">
-            Upload nove slike
+            Upload slika
           </h2>
 
-          <div className="mt-6 grid gap-4 lg:grid-cols-4">
-            <div>
-              <label className="mb-2 block text-sm font-black text-[#5f5549]">
-                Gdje ide slika?
-              </label>
+          <div className="mt-5">
+            <input
+              key={fileInputKey}
+              type="file"
+              accept="image/*"
+              multiple
+              onChange={(e) => setFiles(Array.from(e.target.files || []))}
+              className="w-full cursor-pointer border border-[#d8c7aa] bg-white p-3 text-[#2e2923] file:mr-4 file:cursor-pointer file:border-0 file:bg-[#0b252b] file:px-4 file:py-2 file:font-black file:text-white"
+            />
 
-              <select
-                value={tip}
-                onChange={(e) => {
-                  const noviTip = e.target.value as TipSlike;
-                  setTip(noviTip);
-
-                  if (noviTip === "DASHBOARD") {
-                    setDashboard(false);
-                    setPocetna(true);
-                  }
-                }}
-                className="w-full cursor-pointer border border-[#d8c7aa] bg-white p-3 font-bold text-[#2e2923]"
-              >
-                <option value="OBJEKT">Objekt</option>
-                <option value="JEDINICA">Jedinica / apartman</option>
-                <option value="DASHBOARD">Samo početna / glavni dashboard</option>
-              </select>
-            </div>
-
-            {tip === "OBJEKT" && (
-              <div>
-                <label className="mb-2 block text-sm font-black text-[#5f5549]">
-                  Odaberi objekt
-                </label>
-
-                <select
-                  value={objektId}
-                  onChange={(e) => setObjektId(e.target.value)}
-                  className="w-full cursor-pointer border border-[#d8c7aa] bg-white p-3 font-bold text-[#2e2923]"
-                >
-                  <option value="">-- odaberi objekt --</option>
-                  {objekti.map((o) => (
-                    <option key={o.id} value={o.id}>
-                      {o.naziv}
-                    </option>
-                  ))}
-                </select>
+            {files.length > 0 && (
+              <div className="mt-2 text-sm font-bold text-[#6f665a]">
+                Odabrano: {files.length} slika
               </div>
             )}
-
-            {tip === "JEDINICA" && (
-              <div>
-                <label className="mb-2 block text-sm font-black text-[#5f5549]">
-                  Odaberi jedinicu
-                </label>
-
-                <select
-                  value={jedinicaId}
-                  onChange={(e) => setJedinicaId(e.target.value)}
-                  className="w-full cursor-pointer border border-[#d8c7aa] bg-white p-3 font-bold text-[#2e2923]"
-                >
-                  <option value="">-- odaberi jedinicu --</option>
-                  {jedinice.map((j) => (
-                    <option key={j.id} value={j.id}>
-                      {j.objekt.naziv} · {j.naziv}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
-
-            <div>
-              <label className="mb-2 block text-sm font-black text-[#5f5549]">
-                Prikaz slike
-              </label>
-
-              <div className="space-y-2 border border-[#d8c7aa] bg-[#fbf8f2] p-3">
-                <label className="flex cursor-pointer items-center gap-2 font-bold text-[#2e2923]">
-                  <input
-                    type="checkbox"
-                    checked={aktivnaUpload}
-                    onChange={(e) => setAktivnaUpload(e.target.checked)}
-                  />
-                  Aktivna / galerija
-                </label>
-
-                <label className="flex cursor-pointer items-center gap-2 font-bold text-[#2e2923]">
-                  <input
-                    type="checkbox"
-                    checked={pocetna}
-                    onChange={(e) => setPocetna(e.target.checked)}
-                  />
-                  Početna / glavni dashboard
-                </label>
-
-                <label className="flex cursor-pointer items-center gap-2 font-bold text-[#2e2923]">
-                  <input
-                    type="checkbox"
-                    checked={dashboard}
-                    onChange={(e) => setDashboard(e.target.checked)}
-                    disabled={tip === "DASHBOARD"}
-                  />
-                  Dashboard objekta
-                </label>
-              </div>
-            </div>
-
-            <div>
-              <label className="mb-2 block text-sm font-black text-[#5f5549]">
-                Odaberi slike
-              </label>
-
-              <input
-                key={fileInputKey}
-                type="file"
-                accept="image/*"
-                multiple
-                onChange={(e) => setFiles(Array.from(e.target.files || []))}
-                className="w-full cursor-pointer border border-[#d8c7aa] bg-white p-3 text-[#2e2923] file:mr-4 file:cursor-pointer file:border-0 file:bg-[#0b252b] file:px-4 file:py-2 file:font-black file:text-white"
-              />
-
-              {files.length > 0 && (
-                <div className="mt-2 text-sm font-bold text-[#6f665a]">
-                  Odabrano: {files.length}{" "}
-                  {files.length === 1 ? "slika" : "slika"}
-                </div>
-              )}
-            </div>
           </div>
 
           <button
             type="button"
             onClick={uploadSlike}
             disabled={loading}
-            className="mt-6 cursor-pointer bg-[#0b252b] px-7 py-3 font-black text-white hover:bg-[#163941] disabled:cursor-not-allowed disabled:opacity-60"
+            className="mt-5 cursor-pointer bg-[#0b252b] px-7 py-3 font-black text-white hover:bg-[#163941] disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {loading
-              ? uploadInfo || "Spremam..."
-              : files.length > 1
-                ? `Upload ${files.length} slika`
-                : "Upload slike"}
+            {loading ? uploadInfo || "Spremam..." : "Upload slika"}
           </button>
         </section>
 
         <section className="border border-[#e4d6c0] bg-white p-6 shadow-[0_18px_45px_rgba(0,0,0,0.08)]">
           <h2 className="text-2xl font-black text-[#2e2923]">
-            Spremljene slike
+            Dodjela slika
           </h2>
 
-          {slike.length === 0 ? (
+          <div className="mt-3 text-sm font-bold text-[#6f665a]">
+            HA = House Art, AM = Apartments Marty, AE = Apartments Eva, DBO =
+            dashboard objekta.
+          </div>
+
+          {grupe.length === 0 ? (
             <div className="mt-6 border border-dashed border-[#d8c7aa] bg-[#fbf8f2] p-8 text-center text-[#6f665a]">
               Još nema uploadanih slika.
             </div>
           ) : (
-            <div className="mt-6 grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-              {slike.map((slika) => (
+            <div className="mt-6 grid gap-5">
+              {grupe.map((grupa) => (
                 <div
-                  key={slika.id}
-                  className="overflow-hidden border border-[#e4d6c0] bg-[#fbf8f2]"
+                  key={grupa.url}
+                  className="grid gap-4 border border-[#e4d6c0] bg-[#fbf8f2] p-4 lg:grid-cols-[260px_1fr]"
                 >
-                  <div className="h-56 bg-[#ddd]">
-                    <img
-                      src={slika.url}
-                      alt="Slika"
-                      className="h-full w-full object-cover"
-                    />
+                  <div>
+                    <div className="h-44 overflow-hidden bg-[#ddd]">
+                      <img
+                        src={grupa.url}
+                        alt="Slika"
+                        className="h-full w-full object-cover"
+                      />
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => obrisiGrupu(grupa.url)}
+                      className="mt-3 w-full cursor-pointer border border-red-200 bg-white px-4 py-2 font-black text-red-700 hover:bg-red-50"
+                    >
+                      Obriši sliku
+                    </button>
                   </div>
 
-                  <div className="p-4">
-                    <div className="text-lg font-black text-[#2e2923]">
-                      {nazivSlike(slika)}
-                    </div>
-
-                    <div className="mt-3 flex flex-wrap gap-2 text-xs font-black uppercase">
-                      {slika.aktivna ? (
-                        <span className="bg-green-100 px-2 py-1 text-green-800">
-                          Aktivna
-                        </span>
-                      ) : (
-                        <span className="bg-red-100 px-2 py-1 text-red-800">
-                          Neaktivna
-                        </span>
-                      )}
-
-                      {slika.prikaziNaPocetnoj && (
-                        <span className="bg-yellow-100 px-2 py-1 text-yellow-800">
-                          Početna
-                        </span>
-                      )}
-
-                      {slika.prikaziNaDashboardu && (
-                        <span className="bg-blue-100 px-2 py-1 text-blue-800">
-                          Dashboard objekta
-                        </span>
-                      )}
-                    </div>
-
-                    <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
-                      <label className="flex cursor-pointer items-center gap-2 font-bold text-[#5f5549]">
+                  <div>
+                    <div className="mb-4 flex flex-wrap gap-3">
+                      <label className="flex cursor-pointer items-center gap-2 bg-white px-3 py-2 font-black text-[#2e2923]">
                         <input
                           type="checkbox"
-                          checked={slika.aktivna}
+                          checked={grupa.aktivna}
                           onChange={(e) =>
-                            updateSlika(slika.id, {
-                              aktivna: e.target.checked,
+                            dodijeliSliku({
+                              url: grupa.url,
+                              checked: e.target.checked,
+                              tip: "AKTIVNA",
                             })
                           }
                         />
                         Aktivna
                       </label>
-
-                      <label className="flex cursor-pointer items-center gap-2 font-bold text-[#5f5549]">
-                        <input
-                          type="checkbox"
-                          checked={slika.prikaziNaPocetnoj}
-                          onChange={(e) =>
-                            updateSlika(slika.id, {
-                              prikaziNaPocetnoj: e.target.checked,
-                            })
-                          }
-                        />
-                        Početna
-                      </label>
-
-                      <label className="flex cursor-pointer items-center gap-2 font-bold text-[#5f5549]">
-                        <input
-                          type="checkbox"
-                          checked={slika.prikaziNaDashboardu}
-                          onChange={(e) =>
-                            updateSlika(slika.id, {
-                              prikaziNaDashboardu: e.target.checked,
-                            })
-                          }
-                        />
-                        Dashboard objekta
-                      </label>
-
-                      <label className="font-bold text-[#5f5549]">
-                        Redoslijed
-                        <input
-                          type="number"
-                          defaultValue={slika.sortOrder}
-                          onBlur={(e) =>
-                            updateSlika(slika.id, {
-                              sortOrder: Number(e.target.value || 0),
-                            })
-                          }
-                          className="mt-1 w-full border border-[#d8c7aa] bg-white p-2"
-                        />
-                      </label>
                     </div>
 
-                    <button
-                      type="button"
-                      onClick={() => obrisiSliku(slika.id)}
-                      className="mt-4 w-full cursor-pointer border border-red-200 bg-white px-4 py-2 font-black text-red-700 hover:bg-red-50"
-                    >
-                      Obriši sliku
-                    </button>
+                    <div className="grid gap-4 xl:grid-cols-3">
+                      <div className="border border-[#e4d6c0] bg-white p-4">
+                        <div className="mb-3 text-sm font-black uppercase tracking-[0.18em] text-[#9b7a4c]">
+                          Objekti
+                        </div>
+
+                        <div className="flex flex-wrap gap-2">
+                          {objekti.map((o) => (
+                            <label
+                              key={o.id}
+                              className="flex cursor-pointer items-center gap-2 border border-[#d8c7aa] bg-[#fbf8f2] px-3 py-2 font-black text-[#2e2923]"
+                            >
+                              <input
+                                type="checkbox"
+                                checked={imaObjekt(grupa, o.id)}
+                                onChange={(e) =>
+                                  dodijeliSliku({
+                                    url: grupa.url,
+                                    checked: e.target.checked,
+                                    tip: "OBJEKT",
+                                    objektId: o.id,
+                                  })
+                                }
+                              />
+                              {kraticaObjekta(o.naziv)}
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="border border-[#e4d6c0] bg-white p-4">
+                        <div className="mb-3 text-sm font-black uppercase tracking-[0.18em] text-[#9b7a4c]">
+                          Jedinice
+                        </div>
+
+                        <div className="flex flex-wrap gap-2">
+                          {jedinice.map((j) => (
+                            <label
+                              key={j.id}
+                              className="flex cursor-pointer items-center gap-2 border border-[#d8c7aa] bg-[#fbf8f2] px-3 py-2 font-black text-[#2e2923]"
+                            >
+                              <input
+                                type="checkbox"
+                                checked={imaJedinicu(grupa, j.id)}
+                                onChange={(e) =>
+                                  dodijeliSliku({
+                                    url: grupa.url,
+                                    checked: e.target.checked,
+                                    tip: "JEDINICA",
+                                    jedinicaId: j.id,
+                                  })
+                                }
+                              />
+                              {kraticaJedinice(j)}
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="border border-[#e4d6c0] bg-white p-4">
+                        <div className="mb-3 text-sm font-black uppercase tracking-[0.18em] text-[#9b7a4c]">
+                          Dashboard objekta
+                        </div>
+
+                        <div className="flex flex-wrap gap-2">
+                          {objekti.map((o) => (
+                            <label
+                              key={o.id}
+                              className="flex cursor-pointer items-center gap-2 border border-[#d8c7aa] bg-[#fbf8f2] px-3 py-2 font-black text-[#2e2923]"
+                            >
+                              <input
+                                type="checkbox"
+                                checked={imaDashboardObjekta(grupa, o.id)}
+                                onChange={(e) =>
+                                  dodijeliSliku({
+                                    url: grupa.url,
+                                    checked: e.target.checked,
+                                    tip: "DASHBOARD_OBJEKTA",
+                                    objektId: o.id,
+                                  })
+                                }
+                              />
+                              DBO-{kraticaObjekta(o.naziv)}
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="mt-3 text-xs font-bold text-[#6f665a]">
+                      Zapisa u bazi za ovu sliku: {grupa.slike.length}
+                    </div>
                   </div>
                 </div>
               ))}

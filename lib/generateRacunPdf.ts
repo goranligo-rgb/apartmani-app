@@ -101,9 +101,9 @@ function drawValue(page: any, value: string, x: number, y: number, font: any) {
 async function drawLogo(pdfDoc: PDFDocument, page: any, racun: any) {
   const objektNaziv = String(
     racun.objekt?.naziv ||
-      racun.rezervacija?.jedinica?.objekt?.naziv ||
-      racun.nazivIzdavatelja ||
-      ""
+    racun.rezervacija?.jedinica?.objekt?.naziv ||
+    racun.nazivIzdavatelja ||
+    ""
   ).toLowerCase();
 
   let logoPath = "";
@@ -121,15 +121,18 @@ async function drawLogo(pdfDoc: PDFDocument, page: any, racun: any) {
   const bytes = fs.readFileSync(logoPath);
   const image = await pdfDoc.embedPng(bytes);
 
-  const maxWidth = 115;
-  const maxHeight = 70;
+  const maxWidth = 165;
+  const maxHeight = 105;
   const scale = Math.min(maxWidth / image.width, maxHeight / image.height);
+
+  const logoWidth = image.width * scale;
+  const logoHeight = image.height * scale;
 
   page.drawImage(image, {
     x: 50,
-    y: 745,
-    width: image.width * scale,
-    height: image.height * scale,
+    y: 700,
+    width: logoWidth,
+    height: logoHeight,
   });
 }
 
@@ -176,8 +179,6 @@ export async function generateRacunPdf(racun: any) {
     racun.telefonIzdavatelja || objekt.telefonZaRacun || "";
 
   const napomenaNaRacunu =
-    racun.napomenaNaRacunu ||
-    objekt.napomenaNaRacunu ||
     "Privatni iznajmljivac nije u sustavu PDV-a. PDV nije obracunat.";
 
   const gostImePrezime = [gost.ime, gost.prezime].filter(Boolean).join(" ");
@@ -201,7 +202,25 @@ export async function generateRacunPdf(racun: any) {
   const ukupnoRezervacija = Number(
     rezervacija.dogovoreniIznos || rezervacija.iznosUkupno || iznos
   );
-  const placeno = Number(rezervacija.iznosPlaceno || 0);
+
+  const placanja = rezervacija.placanja || [];
+
+  const ukupnoPlacenoIzPlacanja = placanja.reduce((sum: number, p: any) => {
+    if (p.status === "PLACENO" || p.status === "DJELOMICNO_PLACENO") {
+      return sum + Number(p.iznos || 0);
+    }
+
+    return sum;
+  }, 0);
+
+  const placenoIzRezervacije = Number(rezervacija.iznosPlaceno || 0);
+
+  const placeno = Math.max(
+    ukupnoPlacenoIzPlacanja,
+    placenoIzRezervacije,
+    iznos
+  );
+
   const zaPlatiti = Math.max(ukupnoRezervacija - placeno, 0);
 
   await drawLogo(pdfDoc, page, racun);
@@ -251,6 +270,7 @@ export async function generateRacunPdf(racun: any) {
 
   // IZDAVATELJ / GOST
   drawSmallLabel(page, "IZDAVATELJ", 50, 670, bold);
+
   page.drawText(text(nazivIzdavatelja), {
     x: 50,
     y: 650,
@@ -260,6 +280,7 @@ export async function generateRacunPdf(racun: any) {
   });
 
   let leftY = 633;
+
   const izdavateljLines = [
     adresaIzdavatelja,
     mjestoIzdavatelja,
@@ -275,6 +296,7 @@ export async function generateRacunPdf(racun: any) {
   }
 
   drawSmallLabel(page, "GOST", 330, 670, bold);
+
   page.drawText(text(gostImePrezime || "-"), {
     x: 330,
     y: 650,
@@ -284,6 +306,7 @@ export async function generateRacunPdf(racun: any) {
   });
 
   let rightY = 633;
+
   const gostLines = [
     gostAdresa,
     [gostGrad, gostDrzava].filter(Boolean).join(", "),
@@ -308,6 +331,7 @@ export async function generateRacunPdf(racun: any) {
   });
 
   const boxY = 535;
+
   drawSmallLabel(page, "DOLAZAK", 70, boxY, bold);
   drawValue(page, formatDate(datumOd), 70, boxY - 16, font);
 
@@ -477,15 +501,15 @@ export async function generateRacunPdf(racun: any) {
     borderWidth: 1,
   });
 
-  page.drawText(zaPlatiti > 0 ? "ZA PLATITI:" : "PLACENO:", {
+  page.drawText(zaPlatiti > 0 ? "OSTAJE ZA PLATITI:" : "PLACENO:", {
     x: 335,
     y,
-    size: 12,
+    size: 11,
     font: bold,
     color: rgb(0.18, 0.16, 0.13),
   });
 
-  page.drawText(money(zaPlatiti > 0 ? zaPlatiti : iznos), {
+  page.drawText(money(zaPlatiti > 0 ? zaPlatiti : placeno), {
     x: 455,
     y,
     size: 12,

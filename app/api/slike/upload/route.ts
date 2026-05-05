@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { writeFile } from "fs/promises";
+import { writeFile, mkdir } from "fs/promises";
 import path from "path";
 import { prisma } from "@/lib/prisma";
 
@@ -7,39 +7,47 @@ export async function POST(req: Request) {
   try {
     const data = await req.formData();
 
-    const file = data.get("file") as File;
-    const objektId = data.get("objektId") as string | null;
-    const jedinicaId = data.get("jedinicaId") as string | null;
-    const prikaziNaPocetnoj = data.get("pocetna") === "true";
-    const prikaziNaDashboardu = data.get("dashboard") === "true";
+    const files = data.getAll("files") as File[];
+    const fallbackFile = data.get("file") as File | null;
+    const allFiles = files.length > 0 ? files : fallbackFile ? [fallbackFile] : [];
 
-    if (!file) {
-      return NextResponse.json({ error: "Nema file-a" }, { status: 400 });
+    if (allFiles.length === 0) {
+      return NextResponse.json({ error: "Nema slika" }, { status: 400 });
     }
 
-    const bytes = await file.arrayBuffer();
-    const buffer = Buffer.from(bytes);
+    const uploadDir = path.join(process.cwd(), "public/uploads");
+    await mkdir(uploadDir, { recursive: true });
 
-    const fileName = Date.now() + "-" + file.name;
-    const filePath = path.join(process.cwd(), "public/uploads", fileName);
+    const spremljene = [];
 
-    await writeFile(filePath, buffer);
+    for (const file of allFiles) {
+      const bytes = await file.arrayBuffer();
+      const buffer = Buffer.from(bytes);
 
-    const url = `/uploads/${fileName}`;
+      const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "-");
+      const fileName = `${Date.now()}-${Math.random()
+        .toString(36)
+        .slice(2)}-${safeName}`;
 
-    const slika = await prisma.slikaObjekta.create({
-      data: {
-        url,
-        objektId: objektId || null,
-        jedinicaId: jedinicaId || null,
-        prikaziNaPocetnoj,
-        prikaziNaDashboardu,
-      },
-    });
+      await writeFile(path.join(uploadDir, fileName), buffer);
 
-    return NextResponse.json(slika);
+      const slika = await prisma.slikaObjekta.create({
+        data: {
+          url: `/uploads/${fileName}`,
+          aktivna: true,
+          prikaziNaPocetnoj: false,
+          prikaziNaDashboardu: false,
+          objektId: null,
+          jedinicaId: null,
+        },
+      });
+
+      spremljene.push(slika);
+    }
+
+    return NextResponse.json(spremljene);
   } catch (err) {
-    console.error(err);
+    console.error("UPLOAD SLIKE ERROR:", err);
     return NextResponse.json({ error: "Greška upload" }, { status: 500 });
   }
 }

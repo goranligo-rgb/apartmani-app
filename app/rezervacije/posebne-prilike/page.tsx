@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
 
@@ -19,6 +20,10 @@ function formatDate(d?: Date | null) {
     month: "2-digit",
     year: "numeric",
   });
+}
+
+function toIsoDate(d: Date) {
+  return d.toISOString().slice(0, 10);
 }
 
 function brojNocenja(datumOd: Date, datumDo: Date) {
@@ -72,15 +77,24 @@ export default async function PosebnePrilikeRezervacijaPage({
     akcija.brojOsoba || akcija.jedinica.ukupniKapacitet || 1
   );
 
+  const rezervacijaParams = new URLSearchParams({
+    jedinicaId: akcija.jedinicaId,
+    datumOd: toIsoDate(akcija.datumOd),
+    datumDo: toIsoDate(akcija.datumDo),
+    iznosUkupno: String(ukupno),
+    brojOsoba: String(osobe),
+    napomena: `Posebna prilika: ${akcija.naziv || "Akcijska ponuda"}`,
+  });
+
   return (
     <main
       className="min-h-screen bg-[#f4efe6] px-4 py-10"
       style={{ fontFamily: "Calibri, Segoe UI, Arial, sans-serif" }}
     >
       <div className="mx-auto max-w-3xl bg-white p-8 shadow-[0_18px_45px_rgba(0,0,0,0.08)]">
-        <a href="/posebne-prilike" className="font-bold text-[#9b6b12]">
+        <Link href="/posebne-prilike" className="font-bold text-[#9b6b12]">
           ← Natrag na posebne prilike
-        </a>
+        </Link>
 
         <p className="mt-8 text-sm font-bold uppercase tracking-[0.28em] text-[#c79a57]">
           Posebne prilike
@@ -91,9 +105,37 @@ export default async function PosebnePrilikeRezervacijaPage({
         </h1>
 
         {akcija.opis && (
-          <p className="mt-4 text-lg leading-relaxed text-[#6f665a]">
-            {akcija.opis}
-          </p>
+          <>
+            <style>{`
+      @keyframes glowPulse {
+        0% { transform: scale(1); opacity: 0.9; }
+        50% { transform: scale(1.05); opacity: 1; }
+        100% { transform: scale(1); opacity: 0.9; }
+      }
+
+      @keyframes shimmer {
+        0% { background-position: -200% 0; }
+        100% { background-position: 200% 0; }
+      }
+    `}</style>
+
+            <div
+              className="mt-6 text-center font-black"
+              style={{
+                fontSize: "26px",
+                lineHeight: "1.4",
+                background: "linear-gradient(90deg, #c79a57, #fff6e2, #c79a57)",
+                backgroundSize: "200% auto",
+                WebkitBackgroundClip: "text",
+                WebkitTextFillColor: "transparent",
+                animation: "shimmer 3s linear infinite, glowPulse 2s ease-in-out infinite",
+                textShadow: "0 0 10px rgba(199,154,87,0.35)",
+                letterSpacing: "0.5px",
+              }}
+            >
+              {akcija.opis}
+            </div>
+          </>
         )}
 
         <div className="mt-6 grid gap-3 md:grid-cols-2">
@@ -110,7 +152,10 @@ export default async function PosebnePrilikeRezervacijaPage({
             label="Noćenja"
             value={`${brojNocenja(akcija.datumOd, akcija.datumDo)}`}
           />
-          <Info label="Plaćanje" value="100% odmah karticom" />
+          <Info
+            label="Rezervacija"
+            value="Standardna rezervacija s posebnom cijenom"
+          />
         </div>
 
         <div className="mt-8 border border-[#d8c8aa] bg-[#f8f3ea] p-6 text-center">
@@ -128,145 +173,14 @@ export default async function PosebnePrilikeRezervacijaPage({
             Ovaj termin je u međuvremenu zauzet.
           </div>
         ) : (
-          <form
-            action={async (formData) => {
-              "use server";
-
-              const preklapanje = await prisma.rezervacija.findFirst({
-                where: {
-                  jedinicaId: akcija.jedinicaId,
-                  status: {
-                    not: "OTKAZANO",
-                  },
-                  datumOd: {
-                    lt: akcija.datumDo,
-                  },
-                  datumDo: {
-                    gt: akcija.datumOd,
-                  },
-                },
-              });
-
-              if (preklapanje) {
-                redirect(`/rezervacije/posebne-prilike?id=${akcija.id}`);
-              }
-
-              const ime = String(formData.get("ime") || "").trim();
-              const prezime = String(formData.get("prezime") || "").trim();
-              const email = String(formData.get("email") || "").trim();
-              const telefon = String(formData.get("telefon") || "").trim();
-
-              const gost = await prisma.gost.create({
-                data: {
-                  ime,
-                  prezime: prezime || null,
-                  email,
-                  telefon: telefon || null,
-                },
-              });
-
-              const nocenja = brojNocenja(akcija.datumOd, akcija.datumDo);
-
-              const rezervacija = await prisma.rezervacija.create({
-                data: {
-                  jedinicaId: akcija.jedinicaId,
-                  gostId: gost.id,
-                  izvor: "WEB",
-                  status: "CEKA_AKONTACIJU",
-
-                  datumOd: akcija.datumOd,
-                  datumDo: akcija.datumDo,
-                  brojNocenja: nocenja,
-                  brojOsoba: osobe,
-
-                  iznosOsnovni: ukupno,
-                  dogovoreniIznos: ukupno,
-                  iznosUkupno: ukupno,
-                  iznosPotvrde: ukupno,
-                  iznosPlaceno: 0,
-                  iznosOstatka: ukupno,
-
-                  placenoKarticom: false,
-                  valuta: "EUR",
-                  razlogPopusta: "Posebna prilika",
-                  napomena: `Rezervacija nastala iz posebne prilike: ${akcija.naziv}`,
-                },
-              });
-
-              const placanje = await prisma.placanje.create({
-                data: {
-                  rezervacijaId: rezervacija.id,
-                  tip: "CIJELI_IZNOS",
-                  status: "CEKA_PLACANJE",
-                  iznos: ukupno,
-                  valuta: "EUR",
-                  nacinPlacanja: "KARTICA",
-                  provider: "TEST_KARTICA",
-                  napomena: "Posebna prilika - plaćanje 100% iznosa odmah.",
-                },
-              });
-
-              await prisma.rezervacijaPromjena.create({
-                data: {
-                  rezervacijaId: rezervacija.id,
-                  tip: "KREIRANJE_WEB_REZERVACIJE",
-                  opis: "Web rezervacija kreirana iz posebne prilike.",
-                  noviPodaci: JSON.stringify({
-                    akcijaId: akcija.id,
-                    nazivAkcije: akcija.naziv,
-                    jedinicaId: akcija.jedinicaId,
-                    datumOd: akcija.datumOd,
-                    datumDo: akcija.datumDo,
-                    ukupno,
-                    osobe,
-                    placanjeId: placanje.id,
-                  }),
-                  korisnikIme: "Gost",
-                },
-              });
-
-              redirect(`/placanje?placanjeId=${placanje.id}`);
-            }}
-            className="mt-8 space-y-4"
+          <Link
+            href={`/rezervacije/nova?${rezervacijaParams.toString()}`}
+            className="mt-8 block w-full cursor-pointer bg-[#c79a57] px-6 py-4 text-center font-black text-white transition hover:brightness-95"
           >
-            <div className="grid gap-3 md:grid-cols-2">
-              <Field label="Ime">
-                <input
-                  name="ime"
-                  className="w-full border border-[#d8c8aa] bg-white px-3 py-3 outline-none"
-                  required
-                />
-              </Field>
-
-              <Field label="Prezime">
-                <input
-                  name="prezime"
-                  className="w-full border border-[#d8c8aa] bg-white px-3 py-3 outline-none"
-                />
-              </Field>
-            </div>
-
-            <Field label="Email">
-              <input
-                name="email"
-                type="email"
-                className="w-full border border-[#d8c8aa] bg-white px-3 py-3 outline-none"
-                required
-              />
-            </Field>
-
-            <Field label="Telefon">
-              <input
-                name="telefon"
-                className="w-full border border-[#d8c8aa] bg-white px-3 py-3 outline-none"
-              />
-            </Field>
-
-            <button className="w-full bg-[#c79a57] px-6 py-4 font-black text-white transition hover:brightness-95">
-              Rezerviraj i plati 100%
-            </button>
-          </form>
+            Rezerviraj ovu posebnu priliku
+          </Link>
         )}
+
       </div>
     </main>
   );
@@ -280,22 +194,5 @@ function Info({ label, value }: { label: string; value: string }) {
       </div>
       <div className="mt-1 font-black text-[#2e2923]">{value || "-"}</div>
     </div>
-  );
-}
-
-function Field({
-  label,
-  children,
-}: {
-  label: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <label className="block">
-      <div className="mb-1 text-xs font-black uppercase tracking-[0.14em] text-[#7a5a22]">
-        {label}
-      </div>
-      {children}
-    </label>
   );
 }

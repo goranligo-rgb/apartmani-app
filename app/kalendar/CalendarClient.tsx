@@ -42,14 +42,14 @@ type JedinicaItem = {
 };
 
 const UI_COLORS = {
-  slobodno: "#ede9fe",
-  slobodnoBorder: "#ddd6fe",
+  slobodno: "#6fcd46",
+  slobodnoBorder: "#57a838",
 
-  zauzeto: "#fee2e2",
-  zauzetoBorder: "#fecaca",
+  zauzeto: "#c02c20",
+  zauzetoBorder: "#9a2219",
 
-  odabrano: "#8f7df0",
-  odabranoBorder: "#6f5ce0",
+  odabrano: "#2986cc",
+  odabranoBorder: "#1f6aa3",
 
   blokirano: "#e5e7eb",
   blokiranoBorder: "#d1d5db",
@@ -73,6 +73,26 @@ function toIso(date: Date) {
   const m = `${date.getMonth() + 1}`.padStart(2, "0");
   const d = `${date.getDate()}`.padStart(2, "0");
   return `${y}-${m}-${d}`;
+}
+
+function isPastDate(dayIso: string) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const d = parseIsoDate(dayIso);
+  d.setHours(0, 0, 0, 0);
+
+  return d < today;
+}
+
+function isToday(dayIso: string) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const d = parseIsoDate(dayIso);
+  d.setHours(0, 0, 0, 0);
+
+  return d.getTime() === today.getTime();
 }
 
 function monthDays(monthIso: string, offset: number) {
@@ -171,21 +191,21 @@ function isSelected(
 function slugFromObjekt(objektNaziv: string) {
   if (objektNaziv === "House Art") return "house-art";
   if (objektNaziv === "Luxury Apartments Marty") return "marty";
-  if (objektNaziv === "House Eva") return "eva";
+  if (objektNaziv === "Apartments Eva") return "eva";
   return "";
 }
 
 function objektFromSlug(slug: string | null) {
   if (slug === "house-art") return "House Art";
   if (slug === "marty") return "Luxury Apartments Marty";
-  if (slug === "eva") return "House Eva";
+  if (slug === "eva") return "Apartments Eva";
   return "";
 }
 
 function getHeroImage(objektNaziv: string) {
   if (objektNaziv === "House Art") return "/images/2-malinska.webp";
   if (objektNaziv === "Luxury Apartments Marty") return "/images/3-malinska.webp";
-  if (objektNaziv === "House Eva") return "/images/4-malinska.webp";
+  if (objektNaziv === "Apartments Eva") return "/images/4-malinska.webp";
   return "/images/krk-malinska-hd.jpg";
 }
 
@@ -193,16 +213,20 @@ function opisObjekta(objektNaziv: string) {
   if (objektNaziv === "House Art") return "Privatna kuća za obiteljski odmor";
   if (objektNaziv === "Luxury Apartments Marty")
     return "Apartmani s bazenom u Malinskoj";
-  if (objektNaziv === "House Eva")
+  if (objektNaziv === "Apartments Eva")
     return "Tri apartmana za miran obiteljski odmor";
   return "Smještaj u Malinskoj";
 }
 
 export default function CalendarClient({
+  days,
+  monthLabel,
   prevMonth,
   nextMonth,
   jedinice,
 }: {
+  days: string[];
+  monthLabel: string;
   prevMonth: string;
   nextMonth: string;
   jedinice: JedinicaItem[];
@@ -446,7 +470,7 @@ export default function CalendarClient({
     if (j.objektNaziv === "House Art") return "Cijela kuća";
     if (j.objektNaziv === "Luxury Apartments Marty")
       return `Apartman ${j.naziv.replace("Marty ", "")}`;
-    if (j.objektNaziv === "House Eva")
+    if (j.objektNaziv === "Apartments Eva")
       return `Apartman ${j.naziv.replace("Eva ", "")}`;
     return j.naziv;
   }
@@ -493,7 +517,8 @@ export default function CalendarClient({
         return {
           backgroundColor: UI_COLORS.zauzeto,
           borderColor: UI_COLORS.zauzetoBorder,
-          color: "#991b1b",
+          color: "#ffffff",
+          textShadow: "0 1px 2px rgba(0,0,0,0.35)",
         };
       }
 
@@ -540,7 +565,8 @@ export default function CalendarClient({
       return {
         backgroundColor: UI_COLORS.zauzeto,
         borderColor: UI_COLORS.zauzetoBorder,
-        color: "#991b1b",
+        color: "#ffffff",
+        textShadow: "0 1px 2px rgba(0,0,0,0.35)",
       };
     }
 
@@ -621,7 +647,7 @@ export default function CalendarClient({
                 <span style={legend(UI_COLORS.slobodno, "#5b21b6")}>
                   Slobodno
                 </span>
-                <span style={legend(UI_COLORS.zauzeto, "#991b1b")}>
+                <span style={legend(UI_COLORS.zauzeto, "white")}>
                   Zauzeto
                 </span>
                 <span style={legend(UI_COLORS.odabrano, "white")}>
@@ -666,11 +692,10 @@ export default function CalendarClient({
                   setSelection(null);
                   setAdminSelection(null);
                 }}
-                className={`cursor-pointer border p-4 text-left transition hover:-translate-y-0.5 hover:shadow-[0_12px_30px_rgba(0,0,0,0.10)] ${
-                  o === selectedObjekt
-                    ? "border-[#c79a57] bg-[#c79a57] text-white"
-                    : "border-[#eadfcd] bg-[#fbf8f2] text-[#2e2923]"
-                }`}
+                className={`cursor-pointer border p-4 text-left transition hover:-translate-y-0.5 hover:shadow-[0_12px_30px_rgba(0,0,0,0.10)] ${o === selectedObjekt
+                  ? "border-[#c79a57] bg-[#c79a57] text-white"
+                  : "border-[#eadfcd] bg-[#fbf8f2] text-[#2e2923]"
+                  }`}
               >
                 <div className="text-lg font-black">{o}</div>
                 <div className="mt-1 text-sm opacity-85">{opisObjekta(o)}</div>
@@ -699,11 +724,10 @@ export default function CalendarClient({
                   setSelection(null);
                   setAdminSelection(null);
                 }}
-                className={`cursor-pointer border p-4 text-left transition hover:-translate-y-0.5 hover:shadow-[0_12px_30px_rgba(0,0,0,0.10)] ${
-                  j.id === aktivnaJedinica?.id
-                    ? "border-[#0b252b] bg-[#0b252b] text-white"
-                    : "border-[#eadfcd] bg-[#fbf8f2] text-[#2e2923]"
-                }`}
+                className={`cursor-pointer border p-4 text-left transition hover:-translate-y-0.5 hover:shadow-[0_12px_30px_rgba(0,0,0,0.10)] ${j.id === aktivnaJedinica?.id
+                  ? "border-[#0b252b] bg-[#0b252b] text-white"
+                  : "border-[#eadfcd] bg-[#fbf8f2] text-[#2e2923]"
+                  }`}
               >
                 <div className="text-base font-black">{getNaziv(j)}</div>
 
@@ -735,15 +759,14 @@ export default function CalendarClient({
                   type="button"
                   onClick={confirmAdminRange}
                   disabled={isSavingBlock}
-                  className={`cursor-pointer px-4 py-2 font-bold text-white disabled:cursor-not-allowed disabled:opacity-60 ${
-                    selectedAdminMode === "OPEN" ? "bg-gray-700" : "bg-[#c79a57]"
-                  }`}
+                  className={`cursor-pointer px-4 py-2 font-bold text-white disabled:cursor-not-allowed disabled:opacity-60 ${selectedAdminMode === "OPEN" ? "bg-gray-700" : "bg-[#c79a57]"
+                    }`}
                 >
                   {isSavingBlock
                     ? "Spremam..."
                     : selectedAdminMode === "OPEN"
-                    ? "Potvrdi otvaranje"
-                    : "Potvrdi zatvaranje"}
+                      ? "Potvrdi otvaranje"
+                      : "Potvrdi zatvaranje"}
                 </button>
 
                 <button
@@ -827,6 +850,8 @@ export default function CalendarClient({
                   const selected = isSelected(dayIso, selection);
                   const adminSelected = isSelected(dayIso, adminSelection);
                   const unavailable = isUnavailable(dayIso);
+                  const isPast = isPastDate(dayIso);
+                  const today = isToday(dayIso);
 
                   const splitCheckout =
                     !!checkout &&
@@ -840,41 +865,57 @@ export default function CalendarClient({
                     ? booked
                       ? `Rezervirano: ${booked.gostIme} ${booked.gostPrezime}`
                       : checkout
-                      ? `Odlazak: ${checkout.gostIme} ${checkout.gostPrezime} • slobodno za novi ulazak • €${price}`
-                      : blocked
-                      ? `Zatvoreno: ${blocked.razlog || blocked.izvor}`
-                      : price
-                      ? `Slobodno • €${price}`
-                      : "Nema cijene"
+                        ? `Odlazak: ${checkout.gostIme} ${checkout.gostPrezime} • slobodno za novi ulazak • €${price}`
+                        : blocked
+                          ? `Zatvoreno: ${blocked.razlog || blocked.izvor}`
+                          : price
+                            ? `Slobodno • €${price}`
+                            : "Nema cijene"
                     : booked
-                    ? "Zauzeto"
-                    : checkout && price
-                    ? `Odlazak gosta • slobodno za novi ulazak • €${price}`
-                    : unavailable
-                    ? "Zauzeto"
-                    : `Slobodno • €${price}`;
+                      ? "Zauzeto"
+                      : checkout && price
+                        ? `Odlazak gosta • slobodno za novi ulazak • €${price}`
+                        : unavailable
+                          ? "Zauzeto"
+                          : `Slobodno • €${price}`;
 
-                  const style = dayStyle({
-                    booked,
-                    blocked,
-                    price,
-                    selected,
-                    adminSelected,
-                    unavailable,
-                    splitCheckout,
-                  });
+                  const style = isPast
+                    ? {
+                      backgroundColor: "#f7f1e8",
+                      borderColor: "#eadfcd",
+                      color: "#f7f1e8",
+                    }
+                    : dayStyle({
+                      booked,
+                      blocked,
+                      price,
+                      selected,
+                      adminSelected,
+                      unavailable,
+                      splitCheckout,
+                    });
 
                   return (
                     <button
                       key={dayIso}
                       type="button"
-                      disabled={!!booked || (!adminMode && unavailable)}
-                      onClick={() => handleClick(dayIso)}
+                      disabled={isPast || !!booked || (!adminMode && unavailable)}
+                      onClick={() => {
+                        if (isPast) return;
+                        handleClick(dayIso);
+                      }}
                       title={title}
                       className="relative min-h-[64px] cursor-pointer overflow-hidden border-b border-r p-1 text-xs font-black transition hover:brightness-[0.98] disabled:cursor-not-allowed"
-                      style={style}
+                      style={{
+                        ...style,
+                        ...(today && !isPast
+                          ? {
+                            boxShadow: "inset 0 0 0 2px #c79a57",
+                          }
+                          : {}),
+                      }}
                     >
-                      {splitCheckout && (
+                      {splitCheckout && !isPast && (
                         <>
                           <span
                             className="absolute inset-0"
@@ -895,23 +936,27 @@ export default function CalendarClient({
 
                       <div className="relative z-10 flex h-full min-h-[56px] flex-col justify-between">
                         <div className="text-left text-sm font-black">
-                          {dayIso.slice(-2)}
+                          {!isPast ? dayIso.slice(-2) : ""}
                         </div>
 
                         <div className="text-right text-[10px] font-black leading-tight">
-                          {adminMode
-                            ? booked
-                              ? "REZ"
-                              : blocked
-                              ? "ZAT"
-                              : price
-                              ? `€${price}`
-                              : "-"
-                            : booked
-                            ? "Zauzeto"
-                            : price
-                            ? `€${price}`
-                            : "-"}
+                          {isPast
+                            ? ""
+                            : adminMode
+                              ? booked
+                                ? "REZ"
+                                : blocked
+                                  ? "ZAT"
+                                  : price
+                                    ? `€${price}`
+                                    : "-"
+                              : booked
+                                ? "Zauzeto"
+                                : unavailable
+                                  ? ""
+                                  : price
+                                    ? `€${price}`
+                                    : ""}
                         </div>
                       </div>
                     </button>

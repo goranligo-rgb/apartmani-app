@@ -161,13 +161,13 @@ export default async function PregledRezervacijePage(props: {
           <Box
             label={
               naplataPunogIznosa
-                ? "Plaćanje rezervacije"
-                : "Potvrda rezervacije"
+                ? "Plaćanje cijelog iznosa"
+                : "Akontacija za potvrdu"
             }
             value={
               naplataPunogIznosa
-                ? `€ ${iznosPotvrde.toFixed(2)} (100%)`
-                : `€ ${iznosPotvrde.toFixed(2)} (${postotak}%)`
+                ? `€ ${iznosPotvrde.toFixed(2)}`
+                : `€ ${iznosPotvrde.toFixed(2)} (${postotak}% akontacije)`
             }
           />
         </div>

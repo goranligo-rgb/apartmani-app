@@ -127,7 +127,11 @@ export async function GET(req: Request) {
       );
     }
 
-    if (placanje.paymentUrl) {
+    if (
+      placanje.paymentUrl &&
+      placanje.expiresAt &&
+      new Date(placanje.expiresAt) > new Date()
+    ) {
       return NextResponse.redirect(placanje.paymentUrl, 303);
     }
 
@@ -150,8 +154,12 @@ export async function GET(req: Request) {
     const expiresAtUnix = Math.floor(expiresAtDate.getTime() / 1000);
     const nowUnix = Math.floor(Date.now() / 1000);
 
-    const safeExpiresAt =
-      expiresAtUnix > nowUnix + 1800 ? expiresAtUnix : nowUnix + 1800;
+    const maxStripeExpiresAt = nowUnix + 23 * 60 * 60;
+
+    const safeExpiresAt = Math.min(
+      expiresAtUnix > nowUnix + 1800 ? expiresAtUnix : nowUnix + 1800,
+      maxStripeExpiresAt
+    );
 
     const session = await stripe.checkout.sessions.create({
       mode: "payment",
@@ -188,7 +196,7 @@ export async function GET(req: Request) {
         placanjeId: placanje.id,
       },
 
-      success_url: `${baseUrl}/rezervacije/uspjeh?session_id={CHECKOUT_SESSION_ID}`,
+      success_url: `${baseUrl}/rezervacije/uspjeh?placanjeId=${placanje.id}&session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${baseUrl}/rezervacije/neuspjeh?rezervacijaId=${r.id}`,
     });
 
@@ -312,11 +320,25 @@ export async function POST(req: Request) {
       );
     }
 
+    const kapacitet =
+      Number(jedinica.ukupniKapacitet || 0) ||
+      Number(jedinica.osnovniKapacitet || 0) +
+      Number(jedinica.dodatniKapacitet || 0);
+
+    if (kapacitet > 0 && brojOsoba > kapacitet) {
+      return NextResponse.json(
+        {
+          error: `${jedinica.naziv} prima maksimalno ${kapacitet} osoba. Odabrali ste ${brojOsoba}.`,
+        },
+        { status: 400 }
+      );
+    }
+
     const postojiPreklapanje = await prisma.rezervacija.findFirst({
       where: {
         jedinicaId,
         status: {
-          notIn: ["OTKAZANO", "OBRISANO"],
+          notIn: ["OTKAZANO", "OBRISANO", "UPIT"],
         },
         datumOd: {
           lt: datumDo,
@@ -377,15 +399,11 @@ export async function POST(req: Request) {
     const brojNocenja = countNights(datumOd, datumDo);
     const danaDoDolaska = daysUntil(datumOd);
 
-    const naplataPunogIznosa = danaDoDolaska <= PRAG_PUNE_NAPLATE_DANA;
+    const naplataPunogIznosa = false;
 
-    const iznosZaNaplatu = naplataPunogIznosa
-      ? iznosUkupno
-      : iznosPotvrdeForm;
+    const iznosZaNaplatu = iznosPotvrdeForm;
 
-    const tipPlacanja = naplataPunogIznosa
-      ? "CIJELI_IZNOS"
-      : "POTVRDA_REZERVACIJE";
+    const tipPlacanja = "POTVRDA_REZERVACIJE";
 
     const iznosPotvrdeZaRezervaciju = iznosZaNaplatu;
     const iznosOstatka = Math.max(iznosUkupno - iznosZaNaplatu, 0);
@@ -425,7 +443,7 @@ export async function POST(req: Request) {
           gostId: gost.id,
 
           izvor: "WEB",
-          status: "CEKA_POTVRDU",
+          status: "UPIT",
 
           datumOd,
           datumDo,
@@ -466,13 +484,13 @@ export async function POST(req: Request) {
           provider: "STRIPE",
           napomena: naplataPunogIznosa
             ? `Stripe naplata cijelog iznosa jer je dolazak za ${danaDoDolaska} dana. Ukupno: ${money(
-                iznosUkupno
-              )}.`
+              iznosUkupno
+            )}.`
             : `Stripe autorizacija potvrde rezervacije. Ukupno: ${money(
-                iznosUkupno
-              )}, potvrda: ${money(iznosZaNaplatu)}, ostatak: ${money(
-                iznosOstatka
-              )}.`,
+              iznosUkupno
+            )}, potvrda: ${money(iznosZaNaplatu)}, ostatak: ${money(
+              iznosOstatka
+            )}.`,
         },
       });
 
@@ -555,7 +573,7 @@ export async function POST(req: Request) {
         placanjeId: result.placanje.id,
       },
 
-      success_url: `${baseUrl}/rezervacije/uspjeh?session_id={CHECKOUT_SESSION_ID}`,
+      success_url: `${baseUrl}/rezervacije/uspjeh?placanjeId=${result.placanje.id}&session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${baseUrl}/rezervacije/neuspjeh?rezervacijaId=${result.rezervacija.id}`,
     });
 
@@ -568,51 +586,13 @@ export async function POST(req: Request) {
         nacinPlacanja: "KARTICA",
         napomena: naplataPunogIznosa
           ? `Stripe Checkout otvoren. Session ID: ${session.id}. Naplata 100% iznosa jer je dolazak za ${danaDoDolaska} dana. Iznos: ${money(
-              iznosZaNaplatu
-            )}.`
+            iznosZaNaplatu
+          )}.`
           : `Stripe Checkout otvoren. Session ID: ${session.id}. Iznos autorizacije: ${money(
-              iznosZaNaplatu
-            )}. Novac se ne skida odmah, sredstva se samo rezerviraju.`,
+            iznosZaNaplatu
+          )}. Novac se ne skida odmah, sredstva se samo rezerviraju.`,
       },
     });
-
-    const adminEmails = await getAdminEmails();
-
-    if (adminEmails.length > 0) {
-      try {
-        await resend.emails.send({
-          from: process.env.MAIL_FROM || "Malinska Stay <rezervacije@malinska-stay.hr>",
-          to: adminEmails,
-          subject: `Nova rezervacija čeka potvrdu - ${jedinica.objekt.naziv} / ${jedinica.naziv}`,
-          html: `
-            <h2>Nova rezervacija čeka potvrdu</h2>
-
-            <p><strong>Gost:</strong> ${ime} ${prezime}</p>
-            <p><strong>Email:</strong> ${email}</p>
-            <p><strong>Telefon:</strong> ${telefon}</p>
-
-            <p><strong>Objekt:</strong> ${jedinica.objekt.naziv}</p>
-            <p><strong>Jedinica:</strong> ${jedinica.naziv}</p>
-
-            <p><strong>Dolazak:</strong> ${datumOd.toLocaleDateString("hr-HR")}</p>
-            <p><strong>Odlazak:</strong> ${datumDo.toLocaleDateString("hr-HR")}</p>
-            <p><strong>Noćenja:</strong> ${brojNocenja}</p>
-            <p><strong>Broj osoba:</strong> ${brojOsoba}</p>
-
-            <p><strong>Ukupno:</strong> ${money(iznosUkupno)}</p>
-            <p><strong>Za naplatu:</strong> ${money(iznosZaNaplatu)}</p>
-
-            <p>
-              <a href="${baseUrl}/admin/rezervacije/${result.rezervacija.id}">
-                Otvori rezervaciju u adminu
-              </a>
-            </p>
-          `,
-        });
-      } catch (mailError) {
-        console.error("Greška kod slanja admin maila:", mailError);
-      }
-    }
 
     return NextResponse.redirect(session.url!, 303);
   } catch (error) {

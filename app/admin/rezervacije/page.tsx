@@ -119,6 +119,9 @@ export default async function AdminRezervacijePage({
       racuni: {
         orderBy: { createdAt: "desc" },
       },
+      emailovi: {
+        orderBy: { createdAt: "desc" },
+      },
     },
     orderBy: [{ datumOd: "desc" }],
   });
@@ -161,6 +164,33 @@ export default async function AdminRezervacijePage({
         .toLocaleLowerCase("hr-HR");
 
       return aObjekt.localeCompare(bObjekt, "hr-HR") * dir;
+    }
+
+    if (currentSort === "placeno") {
+      return (Number(a.iznosPlaceno || 0) - Number(b.iznosPlaceno || 0)) * dir;
+    }
+
+    if (currentSort === "ostatak") {
+      const aUkupno = Number(a.dogovoreniIznos || a.iznosUkupno || 0);
+      const bUkupno = Number(b.dogovoreniIznos || b.iznosUkupno || 0);
+
+      const aOstatak = Math.max(aUkupno - Number(a.iznosPlaceno || 0), 0);
+      const bOstatak = Math.max(bUkupno - Number(b.iznosPlaceno || 0), 0);
+
+      return (aOstatak - bOstatak) * dir;
+    }
+
+    if (currentSort === "zavrsna") {
+      const aUkupno = Number(a.dogovoreniIznos || a.iznosUkupno || 0);
+      const bUkupno = Number(b.dogovoreniIznos || b.iznosUkupno || 0);
+
+      const aPlaceno = Number(a.iznosPlaceno || 0);
+      const bPlaceno = Number(b.iznosPlaceno || 0);
+
+      const aCeka = aPlaceno > 0 && aPlaceno < aUkupno ? 1 : 0;
+      const bCeka = bPlaceno > 0 && bPlaceno < bUkupno ? 1 : 0;
+
+      return (aCeka - bCeka) * dir;
     }
 
     return (a.datumOd.getTime() - b.datumOd.getTime()) * dir;
@@ -241,8 +271,8 @@ export default async function AdminRezervacijePage({
             <Link
               href={buildAllObjectsHref()}
               className={`cursor-pointer border px-4 py-2 text-sm font-black ${!params.objektId
-                  ? "border-[#c79a57] bg-[#fff6e2] text-[#2e2923]"
-                  : "border-[#e2d8c8] bg-white text-[#6f665a] hover:bg-[#f8f3ea]"
+                ? "border-[#c79a57] bg-[#fff6e2] text-[#2e2923]"
+                : "border-[#e2d8c8] bg-white text-[#6f665a] hover:bg-[#f8f3ea]"
                 }`}
             >
               Svi objekti
@@ -260,8 +290,8 @@ export default async function AdminRezervacijePage({
                   key={o.id}
                   href={`/admin/rezervacije?${q.toString()}`}
                   className={`cursor-pointer border px-4 py-2 text-sm font-black ${params.objektId === o.id
-                      ? "border-[#c79a57] bg-[#fff6e2] text-[#2e2923]"
-                      : "border-[#e2d8c8] bg-white text-[#6f665a] hover:bg-[#f8f3ea]"
+                    ? "border-[#c79a57] bg-[#fff6e2] text-[#2e2923]"
+                    : "border-[#e2d8c8] bg-white text-[#6f665a] hover:bg-[#f8f3ea]"
                     }`}
                 >
                   {o.naziv}
@@ -274,8 +304,8 @@ export default async function AdminRezervacijePage({
             <Link
               href={buildAllMonthsHref()}
               className={`cursor-pointer border px-4 py-2 text-sm font-black ${!params.mjesec
-                  ? "border-[#7a5a22] bg-[#f8f3ea] text-[#2e2923]"
-                  : "border-[#e2d8c8] bg-white text-[#6f665a] hover:bg-[#f8f3ea]"
+                ? "border-[#7a5a22] bg-[#f8f3ea] text-[#2e2923]"
+                : "border-[#e2d8c8] bg-white text-[#6f665a] hover:bg-[#f8f3ea]"
                 }`}
             >
               Svi mjeseci
@@ -293,8 +323,8 @@ export default async function AdminRezervacijePage({
                   key={m}
                   href={`/admin/rezervacije?${q.toString()}`}
                   className={`cursor-pointer border px-4 py-2 text-sm font-black capitalize ${params.mjesec === m
-                      ? "border-[#7a5a22] bg-[#f8f3ea] text-[#2e2923]"
-                      : "border-[#e2d8c8] bg-white text-[#6f665a] hover:bg-[#f8f3ea]"
+                    ? "border-[#7a5a22] bg-[#f8f3ea] text-[#2e2923]"
+                    : "border-[#e2d8c8] bg-white text-[#6f665a] hover:bg-[#f8f3ea]"
                     }`}
                 >
                   {monthLabel(m)}
@@ -320,7 +350,7 @@ export default async function AdminRezervacijePage({
         </div>
 
         <div className="overflow-x-auto border border-white/80 bg-white shadow-[0_18px_45px_rgba(0,0,0,0.08)]">
-          <table className="w-full min-w-[1250px] border-collapse text-left text-sm">
+          <table className="w-full min-w-[1450px] border-collapse text-left text-sm">
             <thead>
               <tr className="border-b border-[#e2d8c8] bg-[#f8f3ea] text-xs uppercase tracking-[0.18em] text-[#7a5a22]">
                 <th className="p-3">
@@ -370,18 +400,64 @@ export default async function AdminRezervacijePage({
                 </th>
 
                 <th className="p-3">Status</th>
+
                 <th className="p-3 text-right">Ukupno</th>
-                <th className="p-3 text-right">Plaćeno</th>
-                <th className="p-3 text-right">Ostatak</th>
+
+                <th className="p-3 text-right">
+                  <Link
+                    href={sortHref({
+                      objektId: params.objektId,
+                      mjesec: params.mjesec,
+                      currentSort,
+                      currentDir,
+                      nextSort: "placeno",
+                    })}
+                    className="cursor-pointer hover:text-[#2e2923]"
+                  >
+                    Plaćeno{sortLabel(currentSort, currentDir, "placeno")}
+                  </Link>
+                </th>
+
+                <th className="p-3 text-right">
+                  <Link
+                    href={sortHref({
+                      objektId: params.objektId,
+                      mjesec: params.mjesec,
+                      currentSort,
+                      currentDir,
+                      nextSort: "ostatak",
+                    })}
+                    className="cursor-pointer hover:text-[#2e2923]"
+                  >
+                    Ostatak{sortLabel(currentSort, currentDir, "ostatak")}
+                  </Link>
+                </th>
+
+                <th className="p-3">
+                  <Link
+                    href={sortHref({
+                      objektId: params.objektId,
+                      mjesec: params.mjesec,
+                      currentSort,
+                      currentDir,
+                      nextSort: "zavrsna",
+                    })}
+                    className="cursor-pointer hover:text-[#2e2923]"
+                  >
+                    Završna uplata
+                    {sortLabel(currentSort, currentDir, "zavrsna")}
+                  </Link>
+                </th>
+
+                <th className="p-3">Mail ostatak</th>
                 <th className="p-3">Računi</th>
-                <th className="p-3 text-right">Akcija</th>
               </tr>
             </thead>
 
             <tbody>
               {filtrirane.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="p-6 text-center text-[#6f665a]">
+                  <td colSpan={10} className="p-6 text-center text-[#6f665a]">
                     Nema rezervacija za odabrani filter.
                   </td>
                 </tr>
@@ -395,6 +471,12 @@ export default async function AdminRezervacijePage({
 
                   const gostIme = `${r.gost?.ime || "Gost"} ${r.gost?.prezime || ""
                     }`.trim();
+
+                  const mailOstatakPoslan = r.emailovi.some(
+                    (e) =>
+                      e.tip === "ZAHTJEV_OSTATAK" ||
+                      e.subject?.toLowerCase().includes("ostat")
+                  );
 
                   return (
                     <tr
@@ -413,9 +495,12 @@ export default async function AdminRezervacijePage({
                           {r.gost?.email || "-"}
                         </div>
 
-                        <div className="text-xs text-[#8a8175]">
-                          {r.gost?.telefon || ""}
-                        </div>
+                        <Link
+                          href={`/admin/rezervacije/${r.id}`}
+                          className="mt-2 inline-block cursor-pointer border border-[#caa870] bg-[#fff6e2] px-3 py-1 text-[11px] font-black text-[#7a5a22] transition hover:bg-[#f8f3ea]"
+                        >
+                          Otvori
+                        </Link>
                       </td>
 
                       <td className="p-3">
@@ -430,11 +515,13 @@ export default async function AdminRezervacijePage({
 
                       <td className="p-3 text-[#2e2923]">
                         <div>
-                          {formatDate(r.datumOd)} – {formatDate(r.datumDo)}
+                          <div>{formatDate(r.datumOd)}</div>
+                          <div>{formatDate(r.datumDo)}</div>
                         </div>
 
-                        <div className="text-xs text-[#6f665a]">
-                          {r.brojNocenja} noći · {r.brojOsoba} osoba
+                        <div className="mt-1 text-xs text-[#6f665a]">
+                          {r.brojNocenja} noći<br />
+                          {r.brojOsoba} osoba
                         </div>
                       </td>
 
@@ -477,6 +564,36 @@ export default async function AdminRezervacijePage({
                       </td>
 
                       <td className="p-3">
+                        {ostatak <= 0 ? (
+                          <span className="border border-emerald-300 bg-emerald-50 px-2 py-1 text-xs font-black text-emerald-800">
+                            Plaćeno
+                          </span>
+                        ) : placeno > 0 ? (
+                          <span className="border border-amber-300 bg-amber-50 px-2 py-1 text-xs font-black text-amber-800">
+                            Čeka završnu
+                          </span>
+                        ) : (
+                          <span className="border border-orange-300 bg-orange-50 px-2 py-1 text-xs font-black text-orange-800">
+                            Čeka akontaciju
+                          </span>
+                        )}
+                      </td>
+
+                      <td className="p-3">
+                        {mailOstatakPoslan ? (
+                          <span className="border border-sky-300 bg-sky-50 px-2 py-1 text-xs font-black text-sky-800">
+                            Poslan
+                          </span>
+                        ) : ostatak > 0 && placeno > 0 ? (
+                          <span className="border border-red-300 bg-red-50 px-2 py-1 text-xs font-black text-red-700">
+                            Nije poslan
+                          </span>
+                        ) : (
+                          <span className="text-xs text-[#8a8175]">-</span>
+                        )}
+                      </td>
+
+                      <td className="p-3">
                         {r.racuni.length === 0 ? (
                           <span className="text-xs text-[#8a8175]">Nema</span>
                         ) : (
@@ -501,15 +618,6 @@ export default async function AdminRezervacijePage({
                           </div>
                         )}
                       </td>
-
-                      <td className="p-3 text-right">
-                        <Link
-                          href={`/admin/rezervacije/${r.id}`}
-                          className="inline-block cursor-pointer border border-[#caa870] bg-[#fff6e2] px-4 py-2 text-xs font-black text-[#7a5a22] transition hover:bg-[#f8f3ea]"
-                        >
-                          Otvori rezervaciju
-                        </Link>
-                      </td>
                     </tr>
                   );
                 })
@@ -532,7 +640,7 @@ export default async function AdminRezervacijePage({
                   {money(ukupnoOstatak)}
                 </td>
 
-                <td className="p-4 text-xs text-[#6f665a]" colSpan={2}>
+                <td className="p-4 text-xs text-[#6f665a]" colSpan={4}>
                   {selectedObjekt?.naziv || "Svi objekti"} ·{" "}
                   {params.mjesec ? monthLabel(params.mjesec) : "Svi mjeseci"}
                 </td>

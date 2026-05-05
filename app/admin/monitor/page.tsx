@@ -7,6 +7,7 @@ type SearchParams = Promise<{
   datum?: string;
   rezervacijaId?: string;
   mjesec?: string;
+  jedinice?: string | string[];
 }>;
 
 function startOfDay(d: Date) {
@@ -71,6 +72,19 @@ function monthName(d: Date) {
   });
 }
 
+function parseSelectedJedinice(value?: string | string[]) {
+  const raw = Array.isArray(value) ? value : value ? value.split(",") : [];
+
+  return raw
+    .flatMap((v) => String(v).split(","))
+    .map((v) => v.trim())
+    .filter(Boolean);
+}
+
+function selectedJediniceParam(ids: string[]) {
+  return ids.length > 0 ? ids.join(",") : "";
+}
+
 export default async function AdminMonitorPage({
   searchParams,
 }: {
@@ -82,6 +96,9 @@ export default async function AdminMonitorPage({
   const odabraniDatum = params.datum
     ? startOfDay(new Date(params.datum))
     : danas;
+
+  const selectedJedinicaIds = parseSelectedJedinice(params.jedinice);
+  const selectedJediniceText = selectedJediniceParam(selectedJedinicaIds);
 
   const mjesecIzParametra = parseMonth(params.mjesec);
   const kalendarOd =
@@ -102,14 +119,40 @@ export default async function AdminMonitorPage({
       q.set("rezervacijaId", params.rezervacijaId);
     }
 
+    if (selectedJediniceText) {
+      q.set("jedinice", selectedJediniceText);
+    }
+
     return `/admin/monitor?${q.toString()}`;
   }
+
+  const objekti = await prisma.objekt.findMany({
+    where: {
+      aktivan: true,
+    },
+    include: {
+      jedinice: {
+        where: {
+          aktivna: true,
+        },
+        orderBy: [{ sortOrder: "asc" }, { naziv: "asc" }],
+      },
+    },
+    orderBy: [{ sortOrder: "asc" }, { naziv: "asc" }],
+  });
 
   const rezervacije = await prisma.rezervacija.findMany({
     where: {
       status: { not: "OTKAZANO" },
       datumOd: { lt: kalendarDo },
       datumDo: { gt: kalendarOd },
+      ...(selectedJedinicaIds.length > 0
+        ? {
+            jedinicaId: {
+              in: selectedJedinicaIds,
+            },
+          }
+        : {}),
     },
     include: {
       gost: true,
@@ -193,6 +236,73 @@ export default async function AdminMonitorPage({
         </div>
 
         <section className="mb-5 border border-white/80 bg-white p-4 shadow-[0_10px_25px_rgba(0,0,0,0.06)]">
+          <div className="mb-3 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+            <div>
+              <h2 className="text-lg font-black text-[#2e2923]">
+                Filter jedinica
+              </h2>
+              <p className="text-sm text-[#6f665a]">
+                Označi jednu ili više jedinica. Ako ništa nije označeno,
+                prikazuje se sve.
+              </p>
+            </div>
+
+            {selectedJedinicaIds.length > 0 && (
+              <Link
+                href={`/admin/monitor?datum=${selectedIso}&mjesec=${monthParam(
+                  kalendarOd
+                )}`}
+                className="cursor-pointer border border-[#d8c8aa] bg-[#f8f3ea] px-4 py-2 text-sm font-black text-[#7a5a22] hover:bg-[#fff6e2]"
+              >
+                Prikaži sve jedinice
+              </Link>
+            )}
+          </div>
+
+          <form action="/admin/monitor" method="GET">
+            <input type="hidden" name="datum" value={selectedIso} />
+            <input type="hidden" name="mjesec" value={monthParam(kalendarOd)} />
+
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+              {objekti.map((objekt) => (
+                <div
+                  key={objekt.id}
+                  className="border border-[#e2d8c8] bg-[#fcfaf6] p-3"
+                >
+                  <div className="mb-2 font-black text-[#7a5a22]">
+                    {objekt.naziv}
+                  </div>
+
+                  <div className="grid gap-2">
+                    {objekt.jedinice.map((j) => (
+                      <label
+                        key={j.id}
+                        className="flex cursor-pointer items-center gap-2 border border-[#e2d8c8] bg-white px-3 py-2 text-sm font-bold text-[#2e2923] hover:bg-[#fff8eb]"
+                      >
+                        <input
+                          type="checkbox"
+                          name="jedinice"
+                          value={j.id}
+                          defaultChecked={selectedJedinicaIds.includes(j.id)}
+                        />
+                        <span>{j.naziv}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <button
+              type="submit"
+              className="mt-3 cursor-pointer bg-[#2e2923] px-5 py-2 text-sm font-black text-white hover:brightness-110"
+            >
+              Primijeni filter
+            </button>
+          </form>
+        </section>
+
+        <section className="mb-5 border border-white/80 bg-white p-4 shadow-[0_10px_25px_rgba(0,0,0,0.06)]">
           <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
             <div>
               <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#9b7a4c]">
@@ -223,6 +333,14 @@ export default async function AdminMonitorPage({
                 className="border border-[#d8c8aa] p-2 text-sm"
               />
 
+              {selectedJediniceText && (
+                <input
+                  type="hidden"
+                  name="jedinice"
+                  value={selectedJediniceText}
+                />
+              )}
+
               <button
                 type="submit"
                 className="bg-[#2e2923] px-4 py-2 text-sm font-black text-white"
@@ -239,7 +357,13 @@ export default async function AdminMonitorPage({
               <Empty text="Nema dolazaka." />
             ) : (
               dolasci.map((r) => (
-                <RezCard key={r.id} r={r} datum={selectedIso} />
+                <RezCard
+                  key={r.id}
+                  r={r}
+                  datum={selectedIso}
+                  mjesec={monthParam(kalendarOd)}
+                  jediniceParam={selectedJediniceText}
+                />
               ))
             )}
           </InfoBox>
@@ -249,7 +373,13 @@ export default async function AdminMonitorPage({
               <Empty text="Nema odlazaka." />
             ) : (
               odlasci.map((r) => (
-                <RezCard key={r.id} r={r} datum={selectedIso} />
+                <RezCard
+                  key={r.id}
+                  r={r}
+                  datum={selectedIso}
+                  mjesec={monthParam(kalendarOd)}
+                  jediniceParam={selectedJediniceText}
+                />
               ))
             )}
           </InfoBox>
@@ -259,7 +389,13 @@ export default async function AdminMonitorPage({
               <Empty text="Nitko nije u apartmanima." />
             ) : (
               uApartmanima.map((r) => (
-                <RezCard key={r.id} r={r} datum={selectedIso} />
+                <RezCard
+                  key={r.id}
+                  r={r}
+                  datum={selectedIso}
+                  mjesec={monthParam(kalendarOd)}
+                  jediniceParam={selectedJediniceText}
+                />
               ))
             )}
           </InfoBox>
@@ -346,6 +482,7 @@ export default async function AdminMonitorPage({
               mjesec={mjesec}
               odabraniDatum={odabraniDatum}
               rezervacije={rezervacije}
+              jediniceParam={selectedJediniceText}
             />
           ))}
         </div>
@@ -358,10 +495,12 @@ function MonthCalendar({
   mjesec,
   odabraniDatum,
   rezervacije,
+  jediniceParam,
 }: {
   mjesec: Date;
   odabraniDatum: Date;
   rezervacije: any[];
+  jediniceParam: string;
 }) {
   const first = new Date(mjesec.getFullYear(), mjesec.getMonth(), 1);
   const last = new Date(mjesec.getFullYear(), mjesec.getMonth() + 1, 0);
@@ -421,16 +560,21 @@ function MonthCalendar({
 
           const uApartmanima = rezervacije.filter(
             (r) =>
-              dan >= startOfDay(r.datumOd) &&
-              dan < startOfDay(r.datumDo)
+              dan >= startOfDay(r.datumOd) && dan < startOfDay(r.datumDo)
           );
+
+          const q = new URLSearchParams();
+          q.set("datum", iso);
+          q.set("mjesec", monthParam(mjesec));
+
+          if (jediniceParam) {
+            q.set("jedinice", jediniceParam);
+          }
 
           return (
             <Link
               key={iso}
-              href={`/admin/monitor?datum=${iso}&mjesec=${monthParam(
-                mjesec
-              )}`}
+              href={`/admin/monitor?${q.toString()}`}
               className="min-h-[60px] border-b border-r bg-white p-1 transition hover:bg-[#fff8eb]"
               style={{
                 outline: selected ? "2px solid #9b6b12" : "none",
@@ -554,12 +698,31 @@ function InfoBox({
   );
 }
 
-function RezCard({ r, datum }: { r: any; datum: string }) {
+function RezCard({
+  r,
+  datum,
+  mjesec,
+  jediniceParam,
+}: {
+  r: any;
+  datum: string;
+  mjesec: string;
+  jediniceParam: string;
+}) {
   const ime = `${r.gost?.ime || ""} ${r.gost?.prezime || ""}`.trim() || "Gost";
+
+  const q = new URLSearchParams();
+  q.set("datum", datum);
+  q.set("mjesec", mjesec);
+  q.set("rezervacijaId", r.id);
+
+  if (jediniceParam) {
+    q.set("jedinice", jediniceParam);
+  }
 
   return (
     <Link
-      href={`/admin/monitor?datum=${datum}&rezervacijaId=${r.id}`}
+      href={`/admin/monitor?${q.toString()}`}
       className="block border bg-[#f8f3ea] p-2 transition hover:bg-[#efe2cc]"
     >
       <div className="text-sm font-black text-[#2e2923]">{ime}</div>

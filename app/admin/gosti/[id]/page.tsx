@@ -317,7 +317,7 @@ export default async function GostDetaljiPage(props: PageProps) {
                         <Th>Noći</Th>
                         <Th>Iznos</Th>
                         <Th>Status</Th>
-                        <Th></Th>
+                        <Th>Akcija</Th>
                       </tr>
                     </thead>
                     <tbody>

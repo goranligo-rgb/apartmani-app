@@ -76,7 +76,7 @@ export async function sendCiscenjeEmail(formData: FormData) {
       cc: ccList,
       subject: narudzba.subject || "Raspored čišćenja",
       html,
-      reply_to: "goran@malinska-stay.hr",
+      replyTo: "goran@malinska-stay.hr",
     });
 
     // update statusa

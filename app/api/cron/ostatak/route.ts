@@ -9,7 +9,11 @@ function getMailFrom() {
 }
 
 async function getAppUrl() {
-  const postavke = await prisma.postavkeNaplate.findFirst();
+  const postavke = await prisma.postavkeNaplate.findFirst({
+    orderBy: {
+      updatedAt: "desc",
+    },
+  });
 
   if (postavke?.appUrl) return postavke.appUrl;
   if (process.env.NEXT_PUBLIC_APP_URL) return process.env.NEXT_PUBLIC_APP_URL;
@@ -20,7 +24,11 @@ async function getAppUrl() {
 
 export async function GET() {
   try {
-    const postavke = await prisma.postavkeNaplate.findFirst();
+    const postavke = await prisma.postavkeNaplate.findFirst({
+      orderBy: {
+        updatedAt: "desc",
+      },
+    });
 
     if (postavke && !postavke.automatskiSaljiPodsjetnikOstatka) {
       return NextResponse.json({

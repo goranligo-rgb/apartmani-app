@@ -2,27 +2,27 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 
 const fallbackHeroImages = [
-  "/images/2-malinska.webp",
-  "/images/4-malinska.webp",
-  "/images/3-malinska.webp",
-  "/images/krk-malinska-hd.jpg",
+  "/images/hero1.JPG",
+  "/images/hero2.JPG",
+  "/images/hero3.JPG",
+  "/images/hero4.JPG",
 ];
 
 const objekti = [
   {
     naziv: "House Art",
     href: "/objekti/house-art",
-    opis: "Privatna kuća za do 10 osoba, 5 spavaćih soba, 3 kupaone i zajednički bazen s Marty objektom.",
-    info: "1 kuća · 5 soba · 3 kupaone · bazen",
+    opis: "Privatna kuća za do 10 osoba, 5 spavaćih soba, 3 kupaone i privatni bazen samo za goste kuće House Art.",
+    info: "1 kuća · 5 soba · 3 kupaone · privatni bazen",
   },
   {
     naziv: "Luxury Apartments Marty",
     href: "/objekti/marty",
-    opis: "Pet apartmana različitih kapaciteta, idealno za obitelji i veće grupe. Marty i House Art dijele bazen.",
+    opis: "Pet apartmana različitih kapaciteta, idealno za obitelji i veće grupe. Objekt ima vlastiti bazen za goste apartmana Marty.",
     info: "5 apartmana · 1–3 sobe · 1–3 kupaone · bazen",
   },
   {
-    naziv: "House Eva",
+    naziv: "Apartments Eva",
     href: "/objekti/eva",
     opis: "Tri apartmana za 4+2 osobe, svaki s dvije spavaće sobe i jednom ili dvije kupaone.",
     info: "3 apartmana · 2 sobe · 1–2 kupaone",
@@ -50,28 +50,7 @@ export default async function HomePage() {
     >
       <header className="fixed left-0 top-0 z-50 w-full border-b border-white/10 bg-[#0b252b]/95 text-white backdrop-blur">
         <div className="grid grid-cols-3 items-center">
-          <nav className="flex h-16 items-center">
-            <Link
-              href="/"
-              className="cursor-pointer border-r border-white/10 px-5 text-sm font-bold"
-            >
-              Home
-            </Link>
-
-            <Link
-              href="/kalendar"
-              className="cursor-pointer border-r border-white/10 px-5 text-sm font-bold"
-            >
-              Kalendar
-            </Link>
-
-            <Link
-              href="#objekti"
-              className="cursor-pointer px-5 text-sm font-bold"
-            >
-              Objekti
-            </Link>
-          </nav>
+          <div />
 
           <div className="text-center">
             <div className="text-2xl font-bold tracking-[0.25em]">
@@ -138,7 +117,7 @@ export default async function HomePage() {
             </h1>
 
             <p className="mt-6 max-w-2xl text-xl leading-relaxed text-white/90">
-              Odaberite House Art, Luxury Apartments Marty ili House Eva i
+              Odaberite House Art, Luxury Apartments Marty ili Apartments Eva i
               provjerite slobodne termine, cijene i dostupnost.
             </p>
 
@@ -201,8 +180,8 @@ export default async function HomePage() {
             </div>
 
             <div className="mt-4 space-y-3 text-sm text-[#6f665a]">
-              <div>✓ House Art — kuća za 10 osoba</div>
-              <div>✓ Marty — 5 apartmana + bazen</div>
+              <div>✓ House Art — kuća za 10 osoba + privatni bazen</div>
+              <div>✓ Marty — 5 apartmana + bazen za goste Martyja</div>
               <div>✓ Eva — 3 apartmana za 4+2 osobe</div>
               <div>✓ Online kalendar dostupnosti</div>
               <div>

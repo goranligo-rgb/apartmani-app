@@ -59,7 +59,7 @@ export const dynamic = "force-dynamic";
 export default async function EvaPage() {
   const objekt = await prisma.objekt.findFirst({
     where: {
-      naziv: "House Eva",
+      naziv: "Apartments Eva",
     },
     include: {
       jedinice: {
@@ -138,7 +138,7 @@ export default async function EvaPage() {
             Malinska · Otok Krk
           </p>
 
-          <h1 className="text-6xl font-bold">House Eva</h1>
+          <h1 className="text-6xl font-bold">Apartments Eva</h1>
 
           <p className="mt-3 text-xl">3 apartmana za obiteljski odmor</p>
         </div>
@@ -146,11 +146,11 @@ export default async function EvaPage() {
 
       <section className="mx-auto max-w-6xl px-6 py-14">
         <h2 className="text-4xl font-bold text-[#2e2923]">
-          Apartmani House Eva
+          Apartmani Apartments Eva
         </h2>
 
         <p className="mt-5 max-w-3xl text-lg leading-relaxed text-[#6f665a]">
-          House Eva ima tri apartmana. Eva 1 je raspoređena kroz prizemlje i
+          Apartments Eva ima tri apartmana. Eva 1 je raspoređena kroz prizemlje i
           kat, dok su Eva 2 i Eva 3 apartmani na katu.
         </p>
 
@@ -159,7 +159,7 @@ export default async function EvaPage() {
             <GalerijaSlika slike={slike} />
           ) : (
             <div className="border border-dashed border-[#d8c7aa] bg-white p-8 text-center text-[#6f665a]">
-              Još nema uploadanih slika za House Eva.
+              Još nema uploadanih slika za Apartments Eva.
             </div>
           )}
         </section>

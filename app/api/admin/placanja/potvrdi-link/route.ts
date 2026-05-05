@@ -83,6 +83,30 @@ async function getStripePaymentIntentId(placanje: any) {
     return typeof pi === "string" ? pi : pi.id;
 }
 
+function mailWrapper({
+    title,
+    subtitle,
+    children,
+}: {
+    title: string;
+    subtitle: string;
+    children: string;
+}) {
+    return `
+    <div style="font-family: Arial, sans-serif; background:#f4efe6; padding:24px;">
+      <div style="max-width:640px; margin:0 auto; background:white; border:1px solid #eadfce;">
+        <div style="background:#2e2923; color:white; padding:22px;">
+          <h2 style="margin:0;">${title}</h2>
+          <p style="margin:8px 0 0; color:#eadfce;">${subtitle}</p>
+        </div>
+        <div style="padding:24px; color:#2e2923; line-height:1.55;">
+          ${children}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
 export async function GET(req: Request) {
     try {
         const { searchParams } = new URL(req.url);
@@ -273,35 +297,63 @@ export async function GET(req: Request) {
                         noviStatus === "PLACENO"
                             ? "Rezervacija i plaćanje potvrđeni"
                             : "Vaša rezervacija je potvrđena",
-                    html: `
-    <h2>${noviStatus === "PLACENO"
-                            ? "Rezervacija i plaćanje potvrđeni"
-                            : "Rezervacija potvrđena"
-                        }</h2>
+                    html: mailWrapper({
+                        title:
+                            noviStatus === "PLACENO"
+                                ? "Rezervacija i plaćanje potvrđeni"
+                                : "Rezervacija je potvrđena",
+                        subtitle:
+                            noviStatus === "PLACENO"
+                                ? "Vaša rezervacija je potvrđena i u potpunosti plaćena."
+                                : "Vaša rezervacija je potvrđena uz uplatu akontacije.",
+                        children: `
+      <p>Poštovani <strong>${gostIme}</strong>,</p>
 
-    <p>Poštovani ${gostIme},</p>
+      <p>
+        ${noviStatus === "PLACENO"
+                                ? "Vaše plaćanje je uspješno zaprimljeno i rezervacija je potvrđena."
+                                : "Vaša rezervacija je uspješno potvrđena. Preostali iznos bit će potrebno podmiriti prema dogovorenim uvjetima prije dolaska."
+                            }
+      </p>
 
-    <p>
+      <div style="margin:22px 0; padding:18px; background:#fcfaf6; border:1px solid #eadfce;">
+        <h3 style="margin:0 0 14px;">Detalji rezervacije</h3>
+        <p><strong>Objekt:</strong> ${nazivObjekta}</p>
+        <p><strong>Smještajna jedinica:</strong> ${nazivJedinice}</p>
+        <p><strong>Dolazak:</strong> ${datumOd}</p>
+        <p><strong>Odlazak:</strong> ${datumDo}</p>
+        <p><strong>Uplaćeno:</strong> ${Number(placanje.iznos || 0).toFixed(2)} ${placanje.valuta || "EUR"}</p>
+        ${noviOstatak > 0
+                                ? `<p><strong>Preostalo za uplatu:</strong> ${Number(noviOstatak).toFixed(2)} ${placanje.valuta || "EUR"}</p>`
+                                : ""
+                            }
+      </div>
+
       ${noviStatus === "PLACENO"
-                            ? "Vaše plaćanje je uspješno zaprimljeno i rezervacija je potvrđena."
-                            : "Vaša rezervacija je uspješno potvrđena."
-                        }
-    </p>
+                                ? `
+          <div style="padding:16px; background:#eaf7ef; border:1px solid #22c55e; color:#166534;">
+            <strong>Potvrđeno:</strong><br/>
+            Rezervacija je u potpunosti plaćena. U privitku vam šaljemo račun.
+          </div>
+        `
+                                : `
+          <div style="padding:16px; background:#fff6e2; border:1px solid #c79a57; color:#7a5a22;">
+            <strong>Potvrđeno:</strong><br/>
+            Rezervacija je potvrđena. U privitku vam šaljemo račun za zaprimljenu uplatu.
+          </div>
+        `
+                            }
 
-    <p>
-      <strong>Objekt:</strong> ${nazivObjekta}<br/>
-      <strong>Smještajna jedinica:</strong> ${nazivJedinice}<br/>
-      <strong>Dolazak:</strong> ${datumOd}<br/>
-      <strong>Odlazak:</strong> ${datumDo}
-    </p>
+      <p style="margin-top:28px;">
+        Veselimo se vašem dolasku u Malinsku.
+      </p>
 
-    <p>U privitku vam šaljemo račun.</p>
-
-    <p>Veselimo se vašem dolasku!</p>
-
-    <br/>
-    <p>Lijep pozdrav,<br/>Malinska Stay</p>
-  `,
+      <p>
+        Lijep pozdrav,<br/>
+        <strong>Malinska Stay</strong>
+      </p>
+    `,
+                    }),
                     attachments: [
                         {
                             filename: `${brojRacuna}.pdf`,
