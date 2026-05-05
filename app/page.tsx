@@ -38,10 +38,7 @@ export default async function HomePage() {
     orderBy: [{ sortOrder: "asc" }, { createdAt: "desc" }],
   });
 
-  const heroImages =
-    slikeIzBaze.length > 0
-      ? slikeIzBaze.map((s) => s.url)
-      : fallbackHeroImages;
+  const heroImages = fallbackHeroImages;
 
   return (
     <main
