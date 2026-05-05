@@ -1,7 +1,12 @@
 import { NextResponse } from "next/server";
-import { writeFile, mkdir } from "fs/promises";
-import path from "path";
 import { prisma } from "@/lib/prisma";
+import { createClient } from "@supabase/supabase-js";
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+const bucket = "slike";
+
+const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
 export async function POST(req: Request) {
   try {
@@ -15,9 +20,6 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Nema slika" }, { status: 400 });
     }
 
-    const uploadDir = path.join(process.cwd(), "public/uploads");
-    await mkdir(uploadDir, { recursive: true });
-
     const spremljene = [];
 
     for (const file of allFiles) {
@@ -29,11 +31,30 @@ export async function POST(req: Request) {
         .toString(36)
         .slice(2)}-${safeName}`;
 
-      await writeFile(path.join(uploadDir, fileName), buffer);
+      const filePath = `uploads/${fileName}`;
+
+      const { error } = await supabase.storage
+        .from(bucket)
+        .upload(filePath, buffer, {
+          contentType: file.type || "image/jpeg",
+          upsert: false,
+        });
+
+      if (error) {
+        console.error("SUPABASE UPLOAD ERROR:", error);
+        return NextResponse.json(
+          { error: "Greška Supabase upload" },
+          { status: 500 }
+        );
+      }
+
+      const { data: publicUrlData } = supabase.storage
+        .from(bucket)
+        .getPublicUrl(filePath);
 
       const slika = await prisma.slikaObjekta.create({
         data: {
-          url: `/uploads/${fileName}`,
+          url: publicUrlData.publicUrl,
           aktivna: true,
           prikaziNaPocetnoj: false,
           prikaziNaDashboardu: false,
