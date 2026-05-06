@@ -11,7 +11,7 @@ export async function GET(request: Request) {
   response.cookies.set("admin_session_v2", "", {
     httpOnly: true,
     sameSite: "lax",
-    secure: true,
+    secure: process.env.NODE_ENV === "production",
     path: "/",
     maxAge: 0,
   });
