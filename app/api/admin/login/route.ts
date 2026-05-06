@@ -17,15 +17,19 @@ export async function POST(request: Request) {
     username !== adminUsername ||
     password !== adminPassword
   ) {
-    return NextResponse.redirect(new URL("/admin/login?error=1", request.url));
+    return NextResponse.redirect(new URL("/admin/login?error=1", request.url), {
+      status: 303,
+    });
   }
 
-  const response = NextResponse.redirect(new URL("/admin", request.url));
+  const response = NextResponse.redirect(new URL("/admin", request.url), {
+    status: 303,
+  });
 
   response.cookies.set("admin_session", sessionSecret, {
     httpOnly: true,
     sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
+    secure: true,
     path: "/",
     maxAge: 60 * 60 * 24 * 7,
   });
