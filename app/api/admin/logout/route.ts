@@ -8,7 +8,7 @@ export async function GET(request: Request) {
     }
   );
 
-  response.cookies.set("admin_session", "", {
+  response.cookies.set("admin_session_v2", "", {
     httpOnly: true,
     sameSite: "lax",
     secure: true,

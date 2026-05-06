@@ -25,14 +25,11 @@ export async function POST(request: Request) {
     );
   }
 
-  const response = NextResponse.redirect(
-    new URL("/admin", request.url),
-    {
-      status: 303,
-    }
-  );
+  const response = NextResponse.redirect(new URL("/admin", request.url), {
+    status: 303,
+  });
 
-  response.cookies.set("admin_session", sessionSecret, {
+  response.cookies.set("admin_session_v2", sessionSecret, {
     httpOnly: true,
     sameSite: "lax",
     secure: true,
