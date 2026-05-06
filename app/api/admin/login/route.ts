@@ -32,18 +32,12 @@ export async function POST(request: Request) {
     }
   );
 
-  const url = new URL(request.url);
-  const hostname = url.hostname;
-
   response.cookies.set("admin_session", sessionSecret, {
     httpOnly: true,
     sameSite: "lax",
     secure: true,
     path: "/",
     maxAge: 60 * 60 * 24 * 7,
-    ...(hostname.endsWith("malinska-stay.hr")
-      ? { domain: ".malinska-stay.hr" }
-      : {}),
   });
 
   return response;
