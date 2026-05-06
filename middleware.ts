@@ -2,6 +2,14 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 export function middleware(request: NextRequest) {
+  const host = request.headers.get("host") || "";
+  const url = request.nextUrl.clone();
+
+  if (host.startsWith("www.")) {
+    url.host = host.replace("www.", "");
+    return NextResponse.redirect(url, 301);
+  }
+
   const { pathname } = request.nextUrl;
 
   if (!pathname.startsWith("/admin")) {
@@ -16,13 +24,12 @@ export function middleware(request: NextRequest) {
   const expected = process.env.ADMIN_SESSION_SECRET;
 
   if (!expected || session !== expected) {
-    const loginUrl = new URL("/admin/login", request.url);
-    return NextResponse.redirect(loginUrl);
+    return NextResponse.redirect(new URL("/admin/login", request.url));
   }
 
   return NextResponse.next();
 }
 
 export const config = {
-  matcher: ["/admin/:path*"],
+  matcher: ["/((?!_next|favicon.ico).*)"],
 };
