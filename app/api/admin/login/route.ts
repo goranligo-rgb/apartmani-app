@@ -17,14 +17,23 @@ export async function POST(request: Request) {
     username !== adminUsername ||
     password !== adminPassword
   ) {
-    return NextResponse.redirect(new URL("/admin/login?error=1", request.url), {
-      status: 303,
-    });
+    return NextResponse.redirect(
+      new URL("/admin/login?error=1", request.url),
+      {
+        status: 303,
+      }
+    );
   }
 
-  const response = NextResponse.redirect(new URL("/admin", request.url), {
-    status: 303,
-  });
+  const response = NextResponse.redirect(
+    new URL("/admin", request.url),
+    {
+      status: 303,
+    }
+  );
+
+  const url = new URL(request.url);
+  const hostname = url.hostname;
 
   response.cookies.set("admin_session", sessionSecret, {
     httpOnly: true,
@@ -32,6 +41,9 @@ export async function POST(request: Request) {
     secure: true,
     path: "/",
     maxAge: 60 * 60 * 24 * 7,
+    ...(hostname.endsWith("malinska-stay.hr")
+      ? { domain: ".malinska-stay.hr" }
+      : {}),
   });
 
   return response;
