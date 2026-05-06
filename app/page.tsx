@@ -2,10 +2,10 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 
 const fallbackHeroImages = [
-  "/images/hero1.JPG",
-  "/images/hero2.JPG",
-  "/images/hero3.JPG",
-  "/images/hero4.JPG",
+  "/images/hero1.jpg",
+  "/images/hero2.jpg",
+  "/images/hero3.jpg",
+  "/images/hero4.jpg",
 ];
 
 const objekti = [
