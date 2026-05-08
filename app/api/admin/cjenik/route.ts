@@ -178,11 +178,8 @@ export async function DELETE(req: Request) {
       );
     }
 
-    await prisma.cjenik.update({
+    await prisma.cjenik.delete({
       where: { id },
-      data: {
-        aktivno: false,
-      },
     });
 
     return NextResponse.json({
