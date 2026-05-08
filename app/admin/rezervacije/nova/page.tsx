@@ -766,7 +766,7 @@ export default async function NovaAdminRezervacijaPage({
           iznos: iznosZaKarticniPoziv,
           valuta: "EUR",
           nacinPlacanja: "KARTICA",
-          provider: "TEST_KARTICA",
+          provider: "STRIPE",
           napomena: naplataPunogIznosa
             ? `Poziv za kartično plaćanje cijelog iznosa. Dolazak je za ${danaDoDolaska} dana. Prag pune naplate: ${pragPuneNaplateDana} dana.`
             : `Poziv za kartično plaćanje akontacije. Rok uplate: ${rokUplateAkontacije.toLocaleDateString(
@@ -776,7 +776,7 @@ export default async function NovaAdminRezervacijaPage({
       });
 
       const baseUrl = await getAppUrl();
-      const paymentLink = `${baseUrl}/placanje?placanjeId=${placanjeAkontacije.id}`;
+      const paymentLink = `${baseUrl}/api/rezervacije/create-payment?placanjeId=${placanjeAkontacije.id}`;
 
       let mailStatus: "POSLANO" | "GRESKA" = "GRESKA";
       let mailGreska: string | null = null;
@@ -987,8 +987,8 @@ export default async function NovaAdminRezervacijaPage({
                           key={j.id}
                           href={`/admin/rezervacije/nova?${q.toString()}#kalendar`}
                           className={`block cursor-pointer border px-3 py-2 text-sm font-black transition ${odabranaJedinicaId === j.id
-                            ? "border-[#c79a57] bg-[#fff6e2] text-[#2e2923]"
-                            : "border-[#e2d8c8] bg-white text-[#6f665a] hover:bg-[#f8f3ea]"
+                              ? "border-[#c79a57] bg-[#fff6e2] text-[#2e2923]"
+                              : "border-[#e2d8c8] bg-white text-[#6f665a] hover:bg-[#f8f3ea]"
                             }`}
                         >
                           {j.naziv}
