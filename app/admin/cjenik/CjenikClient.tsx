@@ -134,7 +134,7 @@ export default function CjenikClient({ jedinice }: { jedinice: JedinicaItem[] })
     const doDatuma = parseIso(datumDo);
 
     return selectedJedinica.cjenici.some((c) =>
-      overlaps(od, doDatuma, new Date(c.datumOd), new Date(c.datumDo))
+      overlaps(od, doDatuma, parseIso(c.datumOd), parseIso(c.datumDo))
     );
   }, [selectedJedinica, previewValid, datumOd, datumDo]);
 
@@ -187,10 +187,7 @@ export default function CjenikClient({ jedinice }: { jedinice: JedinicaItem[] })
     if (!selectedJedinica) return null;
 
     return selectedJedinica.cjenici.find((c) => {
-      const od = toLocalIso(new Date(c.datumOd));
-      const doDatuma = toLocalIso(new Date(c.datumDo));
-
-      return dayIso >= od && dayIso <= doDatuma;
+      return dayIso >= c.datumOd && dayIso <= c.datumDo;
     });
   }
 
@@ -261,7 +258,7 @@ export default function CjenikClient({ jedinice }: { jedinice: JedinicaItem[] })
       setMinimalniBoravak("2");
       setBojaPerioda("ZELENA");
 
-      window.location.href = window.location.href;
+      router.refresh();
     } catch {
       setError("Došlo je do greške kod spremanja.");
     } finally {
@@ -278,34 +275,21 @@ export default function CjenikClient({ jedinice }: { jedinice: JedinicaItem[] })
     setError("");
     setMessage("");
 
-    const potvrda = confirm(
-      "Jesi siguran da želiš obrisati ovaj period cjenika?"
-    );
+    const res = await fetch("/api/admin/cjenik", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id }),
+    });
 
-    if (!potvrda) return;
+    const data = await res.json();
 
-    try {
-      const res = await fetch("/api/admin/cjenik", {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id }),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        setError(data.error || "Greška kod brisanja.");
-        return;
-      }
-
-      setMessage("Cjenik je obrisan.");
-
-      router.refresh();
-
-      window.location.href = window.location.href;
-    } catch {
-      setError("Greška kod brisanja.");
+    if (!res.ok) {
+      setError(data.error || "Greška kod brisanja.");
+      return;
     }
+
+    setMessage("Cjenik je obrisan.");
+    router.refresh();
   }
 
   function cellStyle(dayIso: string) {
@@ -416,10 +400,11 @@ export default function CjenikClient({ jedinice }: { jedinice: JedinicaItem[] })
                   </label>
 
                   <input
-                    type="date"
+                    type="text"
                     value={datumOd}
-                    onChange={(e) => setDatumOd(e.target.value)}
-                    className="w-full border border-[#d9cfbf] bg-white px-3 py-2 outline-none"
+                    readOnly
+                    className="w-full border border-[#d9cfbf] bg-[#f8f3ea] px-3 py-2 outline-none"
+                    placeholder="klik u kalendaru"
                   />
                 </div>
 
@@ -429,10 +414,11 @@ export default function CjenikClient({ jedinice }: { jedinice: JedinicaItem[] })
                   </label>
 
                   <input
-                    type="date"
+                    type="text"
                     value={datumDo}
-                    onChange={(e) => setDatumDo(e.target.value)}
-                    className="w-full border border-[#d9cfbf] bg-white px-3 py-2 outline-none"
+                    readOnly
+                    className="w-full border border-[#d9cfbf] bg-[#f8f3ea] px-3 py-2 outline-none"
+                    placeholder="klik u kalendaru"
                   />
                 </div>
               </div>
@@ -444,11 +430,10 @@ export default function CjenikClient({ jedinice }: { jedinice: JedinicaItem[] })
 
                 <input
                   type="number"
-                  step="1"
-                  min="1"
+                  step="0.01"
                   value={cijenaNocenja}
                   onChange={(e) => setCijenaNocenja(e.target.value)}
-                  className="w-full border border-[#d9cfbf] bg-white px-3 py-2 outline-none"
+                  className="w-full border border-[#d9cfbf] px-3 py-2 outline-none"
                 />
               </div>
 
@@ -733,8 +718,8 @@ export default function CjenikClient({ jedinice }: { jedinice: JedinicaItem[] })
                       <div className="flex flex-wrap items-center justify-between gap-3">
                         <div>
                           <div className="font-bold text-[#2e2923]">
-                            {new Date(c.datumOd).toLocaleDateString("hr-HR")} —{" "}
-                            {new Date(c.datumDo).toLocaleDateString("hr-HR")}
+                            {parseIso(c.datumOd).toLocaleDateString("hr-HR")} —{" "}
+                            {parseIso(c.datumDo).toLocaleDateString("hr-HR")}
                           </div>
 
                           <div className="mt-1 text-sm text-[#5f5549]">

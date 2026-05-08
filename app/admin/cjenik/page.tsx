@@ -1,11 +1,12 @@
 import { prisma } from "@/lib/prisma";
 import CjenikClient from "./CjenikClient";
 
-function toDateOnly(value: Date) {
-  const y = value.getFullYear();
-  const m = String(value.getMonth() + 1).padStart(2, "0");
-  const d = String(value.getDate()).padStart(2, "0");
+export const dynamic = "force-dynamic";
 
+function toLocalIso(date: Date) {
+  const y = date.getFullYear();
+  const m = `${date.getMonth() + 1}`.padStart(2, "0");
+  const d = `${date.getDate()}`.padStart(2, "0");
   return `${y}-${m}-${d}`;
 }
 
@@ -31,9 +32,9 @@ export default async function AdminCjenikPage() {
     objektNaziv: j.objekt.naziv,
     cjenici: j.cjenici.map((c) => ({
       id: c.id,
-      datumOd: toDateOnly(c.datumOd),
-      datumDo: toDateOnly(c.datumDo),
-      cijenaNocenja: c.cijenaNocenja,
+      datumOd: toLocalIso(c.datumOd),
+      datumDo: toLocalIso(c.datumDo),
+      cijenaNocenja: Number(c.cijenaNocenja),
       minimalniBoravak: c.minimalniBoravak,
       bojaPerioda: c.bojaPerioda,
       aktivno: c.aktivno,
@@ -50,16 +51,6 @@ export default async function AdminCjenikPage() {
       }}
     >
       <div className="mx-auto max-w-[1600px]">
-        <div className="mb-6 border border-white/70 bg-white p-5 shadow-[0_12px_35px_rgba(0,0,0,0.08)]">
-          <p className="mb-2 text-sm font-bold uppercase tracking-[0.25em] text-[#9b7a4c]">
-            Admin
-          </p>
-          <h1 className="text-3xl font-bold text-[#2e2923]">Cjenik jedinica</h1>
-          <p className="mt-2 text-[#6f665a]">
-            Odabir perioda, boja po cjenovnom razredu, pregled 4 mjeseca i kontrola preklapanja.
-          </p>
-        </div>
-
         <CjenikClient jedinice={jedinice} />
       </div>
     </main>
