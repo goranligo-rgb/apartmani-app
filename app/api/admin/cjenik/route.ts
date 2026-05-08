@@ -156,17 +156,47 @@ export async function POST(req: Request) {
 }
 
 export async function DELETE(req: Request) {
-  const body = await req.json();
-  const id = String(body.id || "");
+  try {
+    const body = await req.json();
+    const id = String(body.id || "");
 
-  if (!id) {
-    return NextResponse.json({ error: "Nedostaje ID." }, { status: 400 });
+    if (!id) {
+      return NextResponse.json(
+        { error: "Nedostaje ID." },
+        { status: 400 }
+      );
+    }
+
+    const postoji = await prisma.cjenik.findUnique({
+      where: { id },
+    });
+
+    if (!postoji) {
+      return NextResponse.json(
+        { error: "Cjenik nije pronađen." },
+        { status: 404 }
+      );
+    }
+
+    await prisma.cjenik.update({
+      where: { id },
+      data: {
+        aktivno: false,
+      },
+    });
+
+    return NextResponse.json({
+      success: true,
+      id,
+    });
+  } catch (error: any) {
+    console.error("DELETE CJENIK ERROR:", error);
+
+    return NextResponse.json(
+      {
+        error: error?.message || "Greška kod brisanja cjenika.",
+      },
+      { status: 500 }
+    );
   }
-
-  await prisma.cjenik.update({
-    where: { id },
-    data: { aktivno: false },
-  });
-
-  return NextResponse.json({ success: true });
 }
