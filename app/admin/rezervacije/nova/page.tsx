@@ -166,9 +166,11 @@ async function getAppUrl() {
   });
 
   if (postavke?.appUrl) return postavke.appUrl.replace(/\/$/, "");
+
   if (process.env.NEXT_PUBLIC_APP_URL) {
     return process.env.NEXT_PUBLIC_APP_URL.replace(/\/$/, "");
   }
+
   if (process.env.VERCEL_URL) {
     return `https://${process.env.VERCEL_URL}`.replace(/\/$/, "");
   }
@@ -272,6 +274,89 @@ function diagonalBg(left: string, right: string) {
   return `linear-gradient(135deg, ${left} 0%, ${left} 49%, ${right} 51%, ${right} 100%)`;
 }
 
+function paymentMailTemplate({
+  title,
+  subtitle,
+  imePrezime,
+  objekt,
+  jedinica,
+  datumOd,
+  datumDo,
+  ukupno,
+  zaPlatiti,
+  ostatak,
+  rokPlacanja,
+  paymentLink,
+  buttonText,
+  infoText,
+}: {
+  title: string;
+  subtitle: string;
+  imePrezime: string;
+  objekt: string;
+  jedinica: string;
+  datumOd: string;
+  datumDo: string;
+  ukupno: string;
+  zaPlatiti: string;
+  ostatak: string;
+  rokPlacanja: string;
+  paymentLink: string;
+  buttonText: string;
+  infoText: string;
+}) {
+  return `
+    <div style="font-family:Arial,sans-serif;background:#f4efe6;padding:24px;">
+      <div style="max-width:720px;margin:0 auto;background:#ffffff;border:1px solid #eadfce;">
+        <div style="background:#2e2923;color:#ffffff;padding:30px;">
+          <h1 style="margin:0;font-size:28px;line-height:1.2;">${title}</h1>
+          <p style="margin:10px 0 0;color:#eadfce;font-size:16px;">${subtitle}</p>
+        </div>
+
+        <div style="padding:32px;color:#2e2923;font-size:16px;line-height:1.6;">
+          <p>Poštovani <strong>${imePrezime}</strong>,</p>
+
+          <p>${infoText}</p>
+
+          <div style="margin:26px 0;padding:24px;border:1px solid #d8c8aa;background:#fcfaf6;">
+            <h2 style="margin:0 0 18px;font-size:22px;">Detalji rezervacije</h2>
+
+            <p><strong>Objekt:</strong> ${objekt}</p>
+            <p><strong>Smještajna jedinica:</strong> ${jedinica}</p>
+            <p><strong>Dolazak:</strong> ${datumOd}</p>
+            <p><strong>Odlazak:</strong> ${datumDo}</p>
+            <p><strong>Ukupan iznos rezervacije:</strong> ${ukupno}</p>
+            <p><strong>Iznos za uplatu:</strong> ${zaPlatiti}</p>
+            <p><strong>Ostatak:</strong> ${ostatak}</p>
+            <p><strong>Rok plaćanja:</strong> ${rokPlacanja}</p>
+          </div>
+
+          <div style="margin:26px 0;padding:18px;background:#fff6e2;border:1px solid #c79a57;color:#7a5a22;">
+            Nakon uspješne uplate primit ćete automatsku potvrdu rezervacije i račun.
+          </div>
+
+          <p style="margin:30px 0;">
+            <a href="${paymentLink}"
+               style="background:#c79a57;color:#ffffff;padding:15px 24px;text-decoration:none;font-weight:bold;display:inline-block;">
+              ${buttonText}
+            </a>
+          </p>
+
+          <p style="font-size:13px;color:#6f665a;">
+            Ako gumb ne radi, kopirajte ovaj link u preglednik:<br/>
+            <a href="${paymentLink}" style="color:#7a5a22;">${paymentLink}</a>
+          </p>
+
+          <p style="margin-top:30px;">
+            Lijep pozdrav,<br/>
+            <strong>Malinska Stay</strong>
+          </p>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
 export default async function NovaAdminRezervacijaPage({
   searchParams,
 }: {
@@ -325,9 +410,9 @@ export default async function NovaAdminRezervacijaPage({
 
   const jedinica = odabranaJedinicaId
     ? await prisma.jedinica.findUnique({
-        where: { id: odabranaJedinicaId },
-        include: { objekt: true },
-      })
+      where: { id: odabranaJedinicaId },
+      include: { objekt: true },
+    })
     : null;
 
   const postavke =
@@ -347,39 +432,39 @@ export default async function NovaAdminRezervacijaPage({
 
   const rezervacije = jedinica
     ? await prisma.rezervacija.findMany({
-        where: {
-          jedinicaId: jedinica.id,
-          status: {
-            notIn: ["OTKAZANO"],
-          },
-          datumOd: {
-            lt: kalendarDo,
-          },
-          datumDo: {
-            gt: kalendarOd,
-          },
+      where: {
+        jedinicaId: jedinica.id,
+        status: {
+          notIn: ["OTKAZANO"],
         },
-        include: {
-          gost: true,
+        datumOd: {
+          lt: kalendarDo,
         },
-        orderBy: [{ datumOd: "asc" }],
-      })
+        datumDo: {
+          gt: kalendarOd,
+        },
+      },
+      include: {
+        gost: true,
+      },
+      orderBy: [{ datumOd: "asc" }],
+    })
     : [];
 
   const cjenici = jedinica
     ? await prisma.cjenik.findMany({
-        where: {
-          jedinicaId: jedinica.id,
-          aktivno: true,
-          datumOd: {
-            lt: kalendarDo,
-          },
-          datumDo: {
-            gte: kalendarOd,
-          },
+      where: {
+        jedinicaId: jedinica.id,
+        aktivno: true,
+        datumOd: {
+          lt: kalendarDo,
         },
-        orderBy: [{ datumOd: "asc" }],
-      })
+        datumDo: {
+          gte: kalendarOd,
+        },
+      },
+      orderBy: [{ datumOd: "asc" }],
+    })
     : [];
 
   const mjeseci = [0, 1].map((i) => {
@@ -395,10 +480,10 @@ export default async function NovaAdminRezervacijaPage({
   const osnovnaCijena =
     jedinica && odabraniOd && odabraniDo && odabraniOd < odabraniDo
       ? await izracunajCijenuTermina({
-          jedinicaId: jedinica.id,
-          datumOd: odabraniOd,
-          datumDo: odabraniDo,
-        })
+        jedinicaId: jedinica.id,
+        datumOd: odabraniOd,
+        datumDo: odabraniDo,
+      })
       : 0;
 
   const defaultAkontacijaPostotak = Number(jedinica?.postotakAkontacije || 30);
@@ -409,19 +494,19 @@ export default async function NovaAdminRezervacijaPage({
   const postojiPreklapanje =
     jedinica && odabraniOd && odabraniDo && odabraniOd < odabraniDo
       ? await prisma.rezervacija.findFirst({
-          where: {
-            jedinicaId: jedinica.id,
-            status: {
-              notIn: ["OTKAZANO"],
-            },
-            datumOd: {
-              lt: odabraniDo,
-            },
-            datumDo: {
-              gt: odabraniOd,
-            },
+        where: {
+          jedinicaId: jedinica.id,
+          status: {
+            notIn: ["OTKAZANO"],
           },
-        })
+          datumOd: {
+            lt: odabraniDo,
+          },
+          datumDo: {
+            gt: odabraniOd,
+          },
+        },
+      })
       : null;
 
   async function kreirajAdminRezervaciju(formData: FormData) {
@@ -543,6 +628,29 @@ export default async function NovaAdminRezervacijaPage({
       throw new Error("Akontacija ne može biti veća od dogovorenog iznosa.");
     }
 
+    const postavkeNaplate = await prisma.postavkeNaplate.findFirst({
+      orderBy: { createdAt: "asc" },
+    });
+
+    const pragPuneNaplateDana =
+      postavkeNaplate?.danaPrijeDolaskaPunaNaplata ?? 30;
+
+    const danasZaPrag = startOfDay(new Date());
+
+    const danaDoDolaska = Math.ceil(
+      (startOfDay(datumOd).getTime() - danasZaPrag.getTime()) / 86400000
+    );
+
+    const naplataPunogIznosa = danaDoDolaska <= pragPuneNaplateDana;
+
+    const iznosZaKarticniPoziv = naplataPunogIznosa
+      ? dogovoreniIznos
+      : iznosAkontacije;
+
+    const tipKarticnogPlacanja = naplataPunogIznosa
+      ? "CIJELI_IZNOS"
+      : "POTVRDA_REZERVACIJE";
+
     const rokUplateAkontacije = addDays(
       startOfDay(new Date()),
       danaVrijediAkontacija
@@ -626,7 +734,10 @@ export default async function NovaAdminRezervacijaPage({
             : null,
         dogovoreniIznos,
         iznosUkupno: dogovoreniIznos,
-        iznosPotvrde: iznosAkontacije,
+        iznosPotvrde:
+          nacinKreiranja === "POZIV_KARTICA"
+            ? iznosZaKarticniPoziv
+            : iznosAkontacije,
         iznosPlaceno,
         iznosOstatka: Math.max(dogovoreniIznos - iznosPlaceno, 0),
 
@@ -650,15 +761,17 @@ export default async function NovaAdminRezervacijaPage({
       const placanjeAkontacije = await prisma.placanje.create({
         data: {
           rezervacijaId: rezervacija.id,
-          tip: "POTVRDA_REZERVACIJE",
+          tip: tipKarticnogPlacanja,
           status: "ZAHTJEV_POSLAN",
-          iznos: iznosAkontacije,
+          iznos: iznosZaKarticniPoziv,
           valuta: "EUR",
           nacinPlacanja: "KARTICA",
           provider: "TEST_KARTICA",
-          napomena: `Poziv za kartično plaćanje akontacije. Rok uplate: ${rokUplateAkontacije.toLocaleDateString(
-            "hr-HR"
-          )}`,
+          napomena: naplataPunogIznosa
+            ? `Poziv za kartično plaćanje cijelog iznosa. Dolazak je za ${danaDoDolaska} dana. Prag pune naplate: ${pragPuneNaplateDana} dana.`
+            : `Poziv za kartično plaćanje akontacije. Rok uplate: ${rokUplateAkontacije.toLocaleDateString(
+              "hr-HR"
+            )}`,
         },
       });
 
@@ -668,57 +781,41 @@ export default async function NovaAdminRezervacijaPage({
       let mailStatus: "POSLANO" | "GRESKA" = "GRESKA";
       let mailGreska: string | null = null;
 
+      const subject = naplataPunogIznosa
+        ? "Poziv za plaćanje rezervacije"
+        : "Poziv za plaćanje akontacije";
+
       if (!email) {
         mailGreska = "Gost nema email adresu. Mail nije poslan.";
       } else {
         const mail = await sendMail({
           to: email,
-          subject: "Poziv za plaćanje akontacije",
-          html: `
-            <div style="font-family: Arial, sans-serif; line-height: 1.5; color: #222; max-width: 640px;">
-              <h2>Poziv za plaćanje akontacije</h2>
-              <p>Poštovani ${ime}${prezime ? " " + prezime : ""},</p>
-              <p>
-                Vaša rezervacija je evidentirana za:
-                <br />
-                <strong>${jedinica.objekt.naziv} / ${jedinica.naziv}</strong>
-              </p>
-              <p>
-                Termin:
-                <br />
-                <strong>${datumOd.toLocaleDateString("hr-HR")} – ${datumDo.toLocaleDateString("hr-HR")}</strong>
-              </p>
-              <p>
-                Ukupan iznos rezervacije:
-                <br />
-                <strong>${dogovoreniIznos.toFixed(2)} €</strong>
-              </p>
-              <p>
-                Za potvrdu rezervacije potrebno je platiti akontaciju:
-                <br />
-                <strong>${iznosAkontacije.toFixed(2)} €</strong>
-              </p>
-              <p>
-                Rok plaćanja:
-                <br />
-                <strong>${rokUplateAkontacije.toLocaleDateString("hr-HR")}</strong>
-              </p>
-              <p style="margin: 28px 0;">
-                <a href="${paymentLink}"
-                   style="background:#c79a57;color:#ffffff;padding:14px 22px;text-decoration:none;font-weight:bold;display:inline-block;">
-                  Plati akontaciju karticom
-                </a>
-              </p>
-              <p style="font-size:13px;color:#666;">
-                Ako gumb ne radi, kopirajte ovaj link u preglednik:<br/>
-                ${paymentLink}
-              </p>
-              <p>
-                Nakon uspješne uplate dobit ćete automatsku potvrdu rezervacije i račun.
-              </p>
-              <p>Srdačan pozdrav,<br/>Malinska Stay</p>
-            </div>
-          `,
+          subject,
+          html: paymentMailTemplate({
+            title: subject,
+            subtitle: naplataPunogIznosa
+              ? "Za potvrdu rezervacije potrebno je platiti puni iznos."
+              : "Za potvrdu rezervacije potrebno je platiti akontaciju.",
+            imePrezime: `${ime}${prezime ? " " + prezime : ""}`,
+            objekt: jedinica.objekt.naziv,
+            jedinica: jedinica.naziv,
+            datumOd: datumOd.toLocaleDateString("hr-HR"),
+            datumDo: datumDo.toLocaleDateString("hr-HR"),
+            ukupno: `${dogovoreniIznos.toFixed(2)} €`,
+            zaPlatiti: `${iznosZaKarticniPoziv.toFixed(2)} €`,
+            ostatak: `${Math.max(
+              dogovoreniIznos - iznosZaKarticniPoziv,
+              0
+            ).toFixed(2)} €`,
+            rokPlacanja: rokUplateAkontacije.toLocaleDateString("hr-HR"),
+            paymentLink,
+            buttonText: naplataPunogIznosa
+              ? "Plati rezervaciju karticom"
+              : "Plati akontaciju karticom",
+            infoText: naplataPunogIznosa
+              ? `Vaša rezervacija je evidentirana. Budući da je dolazak za ${danaDoDolaska} dana, za potvrdu rezervacije potrebno je platiti puni iznos.`
+              : "Vaša rezervacija je evidentirana. Za potvrdu rezervacije potrebno je platiti akontaciju.",
+          }),
         });
 
         if (mail.ok) {
@@ -732,7 +829,7 @@ export default async function NovaAdminRezervacijaPage({
         data: {
           rezervacijaId: rezervacija.id,
           to: email || "bez-emaila",
-          subject: "Poziv za plaćanje akontacije",
+          subject,
           tip: "ZAHTJEV_AKONTACIJA",
           status: mailStatus,
           greska: mailGreska,
@@ -814,6 +911,12 @@ export default async function NovaAdminRezervacijaPage({
           popustPostotak,
           dogovoreniIznos,
           iznosAkontacije,
+          iznosZaKarticniPoziv:
+            nacinKreiranja === "POZIV_KARTICA" ? iznosZaKarticniPoziv : null,
+          naplataPunogIznosa:
+            nacinKreiranja === "POZIV_KARTICA" ? naplataPunogIznosa : false,
+          pragPuneNaplateDana,
+          danaDoDolaska,
           iznosPlaceno,
           rokUplateAkontacije,
           rokUplateOstatka,
@@ -883,11 +986,10 @@ export default async function NovaAdminRezervacijaPage({
                         <Link
                           key={j.id}
                           href={`/admin/rezervacije/nova?${q.toString()}#kalendar`}
-                          className={`block cursor-pointer border px-3 py-2 text-sm font-black transition ${
-                            odabranaJedinicaId === j.id
-                              ? "border-[#c79a57] bg-[#fff6e2] text-[#2e2923]"
-                              : "border-[#e2d8c8] bg-white text-[#6f665a] hover:bg-[#f8f3ea]"
-                          }`}
+                          className={`block cursor-pointer border px-3 py-2 text-sm font-black transition ${odabranaJedinicaId === j.id
+                            ? "border-[#c79a57] bg-[#fff6e2] text-[#2e2923]"
+                            : "border-[#e2d8c8] bg-white text-[#6f665a] hover:bg-[#f8f3ea]"
+                            }`}
                         >
                           {j.naziv}
                         </Link>
@@ -1212,10 +1314,11 @@ export default async function NovaAdminRezervacijaPage({
                         />
                         <span>
                           <span className="block font-black text-[#7a5a22]">
-                            Pošalji link za kartično plaćanje akontacije
+                            Pošalji link za kartično plaćanje
                           </span>
                           <span className="text-sm text-[#6f665a]">
-                            Gost dobiva mail s gumbom “Plati akontaciju karticom”.
+                            Ako je dolazak blizu prema postavkama, gost plaća
+                            puni iznos. Inače plaća akontaciju.
                           </span>
                         </span>
                       </label>
