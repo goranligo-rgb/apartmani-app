@@ -557,6 +557,8 @@ export async function generateRacunPdf(racun: any) {
     supabaseServiceKey
   );
 
+  const storagePath = fileName;
+
   const { error } = await supabase.storage
     .from("racuni")
     .upload(storagePath, Buffer.from(pdfBytes), {
