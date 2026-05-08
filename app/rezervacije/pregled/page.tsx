@@ -221,7 +221,7 @@ export default async function PregledRezervacijePage(props: {
             <input type="hidden" name="napomena" value={napomena} />
 
             <button className="cursor-pointer border border-[#caa870] bg-[#c79a57] px-5 py-3 font-bold text-white transition hover:brightness-95">
-              Plati karticom
+              {naplataPunogIznosa ? "Plati cijeli iznos karticom" : "Plati akontaciju karticom"}
             </button>
           </form>
         </div>
