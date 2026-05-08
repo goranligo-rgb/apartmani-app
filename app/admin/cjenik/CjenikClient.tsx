@@ -416,11 +416,10 @@ export default function CjenikClient({ jedinice }: { jedinice: JedinicaItem[] })
                   </label>
 
                   <input
-                    type="text"
+                    type="date"
                     value={datumOd}
-                    readOnly
-                    className="w-full border border-[#d9cfbf] bg-[#f8f3ea] px-3 py-2 outline-none"
-                    placeholder="klik u kalendaru"
+                    onChange={(e) => setDatumOd(e.target.value)}
+                    className="w-full border border-[#d9cfbf] bg-white px-3 py-2 outline-none"
                   />
                 </div>
 
@@ -430,11 +429,10 @@ export default function CjenikClient({ jedinice }: { jedinice: JedinicaItem[] })
                   </label>
 
                   <input
-                    type="text"
+                    type="date"
                     value={datumDo}
-                    readOnly
-                    className="w-full border border-[#d9cfbf] bg-[#f8f3ea] px-3 py-2 outline-none"
-                    placeholder="klik u kalendaru"
+                    onChange={(e) => setDatumDo(e.target.value)}
+                    className="w-full border border-[#d9cfbf] bg-white px-3 py-2 outline-none"
                   />
                 </div>
               </div>
@@ -446,10 +444,11 @@ export default function CjenikClient({ jedinice }: { jedinice: JedinicaItem[] })
 
                 <input
                   type="number"
-                  step="0.01"
+                  step="1"
+                  min="1"
                   value={cijenaNocenja}
                   onChange={(e) => setCijenaNocenja(e.target.value)}
-                  className="w-full border border-[#d9cfbf] px-3 py-2 outline-none"
+                  className="w-full border border-[#d9cfbf] bg-white px-3 py-2 outline-none"
                 />
               </div>
 
