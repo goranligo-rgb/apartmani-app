@@ -190,6 +190,16 @@ export async function POST(req: Request) {
       );
     }
 
+    if (placanje.nacinPlacanja === "KARTICA") {
+      return NextResponse.json(
+        {
+          error:
+            "Kartično plaćanje ne smije se ručno potvrditi. Mora proći kroz Stripe Checkout.",
+        },
+        { status: 403 }
+      );
+    }
+
     if (placanje.status === "PLACENO") {
       if (wantsJson) {
         return NextResponse.json({

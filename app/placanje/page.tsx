@@ -29,20 +29,20 @@ export default async function PlacanjePage({
 
   const placanje = placanjeId
     ? await prisma.placanje.findUnique({
-        where: { id: placanjeId },
-        include: {
-          rezervacija: {
-            include: {
-              gost: true,
-              jedinica: {
-                include: {
-                  objekt: true,
-                },
+      where: { id: placanjeId },
+      include: {
+        rezervacija: {
+          include: {
+            gost: true,
+            jedinica: {
+              include: {
+                objekt: true,
               },
             },
           },
         },
-      })
+      },
+    })
     : null;
 
   if (!placanje) {
@@ -63,9 +63,8 @@ export default async function PlacanjePage({
 
   const rezervacija = placanje.rezervacija;
 
-  const gostIme = `${rezervacija.gost?.ime || "Gost"} ${
-    rezervacija.gost?.prezime || ""
-  }`.trim();
+  const gostIme = `${rezervacija.gost?.ime || "Gost"} ${rezervacija.gost?.prezime || ""
+    }`.trim();
 
   return (
     <main className="min-h-screen bg-[#f4efe6] px-4 py-10">
@@ -109,13 +108,12 @@ export default async function PlacanjePage({
             Ovo plaćanje je već evidentirano kao plaćeno.
           </div>
         ) : (
-          <form action="/api/rezervacije/potvrdi" method="POST" className="mt-6">
-            <input type="hidden" name="placanjeId" value={placanje.id} />
-
-            <button className="w-full bg-[#c79a57] px-6 py-4 font-black text-white">
-              Plati karticom
-            </button>
-          </form>
+          <a
+            href={`/api/rezervacije/create-payment?placanjeId=${placanje.id}`}
+            className="mt-6 block w-full bg-[#c79a57] px-6 py-4 text-center font-black text-white"
+          >
+            Plati karticom
+          </a>
         )}
 
         <p className="mt-4 text-xs text-[#7b7165]">
