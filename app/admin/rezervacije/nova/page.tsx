@@ -811,6 +811,7 @@ export default async function NovaAdminRezervacijaPage({
               ? `Vaša rezervacija je evidentirana.Budući da je dolazak za ${danaDoDolaska} dana, za potvrdu rezervacije potrebno je platiti puni iznos.`
               : `Vaša rezervacija je evidentirana.Za potvrdu rezervacije potrebno je platiti akontaciju.`,
           }),
+          });
 
           if(mail.ok) {
             mailStatus = "POSLANO";
