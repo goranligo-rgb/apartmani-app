@@ -6,6 +6,15 @@ import { prisma } from "@/lib/prisma";
 import { sendMail } from "@/lib/mail";
 import CijenaPreview from "./CijenaPreview";
 
+export const dynamic = "force-dynamic";
+
+type SearchParams = Promise<{
+  jedinicaId?: string;
+  od?: string;
+  do?: string;
+  mjesec?: string;
+}>;
+
 const DRZAVE = [
   "Hrvatska",
   "Slovenija",
@@ -36,15 +45,6 @@ const DRZAVE = [
   "Kanada",
   "Australija",
 ];
-
-export const dynamic = "force-dynamic";
-
-type SearchParams = Promise<{
-  jedinicaId?: string;
-  od?: string;
-  do?: string;
-  mjesec?: string;
-}>;
 
 const COLOR_SLOBODNO = "rgba(134,239,172,0.46)";
 const COLOR_REZERVIRANO = "rgba(245,158,11,0.32)";
@@ -150,14 +150,28 @@ function parseMoney(value: FormDataEntryValue | null) {
   return Number(n.toFixed(2));
 }
 
+function parseRequiredMoney(value: FormDataEntryValue | null, label: string) {
+  const n = parseMoney(value);
+
+  if (n <= 0) {
+    throw new Error(`${label} mora biti veći od 0.`);
+  }
+
+  return n;
+}
+
 async function getAppUrl() {
   const postavke = await prisma.postavkeNaplate.findFirst({
     orderBy: { createdAt: "asc" },
   });
 
-  if (postavke?.appUrl) return postavke.appUrl;
-  if (process.env.NEXT_PUBLIC_APP_URL) return process.env.NEXT_PUBLIC_APP_URL;
-  if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
+  if (postavke?.appUrl) return postavke.appUrl.replace(/\/$/, "");
+  if (process.env.NEXT_PUBLIC_APP_URL) {
+    return process.env.NEXT_PUBLIC_APP_URL.replace(/\/$/, "");
+  }
+  if (process.env.VERCEL_URL) {
+    return `https://${process.env.VERCEL_URL}`.replace(/\/$/, "");
+  }
 
   return "http://localhost:3000";
 }
@@ -258,89 +272,6 @@ function diagonalBg(left: string, right: string) {
   return `linear-gradient(135deg, ${left} 0%, ${left} 49%, ${right} 51%, ${right} 100%)`;
 }
 
-function paymentMailTemplate({
-  title,
-  subtitle,
-  imePrezime,
-  objekt,
-  jedinica,
-  datumOd,
-  datumDo,
-  ukupno,
-  zaPlatiti,
-  ostatak,
-  rokPlacanja,
-  paymentLink,
-  buttonText,
-  infoText,
-}: {
-  title: string;
-  subtitle: string;
-  imePrezime: string;
-  objekt: string;
-  jedinica: string;
-  datumOd: string;
-  datumDo: string;
-  ukupno: string;
-  zaPlatiti: string;
-  ostatak: string;
-  rokPlacanja: string;
-  paymentLink: string;
-  buttonText: string;
-  infoText: string;
-}) {
-  return `
-    <div style="font-family: Arial, sans-serif; background:#f4efe6; padding:24px;">
-      <div style="max-width:720px; margin:0 auto; background:#ffffff; border:1px solid #eadfce;">
-        <div style="background:#2e2923; color:#ffffff; padding:30px;">
-          <h1 style="margin:0; font-size:28px; line-height:1.2;">${title}</h1>
-          <p style="margin:10px 0 0; color:#eadfce; font-size:16px;">${subtitle}</p>
-        </div>
-
-        <div style="padding:32px; color:#2e2923; font-size:16px; line-height:1.6;">
-          <p>Poštovani <strong>${imePrezime}</strong>,</p>
-
-          <p>${infoText}</p>
-
-          <div style="margin:26px 0; padding:24px; border:1px solid #d8c8aa; background:#fcfaf6;">
-            <h2 style="margin:0 0 18px; font-size:22px;">Detalji rezervacije</h2>
-
-            <p><strong>Objekt:</strong> ${objekt}</p>
-            <p><strong>Smještajna jedinica:</strong> ${jedinica}</p>
-            <p><strong>Dolazak:</strong> ${datumOd}</p>
-            <p><strong>Odlazak:</strong> ${datumDo}</p>
-            <p><strong>Ukupan iznos rezervacije:</strong> ${ukupno}</p>
-            <p><strong>Iznos za uplatu:</strong> ${zaPlatiti}</p>
-            <p><strong>Ostatak:</strong> ${ostatak}</p>
-            <p><strong>Rok plaćanja:</strong> ${rokPlacanja}</p>
-          </div>
-
-          <div style="margin:26px 0; padding:18px; background:#fff6e2; border:1px solid #c79a57; color:#7a5a22;">
-            Nakon uspješne uplate primit ćete automatsku potvrdu rezervacije i račun.
-          </div>
-
-          <p style="margin:30px 0;">
-            <a href="${paymentLink}"
-               style="background:#c79a57; color:#ffffff; padding:15px 24px; text-decoration:none; font-weight:bold; display:inline-block;">
-              ${buttonText}
-            </a>
-          </p>
-
-          <p style="font-size:13px; color:#6f665a;">
-            Ako gumb ne radi, kopirajte ovaj link u preglednik:<br/>
-            <a href="${paymentLink}" style="color:#7a5a22;">${paymentLink}</a>
-          </p>
-
-          <p style="margin-top:30px;">
-            Lijep pozdrav,<br/>
-            <strong>Malinska Stay</strong>
-          </p>
-        </div>
-      </div>
-    </div>
-  `;
-}
-
 export default async function NovaAdminRezervacijaPage({
   searchParams,
 }: {
@@ -394,9 +325,9 @@ export default async function NovaAdminRezervacijaPage({
 
   const jedinica = odabranaJedinicaId
     ? await prisma.jedinica.findUnique({
-      where: { id: odabranaJedinicaId },
-      include: { objekt: true },
-    })
+        where: { id: odabranaJedinicaId },
+        include: { objekt: true },
+      })
     : null;
 
   const postavke =
@@ -416,39 +347,39 @@ export default async function NovaAdminRezervacijaPage({
 
   const rezervacije = jedinica
     ? await prisma.rezervacija.findMany({
-      where: {
-        jedinicaId: jedinica.id,
-        status: {
-          notIn: ["OTKAZANO", "OBRISANO"],
+        where: {
+          jedinicaId: jedinica.id,
+          status: {
+            notIn: ["OTKAZANO", "OBRISANO"],
+          },
+          datumOd: {
+            lt: kalendarDo,
+          },
+          datumDo: {
+            gt: kalendarOd,
+          },
         },
-        datumOd: {
-          lt: kalendarDo,
+        include: {
+          gost: true,
         },
-        datumDo: {
-          gt: kalendarOd,
-        },
-      },
-      include: {
-        gost: true,
-      },
-      orderBy: [{ datumOd: "asc" }],
-    })
+        orderBy: [{ datumOd: "asc" }],
+      })
     : [];
 
   const cjenici = jedinica
     ? await prisma.cjenik.findMany({
-      where: {
-        jedinicaId: jedinica.id,
-        aktivno: true,
-        datumOd: {
-          lt: kalendarDo,
+        where: {
+          jedinicaId: jedinica.id,
+          aktivno: true,
+          datumOd: {
+            lt: kalendarDo,
+          },
+          datumDo: {
+            gte: kalendarOd,
+          },
         },
-        datumDo: {
-          gte: kalendarOd,
-        },
-      },
-      orderBy: [{ datumOd: "asc" }],
-    })
+        orderBy: [{ datumOd: "asc" }],
+      })
     : [];
 
   const mjeseci = [0, 1].map((i) => {
@@ -464,33 +395,34 @@ export default async function NovaAdminRezervacijaPage({
   const osnovnaCijena =
     jedinica && odabraniOd && odabraniDo && odabraniOd < odabraniDo
       ? await izracunajCijenuTermina({
-        jedinicaId: jedinica.id,
-        datumOd: odabraniOd,
-        datumDo: odabraniDo,
-      })
+          jedinicaId: jedinica.id,
+          datumOd: odabraniOd,
+          datumDo: odabraniDo,
+        })
       : 0;
 
   const defaultAkontacijaPostotak = Number(jedinica?.postotakAkontacije || 30);
+  const defaultAkontacija = Number(
+    ((osnovnaCijena * defaultAkontacijaPostotak) / 100).toFixed(2)
+  );
 
-  const postojiPreklapanjeRezervacija =
+  const postojiPreklapanje =
     jedinica && odabraniOd && odabraniDo && odabraniOd < odabraniDo
       ? await prisma.rezervacija.findFirst({
-        where: {
-          jedinicaId: jedinica.id,
-          status: {
-            notIn: ["OTKAZANO", "OBRISANO"],
+          where: {
+            jedinicaId: jedinica.id,
+            status: {
+              notIn: ["OTKAZANO", "OBRISANO"],
+            },
+            datumOd: {
+              lt: odabraniDo,
+            },
+            datumDo: {
+              gt: odabraniOd,
+            },
           },
-          datumOd: {
-            lt: odabraniDo,
-          },
-          datumDo: {
-            gt: odabraniOd,
-          },
-        },
-      })
+        })
       : null;
-
-  const postojiPreklapanje = postojiPreklapanjeRezervacija;
 
   async function kreirajAdminRezervaciju(formData: FormData) {
     "use server";
@@ -510,9 +442,9 @@ export default async function NovaAdminRezervacijaPage({
 
     const popustPostotak = parseMoney(formData.get("popustPostotak"));
     const rucnaDogovorenaCijena = parseMoney(formData.get("dogovoreniIznos"));
-
-    const vrijednostAkontacijeIzForme = parseMoney(
-      formData.get("vrijednostAkontacije")
+    const iznosAkontacije = parseRequiredMoney(
+      formData.get("iznosAkontacije"),
+      "Iznos akontacije"
     );
 
     const danaVrijediAkontacija = Number(
@@ -521,6 +453,10 @@ export default async function NovaAdminRezervacijaPage({
 
     const danaPrijeDolaskaOstatak = Number(
       formData.get("danaPrijeDolaskaOstatak") || 7
+    );
+
+    const danaPrijeDolaskaPlaceno = Number(
+      formData.get("danaPrijeDolaskaPlaceno") || 3
     );
 
     const razlogPopusta = String(formData.get("razlogPopusta") || "").trim();
@@ -543,6 +479,13 @@ export default async function NovaAdminRezervacijaPage({
       throw new Error("Broj dana za plaćanje ostatka nije ispravan.");
     }
 
+    if (
+      !Number.isFinite(danaPrijeDolaskaPlaceno) ||
+      danaPrijeDolaskaPlaceno < 0
+    ) {
+      throw new Error("Broj dana kada sve mora biti plaćeno nije ispravan.");
+    }
+
     const datumOd = parseDateOnly(datumOdRaw);
     const datumDo = parseDateOnly(datumDoRaw);
 
@@ -559,17 +502,7 @@ export default async function NovaAdminRezervacijaPage({
       throw new Error("Jedinica nije pronađena.");
     }
 
-    const vrijednostAkontacijeAuto = Math.min(
-      Math.max(
-        vrijednostAkontacijeIzForme > 0
-          ? vrijednostAkontacijeIzForme
-          : Number(jedinica.postotakAkontacije || 30),
-        1
-      ),
-      99
-    );
-
-    const preklapanjeRezervacija = await prisma.rezervacija.findFirst({
+    const preklapanje = await prisma.rezervacija.findFirst({
       where: {
         jedinicaId,
         status: {
@@ -584,25 +517,11 @@ export default async function NovaAdminRezervacijaPage({
       },
     });
 
-    if (preklapanjeRezervacija) {
+    if (preklapanje) {
       throw new Error("Odabrani termin je zauzet.");
     }
 
     const nocenja = countNights(datumOd, datumDo);
-
-    const postavkeNaplate = await prisma.postavkeNaplate.findFirst({
-      orderBy: { createdAt: "asc" },
-    });
-
-    const pragPuneNaplateDana =
-      postavkeNaplate?.danaPrijeDolaskaPunaNaplata ?? 30;
-
-    const danasZaPrag = startOfDay(new Date());
-    const danaDoDolaska = Math.ceil(
-      (startOfDay(datumOd).getTime() - danasZaPrag.getTime()) / 86400000
-    );
-
-    const naplataPunogIznosa = danaDoDolaska <= pragPuneNaplateDana;
 
     const iznosOsnovni = await izracunajCijenuTermina({
       jedinicaId,
@@ -620,34 +539,9 @@ export default async function NovaAdminRezervacijaPage({
       throw new Error("Dogovoreni iznos mora biti veći od 0.");
     }
 
-    console.log("ADMIN IZNOSI", {
-      iznosOsnovni,
-      popustPostotak,
-      rucnaDogovorenaCijena,
-      dogovoreniIznos,
-      tipAkontacije: "POSTOTAK",
-      vrijednostAkontacije: vrijednostAkontacijeAuto,
-    });
-
-    const iznosAkontacije = Number(
-      ((dogovoreniIznos * vrijednostAkontacijeAuto) / 100).toFixed(2)
-    );
-
-    if (iznosAkontacije <= 0) {
-      throw new Error("Akontacija mora biti veća od 0.");
-    }
-
     if (iznosAkontacije > dogovoreniIznos) {
       throw new Error("Akontacija ne može biti veća od dogovorenog iznosa.");
     }
-
-    const iznosZaKarticniPoziv = naplataPunogIznosa
-      ? dogovoreniIznos
-      : iznosAkontacije;
-
-    const tipKarticnogPlacanja = naplataPunogIznosa
-      ? "CIJELI_IZNOS"
-      : "POTVRDA_REZERVACIJE";
 
     const rokUplateAkontacije = addDays(
       startOfDay(new Date()),
@@ -732,10 +626,7 @@ export default async function NovaAdminRezervacijaPage({
             : null,
         dogovoreniIznos,
         iznosUkupno: dogovoreniIznos,
-        iznosPotvrde:
-          nacinKreiranja === "POZIV_KARTICA"
-            ? iznosZaKarticniPoziv
-            : iznosAkontacije,
+        iznosPotvrde: iznosAkontacije,
         iznosPlaceno,
         iznosOstatka: Math.max(dogovoreniIznos - iznosPlaceno, 0),
 
@@ -745,7 +636,7 @@ export default async function NovaAdminRezervacijaPage({
 
         danaVrijediAkontacija,
         danaPrijeDolaskaOstatak,
-        danaPrijeDolaskaPlaceno: danaPrijeDolaskaOstatak,
+        danaPrijeDolaskaPlaceno,
         automatskoOtkazivanje: true,
 
         placenoKarticom: false,
@@ -759,22 +650,20 @@ export default async function NovaAdminRezervacijaPage({
       const placanjeAkontacije = await prisma.placanje.create({
         data: {
           rezervacijaId: rezervacija.id,
-          tip: tipKarticnogPlacanja,
+          tip: "POTVRDA_REZERVACIJE",
           status: "ZAHTJEV_POSLAN",
-          iznos: iznosZaKarticniPoziv,
+          iznos: iznosAkontacije,
           valuta: "EUR",
           nacinPlacanja: "KARTICA",
-          provider: "STRIPE",
-          napomena: naplataPunogIznosa
-            ? `Poziv za kartično plaćanje cijelog iznosa. Dolazak je za ${danaDoDolaska} dana. Prag pune naplate: ${pragPuneNaplateDana} dana.`
-            : `Poziv za kartično plaćanje akontacije. Rok uplate: ${rokUplateAkontacije.toLocaleDateString(
-              "hr-HR"
-            )}`,
+          provider: "TEST_KARTICA",
+          napomena: `Poziv za kartično plaćanje akontacije. Rok uplate: ${rokUplateAkontacije.toLocaleDateString(
+            "hr-HR"
+          )}`,
         },
       });
 
       const baseUrl = await getAppUrl();
-      const paymentLink = `${baseUrl}/placanje/${placanjeAkontacije.id}`;
+      const paymentLink = `${baseUrl}/placanje?placanjeId=${placanjeAkontacije.id}`;
 
       let mailStatus: "POSLANO" | "GRESKA" = "GRESKA";
       let mailGreska: string | null = null;
@@ -784,577 +673,601 @@ export default async function NovaAdminRezervacijaPage({
       } else {
         const mail = await sendMail({
           to: email,
-          subject: naplataPunogIznosa
-            ? "Poziv za plaćanje rezervacije"
-            : "Poziv za plaćanje akontacije",
-          html: paymentMailTemplate({
-            title: naplataPunogIznosa
-              ? "Poziv za plaćanje rezervacije"
-              : "Poziv za plaćanje akontacije",
-            subtitle: naplataPunogIznosa
-              ? "Za potvrdu rezervacije potrebno je platiti puni iznos."
-              : "Za potvrdu rezervacije potrebno je platiti akontaciju.",
-            imePrezime: `${ime}${prezime ? " " + prezime : ""}`,
-            objekt: jedinica.objekt.naziv,
-            jedinica: jedinica.naziv,
-            datumOd: datumOd.toLocaleDateString("hr-HR"),
-            datumDo: datumDo.toLocaleDateString("hr-HR"),
-            ukupno: `${dogovoreniIznos.toFixed(2)} €`,
-            zaPlatiti: `${iznosZaKarticniPoziv.toFixed(2)} €`,
-            ostatak: `${Math.max(dogovoreniIznos - iznosZaKarticniPoziv, 0).toFixed(2)} €`,
-            rokPlacanja: rokUplateAkontacije.toLocaleDateString("hr-HR"),
-            paymentLink,
-            buttonText: naplataPunogIznosa
-              ? "Plati rezervaciju karticom"
-              : "Plati akontaciju karticom",
-            infoText: naplataPunogIznosa
-              ? `Vaša rezervacija je evidentirana.Budući da je dolazak za ${danaDoDolaska} dana, za potvrdu rezervacije potrebno je platiti puni iznos.`
-              : `Vaša rezervacija je evidentirana.Za potvrdu rezervacije potrebno je platiti akontaciju.`,
-          }),
-          });
+          subject: "Poziv za plaćanje akontacije",
+          html: `
+            <div style="font-family: Arial, sans-serif; line-height: 1.5; color: #222; max-width: 640px;">
+              <h2>Poziv za plaćanje akontacije</h2>
+              <p>Poštovani ${ime}${prezime ? " " + prezime : ""},</p>
+              <p>
+                Vaša rezervacija je evidentirana za:
+                <br />
+                <strong>${jedinica.objekt.naziv} / ${jedinica.naziv}</strong>
+              </p>
+              <p>
+                Termin:
+                <br />
+                <strong>${datumOd.toLocaleDateString("hr-HR")} – ${datumDo.toLocaleDateString("hr-HR")}</strong>
+              </p>
+              <p>
+                Ukupan iznos rezervacije:
+                <br />
+                <strong>${dogovoreniIznos.toFixed(2)} €</strong>
+              </p>
+              <p>
+                Za potvrdu rezervacije potrebno je platiti akontaciju:
+                <br />
+                <strong>${iznosAkontacije.toFixed(2)} €</strong>
+              </p>
+              <p>
+                Rok plaćanja:
+                <br />
+                <strong>${rokUplateAkontacije.toLocaleDateString("hr-HR")}</strong>
+              </p>
+              <p style="margin: 28px 0;">
+                <a href="${paymentLink}"
+                   style="background:#c79a57;color:#ffffff;padding:14px 22px;text-decoration:none;font-weight:bold;display:inline-block;">
+                  Plati akontaciju karticom
+                </a>
+              </p>
+              <p style="font-size:13px;color:#666;">
+                Ako gumb ne radi, kopirajte ovaj link u preglednik:<br/>
+                ${paymentLink}
+              </p>
+              <p>
+                Nakon uspješne uplate dobit ćete automatsku potvrdu rezervacije i račun.
+              </p>
+              <p>Srdačan pozdrav,<br/>Malinska Stay</p>
+            </div>
+          `,
+        });
 
-          if(mail.ok) {
-            mailStatus = "POSLANO";
-      } else {
-        mailGreska = mail.error || "Greška kod slanja maila.";
+        if (mail.ok) {
+          mailStatus = "POSLANO";
+        } else {
+          mailGreska = mail.error || "Greška kod slanja maila.";
+        }
       }
+
+      await prisma.emailLog.create({
+        data: {
+          rezervacijaId: rezervacija.id,
+          to: email || "bez-emaila",
+          subject: "Poziv za plaćanje akontacije",
+          tip: "ZAHTJEV_AKONTACIJA",
+          status: mailStatus,
+          greska: mailGreska,
+        },
+      });
     }
 
-    await prisma.emailLog.create({
-      data: {
-        rezervacijaId: rezervacija.id,
-        to: email || "bez-emaila",
-        subject: naplataPunogIznosa
-          ? "Poziv za plaćanje rezervacije"
-          : "Poziv za plaćanje akontacije",
-        tip: naplataPunogIznosa
-          ? "ZAHTJEV_OSTATAK"
-          : "ZAHTJEV_AKONTACIJA",
-        status: mailStatus,
-        greska: mailGreska,
-      },
-    });
-  }
-
-  if (nacinKreiranja === "BANKA_CEKA") {
-    await prisma.placanje.create({
-      data: {
-        rezervacijaId: rezervacija.id,
-        tip: "AKONTACIJA",
-        status: "CEKA_PLACANJE",
-        iznos: iznosAkontacije,
-        valuta: "EUR",
-        nacinPlacanja: "TEKUCI_RACUN",
-        napomena:
-          "Termin je rezerviran. Čeka se uplata preko banke / transakcijskog računa.",
-      },
-    });
-  }
-
-  if (nacinKreiranja === "UPLATA_SJELA") {
-    await prisma.placanje.create({
-      data: {
-        rezervacijaId: rezervacija.id,
-        tip:
-          iznosPlaceno >= dogovoreniIznos
-            ? "CIJELI_IZNOS"
-            : "AKONTACIJA",
-        status: "PLACENO",
-        iznos: iznosPlaceno,
-        valuta: "EUR",
-        nacinPlacanja: "TEKUCI_RACUN",
-        napomena:
-          "Admin označio da je uplata sjela prilikom kreiranja rezervacije.",
-        placenoAt: new Date(),
-      },
-    });
-
-    await prisma.emailLog.create({
-      data: {
-        rezervacijaId: rezervacija.id,
-        to: email || "bez-emaila",
-        subject: "Potvrda rezervacije",
-        tip: "POTVRDA_REZERVACIJE",
-        status: email ? "POSLANO" : "GRESKA",
-        greska: email
-          ? null
-          : "Gost nema email adresu. Mail nije stvarno poslan.",
-      },
-    });
-  }
-
-  await prisma.rezervacijaPromjena.create({
-    data: {
-      rezervacijaId: rezervacija.id,
-      tip: "KREIRANJE_ADMIN_REZERVACIJE",
-      opis: `Admin kreirao rezervaciju.Način: ${nacinKreiranja}.`,
-      razlog: napomena || razlogPopusta || null,
-      noviPodaci: JSON.stringify({
-        jedinicaId,
-        objekt: jedinica.objekt.naziv,
-        jedinica: jedinica.naziv,
-        datumOd,
-        datumDo,
-        brojNocenja: nocenja,
-        brojOsoba,
-        gost: {
-          ime,
-          prezime,
-          email,
-          telefon,
-          adresa,
-          grad,
-          drzava,
+    if (nacinKreiranja === "BANKA_CEKA") {
+      await prisma.placanje.create({
+        data: {
+          rezervacijaId: rezervacija.id,
+          tip: "AKONTACIJA",
+          status: "CEKA_PLACANJE",
+          iznos: iznosAkontacije,
+          valuta: "EUR",
+          nacinPlacanja: "TEKUCI_RACUN",
+          napomena:
+            "Termin je rezerviran. Čeka se uplata preko banke / transakcijskog računa.",
         },
-        iznosOsnovni,
-        popustPostotak,
-        dogovoreniIznos,
-        postotakAkontacije: vrijednostAkontacijeAuto,
-        iznosAkontacije,
-        iznosZaKarticniPoziv:
-          nacinKreiranja === "POZIV_KARTICA" ? iznosZaKarticniPoziv : null,
-        naplataPunogIznosa:
-          nacinKreiranja === "POZIV_KARTICA" ? naplataPunogIznosa : false,
-        pragPuneNaplateDana: pragPuneNaplateDana,
-        danaDoDolaska,
-        iznosPlaceno,
-        rokUplateAkontacije,
-        rokUplateOstatka,
-        danaPrijeDolaskaOstatak,
-        nacinKreiranja,
-      }),
-      korisnikIme: "Admin",
-    },
-  });
+      });
+    }
 
-  revalidatePath("/admin/rezervacije");
-  revalidatePath("/admin/monitor");
-  revalidatePath("/admin/gosti");
-  redirect(`/ admin / rezervacije / ${rezervacija.id}`);
-}
+    if (nacinKreiranja === "UPLATA_SJELA") {
+      await prisma.placanje.create({
+        data: {
+          rezervacijaId: rezervacija.id,
+          tip:
+            iznosPlaceno >= dogovoreniIznos
+              ? "CIJELI_IZNOS"
+              : "AKONTACIJA",
+          status: "PLACENO",
+          iznos: iznosPlaceno,
+          valuta: "EUR",
+          nacinPlacanja: "TEKUCI_RACUN",
+          napomena:
+            "Admin označio da je uplata sjela prilikom kreiranja rezervacije.",
+          placenoAt: new Date(),
+        },
+      });
 
-return (
-  <main
-    className="min-h-screen px-4 py-8 md:px-8"
-    style={{
-      fontFamily: "Calibri, Segoe UI, Arial, sans-serif",
-      background:
-        "linear-gradient(180deg, #f6f1e8 0%, #efe6d8 48%, #eadfce 100%)",
-    }}
-  >
-    <div className="mx-auto max-w-7xl text-[#2e2923]">
-      <div className="mb-6 border border-white/70 bg-white p-6 shadow-[0_18px_45px_rgba(0,0,0,0.08)]">
-        <Link
-          href="/admin/rezervacije"
-          className="cursor-pointer text-sm font-black text-[#9b6b12] hover:text-[#2e2923]"
-        >
-          ← Sve rezervacije
-        </Link>
+      await prisma.emailLog.create({
+        data: {
+          rezervacijaId: rezervacija.id,
+          to: email || "bez-emaila",
+          subject: "Potvrda rezervacije",
+          tip: "POTVRDA_REZERVACIJE",
+          status: email ? "POSLANO" : "GRESKA",
+          greska: email
+            ? null
+            : "Gost nema email adresu. Mail nije stvarno poslan.",
+        },
+      });
+    }
 
-        <h1 className="mt-4 text-4xl font-black">Nova admin rezervacija</h1>
+    await prisma.rezervacijaPromjena.create({
+      data: {
+        rezervacijaId: rezervacija.id,
+        tip: "KREIRANJE_ADMIN_REZERVACIJE",
+        opis: `Admin kreirao rezervaciju. Način: ${nacinKreiranja}.`,
+        razlog: napomena || razlogPopusta || null,
+        noviPodaci: JSON.stringify({
+          jedinicaId,
+          objekt: jedinica.objekt.naziv,
+          jedinica: jedinica.naziv,
+          datumOd,
+          datumDo,
+          brojNocenja: nocenja,
+          brojOsoba,
+          gost: {
+            ime,
+            prezime,
+            email,
+            telefon,
+            adresa,
+            grad,
+            drzava,
+          },
+          iznosOsnovni,
+          popustPostotak,
+          dogovoreniIznos,
+          iznosAkontacije,
+          iznosPlaceno,
+          rokUplateAkontacije,
+          rokUplateOstatka,
+          danaVrijediAkontacija,
+          danaPrijeDolaskaOstatak,
+          danaPrijeDolaskaPlaceno,
+          nacinKreiranja,
+        }),
+        korisnikIme: "Admin",
+      },
+    });
 
-        <p className="mt-2 text-[#6f665a]">
-          Odaberi jedinicu, klikni datum dolaska i odlaska, provjeri cijenu,
-          upiši gosta i način plaćanja.
-        </p>
-      </div>
+    revalidatePath("/admin/rezervacije");
+    revalidatePath("/admin/monitor");
+    revalidatePath("/admin/gosti");
 
-      <section className="mb-6 grid gap-4 xl:grid-cols-[260px_1fr]">
-        <aside className="border border-white/70 bg-white p-4 shadow-[0_14px_35px_rgba(0,0,0,0.08)]">
-          <h2 className="text-xl font-black">Objekti i jedinice</h2>
+    redirect(`/admin/rezervacije/${rezervacija.id}`);
+  }
 
-          <div className="mt-4 space-y-4">
-            {objekti.map((objekt) => (
-              <div
-                key={objekt.id}
-                className="border border-[#e2d8c8] bg-[#fcfaf6] p-3"
-              >
-                <div className="font-black text-[#7a5a22]">
-                  {objekt.naziv}
-                </div>
+  return (
+    <main
+      className="min-h-screen px-4 py-8 md:px-8"
+      style={{
+        fontFamily: "Calibri, Segoe UI, Arial, sans-serif",
+        background:
+          "linear-gradient(180deg, #f6f1e8 0%, #efe6d8 48%, #eadfce 100%)",
+      }}
+    >
+      <div className="mx-auto max-w-7xl text-[#2e2923]">
+        <div className="mb-6 border border-white/70 bg-white p-6 shadow-[0_18px_45px_rgba(0,0,0,0.08)]">
+          <Link
+            href="/admin/rezervacije"
+            className="cursor-pointer text-sm font-black text-[#9b6b12] hover:text-[#2e2923]"
+          >
+            ← Sve rezervacije
+          </Link>
 
-                <div className="mt-2 space-y-2">
-                  {objekt.jedinice.map((j) => {
-                    const q = new URLSearchParams();
-                    q.set("jedinicaId", j.id);
-                    q.set("mjesec", monthParam(kalendarOd));
+          <h1 className="mt-4 text-4xl font-black">Nova admin rezervacija</h1>
 
-                    return (
-                      <Link
-                        key={j.id}
-                        href={`/ admin / rezervacije / nova ? ${q.toString()}#kalendar`}
-                        className={`block cursor - pointer border px - 3 py - 2 text - sm font - black transition ${odabranaJedinicaId === j.id
-                          ? "border-[#c79a57] bg-[#fff6e2] text-[#2e2923]"
-                          : "border-[#e2d8c8] bg-white text-[#6f665a] hover:bg-[#f8f3ea]"
-                          } `}
-                      >
-                        {j.naziv}
-                      </Link>
-                    );
-                  })}
-                </div>
-              </div>
-            ))}
-          </div>
-        </aside>
+          <p className="mt-2 text-[#6f665a]">
+            Odaberi jedinicu, klikni datum dolaska i odlaska, provjeri cijenu,
+            upiši gosta i način plaćanja.
+          </p>
+        </div>
 
-        <section>
-          {!jedinica ? (
-            <div className="border border-white/70 bg-white p-6 text-[#6f665a] shadow-[0_14px_35px_rgba(0,0,0,0.08)]">
-              Odaberi jedinicu s lijeve strane.
-            </div>
-          ) : (
-            <>
-              <div className="mb-4 border border-white/70 bg-white p-4 shadow-[0_14px_35px_rgba(0,0,0,0.08)]">
-                <h2 className="text-2xl font-black">
-                  {jedinica.objekt.naziv} / {jedinica.naziv}
-                </h2>
-                <p className="mt-1 text-sm text-[#6f665a]">
-                  Zelena je slobodno, narančasto čeka uplatu, crveno je
-                  potvrđeno/plaćeno, ljubičasto je Booking, plavo je novi
-                  odabir.
-                </p>
-              </div>
+        <section className="mb-6 grid gap-4 xl:grid-cols-[260px_1fr]">
+          <aside className="border border-white/70 bg-white p-4 shadow-[0_14px_35px_rgba(0,0,0,0.08)]">
+            <h2 className="text-xl font-black">Objekti i jedinice</h2>
 
-              <section className="mb-4 grid gap-3 md:grid-cols-5">
-                <Legend color="#86efac" label="Slobodno" />
-                <Legend color="#f59e0b" label="Rezervirano / čeka uplatu" />
-                <Legend color={COLOR_POTVRDENO} label="Potvrđeno / plaćeno" />
-                <Legend color={COLOR_BOOKING} label="Booking" />
-                <Legend color="#3b82f6" label="Novi odabrani termin" />
-              </section>
-
-              <div
-                id="kalendar"
-                className="mb-4 scroll-mt-40 border border-white/70 bg-white p-4 shadow-[0_14px_35px_rgba(0,0,0,0.08)]"
-              >
-                <div className="flex items-center justify-between gap-3">
-                  <Link
-                    href={buildMonthHref(prevMonth)}
-                    className="cursor-pointer border border-[#d8c8aa] bg-[#f8f3ea] px-4 py-2 text-lg font-black text-[#7a5a22] hover:bg-[#fff6e2]"
-                  >
-                    ←
-                  </Link>
-
-                  <div className="text-center">
-                    <div className="text-xs font-black uppercase tracking-[0.18em] text-[#9b7a4c]">
-                      Prikaz kalendara
-                    </div>
-                    <div className="mt-1 text-xl font-black capitalize text-[#2e2923]">
-                      {monthLabel(kalendarOd)} /{" "}
-                      {monthLabel(addMonths(kalendarOd, 1))}
-                    </div>
-                  </div>
-
-                  <Link
-                    href={buildMonthHref(nextMonth)}
-                    className="cursor-pointer border border-[#d8c8aa] bg-[#f8f3ea] px-4 py-2 text-lg font-black text-[#7a5a22] hover:bg-[#fff6e2]"
-                  >
-                    →
-                  </Link>
-                </div>
-              </div>
-
-              <div className="grid gap-4 xl:grid-cols-2">
-                {mjeseci.map((mjesec) => (
-                  <MonthCalendar
-                    key={mjesec.toISOString()}
-                    mjesec={mjesec}
-                    mjesecParam={monthParam(kalendarOd)}
-                    jedinicaId={jedinica.id}
-                    rezervacije={rezervacije}
-                    cjenici={cjenici}
-                    odabraniOd={odabraniOd}
-                    odabraniDo={odabraniDo}
-                  />
-                ))}
-              </div>
-            </>
-          )}
-        </section>
-      </section>
-
-      {jedinica && (
-        <section className="mb-6 grid gap-4 xl:grid-cols-[1fr_460px]">
-          <div className="border border-white/70 bg-white p-5 shadow-[0_14px_35px_rgba(0,0,0,0.08)]">
-            <h2 className="text-xl font-black">Pregled odabranog termina</h2>
-
-            <div className="mt-4 grid gap-3 md:grid-cols-4">
-              <Info
-                label="Dolazak"
-                value={odabraniOd ? formatDate(odabraniOd) : "-"}
-              />
-              <Info
-                label="Odlazak"
-                value={odabraniDo ? formatDate(odabraniDo) : "-"}
-              />
-              <Info
-                label="Noćenja"
-                value={brojNocenja > 0 ? `${brojNocenja} ` : "-"}
-              />
-              <Info
-                label="Cijena iz cjenika"
-                value={osnovnaCijena > 0 ? money(osnovnaCijena) : "-"}
-              />
-            </div>
-
-            {postojiPreklapanje && (
-              <div className="mt-5 border border-red-300 bg-red-50 p-4 text-sm font-black text-red-700">
-                Odabrani termin je zauzet. Odaberi drugi termin.
-                {postojiPreklapanje.izvor === "BOOKING" && (
-                  <div className="mt-1 text-purple-800">
-                    Termin je zauzet preko Booking rezervacije.
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-
-          {odabraniOd &&
-            odabraniDo &&
-            odabraniOd < odabraniDo &&
-            !postojiPreklapanje && (
-              <aside className="border border-white/70 bg-white p-5 shadow-[0_14px_35px_rgba(0,0,0,0.08)]">
-                <h2 className="text-xl font-black">Kreiraj rezervaciju</h2>
-
-                <form
-                  action={kreirajAdminRezervaciju}
-                  className="mt-4 space-y-4"
+            <div className="mt-4 space-y-4">
+              {objekti.map((objekt) => (
+                <div
+                  key={objekt.id}
+                  className="border border-[#e2d8c8] bg-[#fcfaf6] p-3"
                 >
-                  <input type="hidden" name="jedinicaId" value={jedinica.id} />
-                  <input
-                    type="hidden"
-                    name="datumOd"
-                    value={toIsoDate(odabraniOd)}
-                  />
-                  <input
-                    type="hidden"
-                    name="datumDo"
-                    value={toIsoDate(odabraniDo)}
-                  />
-
-                  <div className="grid gap-3 md:grid-cols-2">
-                    <Field label="Ime">
-                      <input
-                        name="ime"
-                        className="w-full border border-[#d8c8aa] bg-white px-3 py-2 text-[#2e2923] outline-none"
-                        required
-                      />
-                    </Field>
-
-                    <Field label="Prezime">
-                      <input
-                        name="prezime"
-                        className="w-full border border-[#d8c8aa] bg-white px-3 py-2 text-[#2e2923] outline-none"
-                      />
-                    </Field>
+                  <div className="font-black text-[#7a5a22]">
+                    {objekt.naziv}
                   </div>
 
-                  <Field label="Email">
-                    <input
-                      name="email"
-                      type="email"
-                      className="w-full border border-[#d8c8aa] bg-white px-3 py-2 text-[#2e2923] outline-none"
-                    />
-                  </Field>
+                  <div className="mt-2 space-y-2">
+                    {objekt.jedinice.map((j) => {
+                      const q = new URLSearchParams();
+                      q.set("jedinicaId", j.id);
+                      q.set("mjesec", monthParam(kalendarOd));
 
-                  <Field label="Telefon">
-                    <input
-                      name="telefon"
-                      className="w-full border border-[#d8c8aa] bg-white px-3 py-2 text-[#2e2923] outline-none"
-                    />
-                  </Field>
+                      return (
+                        <Link
+                          key={j.id}
+                          href={`/admin/rezervacije/nova?${q.toString()}#kalendar`}
+                          className={`block cursor-pointer border px-3 py-2 text-sm font-black transition ${
+                            odabranaJedinicaId === j.id
+                              ? "border-[#c79a57] bg-[#fff6e2] text-[#2e2923]"
+                              : "border-[#e2d8c8] bg-white text-[#6f665a] hover:bg-[#f8f3ea]"
+                          }`}
+                        >
+                          {j.naziv}
+                        </Link>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </aside>
 
-                  <div className="grid gap-3 md:grid-cols-3">
-                    <Field label="Adresa">
+          <section>
+            {!jedinica ? (
+              <div className="border border-white/70 bg-white p-6 text-[#6f665a] shadow-[0_14px_35px_rgba(0,0,0,0.08)]">
+                Odaberi jedinicu s lijeve strane.
+              </div>
+            ) : (
+              <>
+                <div className="mb-4 border border-white/70 bg-white p-4 shadow-[0_14px_35px_rgba(0,0,0,0.08)]">
+                  <h2 className="text-2xl font-black">
+                    {jedinica.objekt.naziv} / {jedinica.naziv}
+                  </h2>
+                  <p className="mt-1 text-sm text-[#6f665a]">
+                    Zelena je slobodno, narančasto čeka uplatu, crveno je
+                    potvrđeno/plaćeno, ljubičasto je Booking, plavo je novi
+                    odabir.
+                  </p>
+                </div>
+
+                <section className="mb-4 grid gap-3 md:grid-cols-5">
+                  <Legend color="#86efac" label="Slobodno" />
+                  <Legend color="#f59e0b" label="Rezervirano / čeka uplatu" />
+                  <Legend color={COLOR_POTVRDENO} label="Potvrđeno / plaćeno" />
+                  <Legend color={COLOR_BOOKING} label="Booking" />
+                  <Legend color="#3b82f6" label="Novi odabrani termin" />
+                </section>
+
+                <div
+                  id="kalendar"
+                  className="mb-4 scroll-mt-40 border border-white/70 bg-white p-4 shadow-[0_14px_35px_rgba(0,0,0,0.08)]"
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <Link
+                      href={buildMonthHref(prevMonth)}
+                      className="cursor-pointer border border-[#d8c8aa] bg-[#f8f3ea] px-4 py-2 text-lg font-black text-[#7a5a22] hover:bg-[#fff6e2]"
+                    >
+                      ←
+                    </Link>
+
+                    <div className="text-center">
+                      <div className="text-xs font-black uppercase tracking-[0.18em] text-[#9b7a4c]">
+                        Prikaz kalendara
+                      </div>
+                      <div className="mt-1 text-xl font-black capitalize text-[#2e2923]">
+                        {monthLabel(kalendarOd)} /{" "}
+                        {monthLabel(addMonths(kalendarOd, 1))}
+                      </div>
+                    </div>
+
+                    <Link
+                      href={buildMonthHref(nextMonth)}
+                      className="cursor-pointer border border-[#d8c8aa] bg-[#f8f3ea] px-4 py-2 text-lg font-black text-[#7a5a22] hover:bg-[#fff6e2]"
+                    >
+                      →
+                    </Link>
+                  </div>
+                </div>
+
+                <div className="grid gap-4 xl:grid-cols-2">
+                  {mjeseci.map((mjesec) => (
+                    <MonthCalendar
+                      key={mjesec.toISOString()}
+                      mjesec={mjesec}
+                      mjesecParam={monthParam(kalendarOd)}
+                      jedinicaId={jedinica.id}
+                      rezervacije={rezervacije}
+                      cjenici={cjenici}
+                      odabraniOd={odabraniOd}
+                      odabraniDo={odabraniDo}
+                    />
+                  ))}
+                </div>
+              </>
+            )}
+          </section>
+        </section>
+
+        {jedinica && (
+          <section className="mb-6 grid gap-4 xl:grid-cols-[1fr_460px]">
+            <div className="border border-white/70 bg-white p-5 shadow-[0_14px_35px_rgba(0,0,0,0.08)]">
+              <h2 className="text-xl font-black">Pregled odabranog termina</h2>
+
+              <div className="mt-4 grid gap-3 md:grid-cols-4">
+                <Info
+                  label="Dolazak"
+                  value={odabraniOd ? formatDate(odabraniOd) : "-"}
+                />
+                <Info
+                  label="Odlazak"
+                  value={odabraniDo ? formatDate(odabraniDo) : "-"}
+                />
+                <Info
+                  label="Noćenja"
+                  value={brojNocenja > 0 ? `${brojNocenja}` : "-"}
+                />
+                <Info
+                  label="Cijena iz cjenika"
+                  value={osnovnaCijena > 0 ? money(osnovnaCijena) : "-"}
+                />
+              </div>
+
+              {postojiPreklapanje && (
+                <div className="mt-5 border border-red-300 bg-red-50 p-4 text-sm font-black text-red-700">
+                  Odabrani termin je zauzet. Odaberi drugi termin.
+                  {postojiPreklapanje.izvor === "BOOKING" && (
+                    <div className="mt-1 text-purple-800">
+                      Termin je zauzet preko Booking rezervacije.
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {odabraniOd &&
+              odabraniDo &&
+              odabraniOd < odabraniDo &&
+              !postojiPreklapanje && (
+                <aside className="border border-white/70 bg-white p-5 shadow-[0_14px_35px_rgba(0,0,0,0.08)]">
+                  <h2 className="text-xl font-black">Kreiraj rezervaciju</h2>
+
+                  <form
+                    action={kreirajAdminRezervaciju}
+                    className="mt-4 space-y-4"
+                  >
+                    <input type="hidden" name="jedinicaId" value={jedinica.id} />
+                    <input
+                      type="hidden"
+                      name="datumOd"
+                      value={toIsoDate(odabraniOd)}
+                    />
+                    <input
+                      type="hidden"
+                      name="datumDo"
+                      value={toIsoDate(odabraniDo)}
+                    />
+
+                    <div className="grid gap-3 md:grid-cols-2">
+                      <Field label="Ime">
+                        <input
+                          name="ime"
+                          className="w-full border border-[#d8c8aa] bg-white px-3 py-2 text-[#2e2923] outline-none"
+                          required
+                        />
+                      </Field>
+
+                      <Field label="Prezime">
+                        <input
+                          name="prezime"
+                          className="w-full border border-[#d8c8aa] bg-white px-3 py-2 text-[#2e2923] outline-none"
+                        />
+                      </Field>
+                    </div>
+
+                    <Field label="Email">
                       <input
-                        name="adresa"
+                        name="email"
+                        type="email"
                         className="w-full border border-[#d8c8aa] bg-white px-3 py-2 text-[#2e2923] outline-none"
                       />
                     </Field>
 
-                    <Field label="Grad">
+                    <Field label="Telefon">
                       <input
-                        name="grad"
+                        name="telefon"
                         className="w-full border border-[#d8c8aa] bg-white px-3 py-2 text-[#2e2923] outline-none"
                       />
                     </Field>
 
-                    <Field label="Država">
-                      <select
-                        name="drzava"
-                        defaultValue=""
-                        className="w-full cursor-pointer border border-[#d8c8aa] bg-white px-3 py-2 text-[#2e2923] outline-none"
-                      >
-                        <option value="" disabled>
-                          —
-                        </option>
+                    <div className="grid gap-3 md:grid-cols-3">
+                      <Field label="Adresa">
+                        <input
+                          name="adresa"
+                          className="w-full border border-[#d8c8aa] bg-white px-3 py-2 text-[#2e2923] outline-none"
+                        />
+                      </Field>
 
-                        {DRZAVE.map((drzava) => (
-                          <option key={drzava} value={drzava}>
-                            {drzava}
+                      <Field label="Grad">
+                        <input
+                          name="grad"
+                          className="w-full border border-[#d8c8aa] bg-white px-3 py-2 text-[#2e2923] outline-none"
+                        />
+                      </Field>
+
+                      <Field label="Država">
+                        <select
+                          name="drzava"
+                          defaultValue=""
+                          className="w-full cursor-pointer border border-[#d8c8aa] bg-white px-3 py-2 text-[#2e2923] outline-none"
+                        >
+                          <option value="" disabled>
+                            —
                           </option>
-                        ))}
-                      </select>
-                    </Field>
-                  </div>
 
-                  <Field label="Broj osoba">
-                    <input
-                      name="brojOsoba"
-                      type="number"
-                      min={1}
-                      max={jedinica.ukupniKapacitet || 20}
-                      defaultValue={2}
-                      className="w-full border border-[#d8c8aa] bg-white px-3 py-2 text-[#2e2923] outline-none"
-                      required
-                    />
-                  </Field>
-
-                  <div className="border border-[#d8c8aa] bg-[#f8f3ea] p-3">
-                    <div className="text-xs font-black uppercase tracking-[0.14em] text-[#8a641d]">
-                      Cijena iz cjenika
+                          {DRZAVE.map((drzava) => (
+                            <option key={drzava} value={drzava}>
+                              {drzava}
+                            </option>
+                          ))}
+                        </select>
+                      </Field>
                     </div>
-                    <div className="mt-1 text-2xl font-black text-[#2e2923]">
-                      {money(osnovnaCijena)}
-                    </div>
-                  </div>
 
-                  <CijenaPreview
-                    osnovnaCijena={osnovnaCijena}
-                    defaultAkontacijaPostotak={defaultAkontacijaPostotak}
-                  />
-
-                  <Field label="Akontacija za potvrdu rezervacije">
-                    <div className="flex border border-[#d8c8aa] bg-white">
+                    <Field label="Broj osoba">
                       <input
-                        name="vrijednostAkontacije"
+                        name="brojOsoba"
                         type="number"
                         min={1}
-                        max={99}
-                        step="1"
-                        defaultValue={defaultAkontacijaPostotak}
-                        className="w-full px-3 py-2 text-[#2e2923] outline-none"
+                        max={jedinica.ukupniKapacitet || 20}
+                        defaultValue={2}
+                        className="w-full border border-[#d8c8aa] bg-white px-3 py-2 text-[#2e2923] outline-none"
                         required
                       />
-                      <span className="border-l border-[#d8c8aa] bg-[#f8f3ea] px-3 py-2 text-sm font-black text-[#7a5a22]">
-                        %
-                      </span>
+                    </Field>
+
+                    <div className="border border-[#d8c8aa] bg-[#f8f3ea] p-3">
+                      <div className="text-xs font-black uppercase tracking-[0.14em] text-[#8a641d]">
+                        Cijena iz cjenika
+                      </div>
+                      <div className="mt-1 text-2xl font-black text-[#2e2923]">
+                        {money(osnovnaCijena)}
+                      </div>
                     </div>
-                  </Field>
 
-                  <Field label="Razlog popusta / dogovor">
-                    <textarea
-                      name="razlogPopusta"
-                      rows={2}
-                      className="w-full border border-[#d8c8aa] bg-white px-3 py-2 text-[#2e2923] outline-none"
-                      placeholder="npr. stari gost, telefonski dogovor..."
+                    <CijenaPreview
+                      osnovnaCijena={osnovnaCijena}
+                      defaultAkontacijaPostotak={defaultAkontacijaPostotak}
                     />
-                  </Field>
 
-                  <Field label="Ostatak platiti najkasnije">
-                    <div className="flex border border-[#d8c8aa] bg-white">
+                    <Field label="Razlog popusta / dogovor">
+                      <textarea
+                        name="razlogPopusta"
+                        rows={2}
+                        className="w-full border border-[#d8c8aa] bg-white px-3 py-2 text-[#2e2923] outline-none"
+                        placeholder="npr. stari gost, telefonski dogovor..."
+                      />
+                    </Field>
+
+                    <div className="grid gap-3 md:grid-cols-3">
+                      <Field label="Akontacija">
+                        <input
+                          name="iznosAkontacije"
+                          type="number"
+                          min={0.01}
+                          step="0.01"
+                          defaultValue={defaultAkontacija.toFixed(2)}
+                          className="w-full border border-[#d8c8aa] bg-white px-3 py-2 text-[#2e2923] outline-none"
+                          required
+                        />
+                      </Field>
+
+                      <Field label="Poziv vrijedi dana">
+                        <input
+                          name="danaVrijediAkontacija"
+                          type="number"
+                          min={1}
+                          defaultValue={postavke.danaVrijediPozivAkontacije}
+                          className="w-full border border-[#d8c8aa] bg-white px-3 py-2 text-[#2e2923] outline-none"
+                          required
+                        />
+                      </Field>
+
+                      <Field label="Ostatak prije dolaska">
+                        <input
+                          name="danaPrijeDolaskaOstatak"
+                          type="number"
+                          min={0}
+                          defaultValue={postavke.danaPrijeDolaskaSlanjeOstatka}
+                          className="w-full border border-[#d8c8aa] bg-white px-3 py-2 text-[#2e2923] outline-none"
+                          required
+                        />
+                      </Field>
+                    </div>
+
+                    <Field label="Sve mora biti plaćeno dana prije dolaska">
                       <input
-                        name="danaPrijeDolaskaOstatak"
+                        name="danaPrijeDolaskaPlaceno"
                         type="number"
                         min={0}
-                        defaultValue={postavke.danaPrijeDolaskaSlanjeOstatka}
-                        className="w-full px-3 py-2 text-[#2e2923] outline-none"
+                        defaultValue={postavke.danaPrijeDolaskaMoraBitiPlaceno}
+                        className="w-full border border-[#d8c8aa] bg-white px-3 py-2 text-[#2e2923] outline-none"
                         required
                       />
-                      <span className="border-l border-[#d8c8aa] bg-[#f8f3ea] px-3 py-2 text-sm font-black text-[#7a5a22]">
-                        dana prije dolaska
-                      </span>
+                    </Field>
+
+                    <Field label="Ako je uplata već sjela, upiši iznos">
+                      <input
+                        name="uplataSjelaIznos"
+                        type="number"
+                        min={0}
+                        step="0.01"
+                        placeholder="npr. 300"
+                        className="w-full border border-[#d8c8aa] bg-white px-3 py-2 text-[#2e2923] outline-none"
+                      />
+                    </Field>
+
+                    <Field label="Napomena">
+                      <textarea
+                        name="napomena"
+                        rows={3}
+                        className="w-full border border-[#d8c8aa] bg-white px-3 py-2 text-[#2e2923] outline-none"
+                      />
+                    </Field>
+
+                    <div className="space-y-2">
+                      <label className="flex cursor-pointer gap-3 border border-[#e2d8c8] bg-[#fff6e2] p-3">
+                        <input
+                          type="radio"
+                          name="nacinKreiranja"
+                          value="POZIV_KARTICA"
+                          required
+                          className="mt-1"
+                        />
+                        <span>
+                          <span className="block font-black text-[#7a5a22]">
+                            Pošalji link za kartično plaćanje akontacije
+                          </span>
+                          <span className="text-sm text-[#6f665a]">
+                            Gost dobiva mail s gumbom “Plati akontaciju karticom”.
+                          </span>
+                        </span>
+                      </label>
+
+                      <label className="flex cursor-pointer gap-3 border border-[#e2d8c8] bg-[#f8f3ea] p-3">
+                        <input
+                          type="radio"
+                          name="nacinKreiranja"
+                          value="BANKA_CEKA"
+                          required
+                          className="mt-1"
+                        />
+                        <span>
+                          <span className="block font-black text-[#7a5a22]">
+                            Rezerviraj termin — uplata ide preko banke
+                          </span>
+                          <span className="text-sm text-[#6f665a]">
+                            Termin je blokiran, ali uplata još nije sjela.
+                          </span>
+                        </span>
+                      </label>
+
+                      <label className="flex cursor-pointer gap-3 border border-[#cfe3d2] bg-[#f1fbf3] p-3">
+                        <input
+                          type="radio"
+                          name="nacinKreiranja"
+                          value="UPLATA_SJELA"
+                          required
+                          className="mt-1"
+                        />
+                        <span>
+                          <span className="block font-black text-[#2f6b3a]">
+                            Uplata je već sjela — potvrdi odmah
+                          </span>
+                          <span className="text-sm text-[#6f665a]">
+                            Admin upisuje iznos koji je stvarno sjeo.
+                          </span>
+                        </span>
+                      </label>
                     </div>
-                  </Field>
 
-                  <Field label="Ako je uplata već sjela, upiši iznos">
-                    <input
-                      name="uplataSjelaIznos"
-                      type="number"
-                      min={0}
-                      step="0.01"
-                      placeholder="npr. 300"
-                      className="w-full border border-[#d8c8aa] bg-white px-3 py-2 text-[#2e2923] outline-none"
-                    />
-                  </Field>
-
-                  <Field label="Napomena">
-                    <textarea
-                      name="napomena"
-                      rows={3}
-                      className="w-full border border-[#d8c8aa] bg-white px-3 py-2 text-[#2e2923] outline-none"
-                    />
-                  </Field>
-
-                  <div className="space-y-2">
-                    <label className="flex cursor-pointer gap-3 border border-[#e2d8c8] bg-[#fff6e2] p-3">
-                      <input
-                        type="radio"
-                        name="nacinKreiranja"
-                        value="POZIV_KARTICA"
-                        required
-                        className="mt-1"
-                      />
-                      <span>
-                        <span className="block font-black text-[#7a5a22]">
-                          Pošalji link za kartično plaćanje
-                        </span>
-                        <span className="text-sm text-[#6f665a]">
-                          Gost dobiva mail s gumbom za kartično plaćanje.
-                          Ako je dolazak blizu, sustav traži puni iznos.
-                        </span>
-                      </span>
-                    </label>
-
-                    <label className="flex cursor-pointer gap-3 border border-[#e2d8c8] bg-[#f8f3ea] p-3">
-                      <input
-                        type="radio"
-                        name="nacinKreiranja"
-                        value="BANKA_CEKA"
-                        required
-                        className="mt-1"
-                      />
-                      <span>
-                        <span className="block font-black text-[#7a5a22]">
-                          Rezerviraj termin — uplata ide preko banke
-                        </span>
-                        <span className="text-sm text-[#6f665a]">
-                          Termin je blokiran, ali uplata još nije sjela.
-                        </span>
-                      </span>
-                    </label>
-
-                    <label className="flex cursor-pointer gap-3 border border-[#cfe3d2] bg-[#f1fbf3] p-3">
-                      <input
-                        type="radio"
-                        name="nacinKreiranja"
-                        value="UPLATA_SJELA"
-                        required
-                        className="mt-1"
-                      />
-                      <span>
-                        <span className="block font-black text-[#2f6b3a]">
-                          Uplata je već sjela — potvrdi odmah
-                        </span>
-                        <span className="text-sm text-[#6f665a]">
-                          Admin upisuje iznos koji je stvarno sjeo.
-                        </span>
-                      </span>
-                    </label>
-                  </div>
-
-                  <button className="w-full cursor-pointer border border-[#caa870] bg-[#c79a57] px-5 py-3 text-sm font-black text-white transition hover:brightness-95">
-                    Kreiraj admin rezervaciju
-                  </button>
-                </form>
-              </aside>
-            )}
-        </section>
-      )}
-    </div>
-  </main>
-);
+                    <button className="w-full cursor-pointer border border-[#caa870] bg-[#c79a57] px-5 py-3 text-sm font-black text-white transition hover:brightness-95">
+                      Kreiraj admin rezervaciju
+                    </button>
+                  </form>
+                </aside>
+              )}
+          </section>
+        )}
+      </div>
+    </main>
+  );
 }
 
 function MonthCalendar({
@@ -1416,7 +1329,7 @@ function MonthCalendar({
           if (!dan) {
             return (
               <div
-                key={`empty - ${index} `}
+                key={`empty-${index}`}
                 className="min-h-[60px] border-b border-r border-[#e2d8c8] bg-[#f7f1e8]"
               />
             );
@@ -1504,6 +1417,7 @@ function MonthCalendar({
 
           if (boravi && !selectedStart && !selectedEnd && !selectedMiddle) {
             const boja = statusBoja(boravi.status, boravi.izvor);
+
             return (
               <div
                 key={iso}
@@ -1521,6 +1435,8 @@ function MonthCalendar({
           }
 
           if (dolazak && !mozeBitiOdlazak && !selectedStart && !selectedEnd) {
+            const boja = statusBoja(dolazak.status, dolazak.izvor);
+
             return (
               <div
                 key={iso}
@@ -1535,7 +1451,7 @@ function MonthCalendar({
                 <DayContent
                   day={dan}
                   price={cijena}
-                  marker={marker || statusBoja(dolazak.status, dolazak.izvor).marker}
+                  marker={marker || boja.marker}
                 />
               </div>
             );
@@ -1561,7 +1477,7 @@ function MonthCalendar({
           return (
             <Link
               key={iso}
-              href={`/ admin / rezervacije / nova ? ${q.toString()} #kalendar`}
+              href={`/admin/rezervacije/nova?${q.toString()}#kalendar`}
               className="min-h-[60px] cursor-pointer border-b border-r p-1 text-left transition hover:brightness-105"
               style={{
                 background,
