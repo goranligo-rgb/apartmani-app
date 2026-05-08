@@ -261,8 +261,7 @@ export default function CjenikClient({ jedinice }: { jedinice: JedinicaItem[] })
       setMinimalniBoravak("2");
       setBojaPerioda("ZELENA");
 
-      router.refresh();
-      window.location.reload();
+      window.location.href = window.location.href;
     } catch {
       setError("Došlo je do greške kod spremanja.");
     } finally {
@@ -303,9 +302,7 @@ export default function CjenikClient({ jedinice }: { jedinice: JedinicaItem[] })
 
       router.refresh();
 
-      setTimeout(() => {
-        window.location.reload();
-      }, 300);
+      window.location.href = window.location.href;
     } catch {
       setError("Greška kod brisanja.");
     }

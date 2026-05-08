@@ -1,6 +1,14 @@
 import { prisma } from "@/lib/prisma";
 import CjenikClient from "./CjenikClient";
 
+function toDateOnly(value: Date) {
+  const y = value.getFullYear();
+  const m = String(value.getMonth() + 1).padStart(2, "0");
+  const d = String(value.getDate()).padStart(2, "0");
+
+  return `${y}-${m}-${d}`;
+}
+
 export default async function AdminCjenikPage() {
   const jediniceRaw = await prisma.jedinica.findMany({
     include: {
@@ -23,8 +31,8 @@ export default async function AdminCjenikPage() {
     objektNaziv: j.objekt.naziv,
     cjenici: j.cjenici.map((c) => ({
       id: c.id,
-      datumOd: c.datumOd.toISOString(),
-      datumDo: c.datumDo.toISOString(),
+      datumOd: toDateOnly(c.datumOd),
+      datumDo: toDateOnly(c.datumDo),
       cijenaNocenja: c.cijenaNocenja,
       minimalniBoravak: c.minimalniBoravak,
       bojaPerioda: c.bojaPerioda,
