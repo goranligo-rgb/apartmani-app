@@ -12,10 +12,9 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  const session = request.cookies.get("admin_session_v2")?.value;
-  const expected = process.env.ADMIN_SESSION_SECRET;
+  const session = request.cookies.get("admin_session_v3")?.value;
 
-  if (!expected || session !== expected) {
+  if (session !== "ok") {
     return NextResponse.redirect(new URL("/admin/login", request.url));
   }
 
