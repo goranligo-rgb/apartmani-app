@@ -1,8 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { generateRacunPdf } from "@/lib/generateRacunPdf";
-import fs from "fs";
-import path from "path";
 import { Resend } from "resend";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
@@ -324,12 +322,6 @@ export async function POST(req: Request) {
     });
 
     if (pdfUrl && racunId) {
-      const cleanPdfUrl =
-        (pdfUrl as string).startsWith("/")
-          ? (pdfUrl as string).slice(1)
-          : (pdfUrl as string);
-      const filePath = path.join(process.cwd(), "public", cleanPdfUrl);
-
       let attachments:
         | {
           filename: string;
@@ -337,15 +329,30 @@ export async function POST(req: Request) {
         }[]
         | undefined;
 
-      if (fs.existsSync(filePath)) {
-        const fileBuffer = fs.readFileSync(filePath);
+      if (pdfUrl) {
+        try {
+          const pdfResponse = await fetch(pdfUrl);
 
-        attachments = [
-          {
-            filename: `${brojRacuna}.pdf`,
-            content: fileBuffer,
-          },
-        ];
+          if (pdfResponse.ok) {
+            const arrayBuffer = await pdfResponse.arrayBuffer();
+            const fileBuffer = Buffer.from(arrayBuffer);
+
+            attachments = [
+              {
+                filename: `${brojRacuna}.pdf`,
+                content: fileBuffer,
+              },
+            ];
+          } else {
+            console.error(
+              "PDF nije moguće dohvatiti:",
+              pdfUrl,
+              pdfResponse.status
+            );
+          }
+        } catch (error) {
+          console.error("Greška kod dohvaćanja PDF računa:", error);
+        }
       }
 
       const email = placanje.rezervacija.gost?.email || "";

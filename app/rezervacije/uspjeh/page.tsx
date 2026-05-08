@@ -455,7 +455,11 @@ async function obradiPlacanjeAkoTreba(placanjeId: string, sessionId?: string) {
 
   const gost = r.gost;
   const baseUrl = await getAppUrl();
-  const pdfLink = racun?.pdfUrl ? `${baseUrl}${racun.pdfUrl}` : "";
+  const pdfLink = racun?.pdfUrl
+    ? String(racun.pdfUrl).startsWith("http")
+      ? racun.pdfUrl
+      : `${baseUrl}${racun.pdfUrl}`
+    : "";
 
   if (gost?.email) {
     const subject =

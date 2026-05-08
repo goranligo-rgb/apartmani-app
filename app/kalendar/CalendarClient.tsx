@@ -28,6 +28,13 @@ type BlokadaItem = {
   izvor: string;
 };
 
+type DashboardSlikaItem = {
+  id: string;
+  url: string;
+  objektNaziv: string;
+  sortOrder: number;
+};
+
 type JedinicaItem = {
   id: string;
   naziv: string;
@@ -224,12 +231,14 @@ export default function CalendarClient({
   prevMonth,
   nextMonth,
   jedinice,
+  dashboardSlike,
 }: {
   days: string[];
   monthLabel: string;
   prevMonth: string;
   nextMonth: string;
   jedinice: JedinicaItem[];
+  dashboardSlike: DashboardSlikaItem[];
 }) {
   const searchParams = useSearchParams();
 
@@ -280,6 +289,12 @@ export default function CalendarClient({
   const aktivnaJedinica =
     filtriraneJedinice.find((j) => j.id === selectedJedinicaId) ||
     filtriraneJedinice[0];
+
+  const heroSlike = dashboardSlike
+    .filter((s) => s.objektNaziv === selectedObjekt)
+    .sort((a, b) => a.sortOrder - b.sortOrder);
+
+  const heroFallback = getHeroImage(selectedObjekt);
 
   const months = useMemo(
     () => [monthDays(currentMonth, 0), monthDays(currentMonth, 1)],
@@ -595,13 +610,28 @@ export default function CalendarClient({
     >
       <div className="mx-auto max-w-7xl">
         <section className="relative mb-5 min-h-[390px] overflow-hidden border border-white/70 bg-black shadow-[0_18px_45px_rgba(0,0,0,0.20)]">
-          <div
-            key={selectedObjekt}
-            className="absolute inset-0 bg-cover bg-center hero-image"
-            style={{
-              backgroundImage: `url('${getHeroImage(selectedObjekt)}')`,
-            }}
-          />
+          <div className="absolute inset-0 overflow-hidden">
+            {heroSlike.length > 0 ? (
+              heroSlike.map((slika, index) => (
+                <div
+                  key={`${selectedObjekt}-${slika.id}`}
+                  className="absolute inset-0 bg-cover bg-center hero-slide"
+                  style={{
+                    backgroundImage: `url('${slika.url}')`,
+                    animationDelay: `${index * 6}s`,
+                  }}
+                />
+              ))
+            ) : (
+              <div
+                key={selectedObjekt}
+                className="absolute inset-0 bg-cover bg-center hero-image"
+                style={{
+                  backgroundImage: `url('${heroFallback}')`,
+                }}
+              />
+            )}
+          </div>
 
           <div className="absolute inset-0 bg-gradient-to-r from-black/75 via-black/38 to-black/10" />
 
@@ -1015,6 +1045,37 @@ export default function CalendarClient({
           transform: scale(1.08);
           animation: heroTravelSmooth 36s ease-in-out infinite alternate;
           will-change: transform;
+        }
+
+        .hero-slide {
+          opacity: 0;
+          transform: scale(1.08);
+          animation: heroSlider ${Math.max(18, heroSlike.length * 6)}s ease-in-out infinite;
+          will-change: opacity, transform;
+        }
+
+        .hero-slide:first-child {
+          opacity: 1;
+        }
+
+        @keyframes heroSlider {
+          0% {
+            opacity: 0;
+            transform: scale(1.08) translate3d(-1.2%, 0, 0);
+          }
+          8% {
+            opacity: 1;
+          }
+          32% {
+            opacity: 1;
+          }
+          42% {
+            opacity: 0;
+            transform: scale(1.13) translate3d(1.2%, 0, 0);
+          }
+          100% {
+            opacity: 0;
+          }
         }
 
         @keyframes heroTravelSmooth {

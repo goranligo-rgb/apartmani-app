@@ -105,6 +105,29 @@ export default async function KalendarPage(props: {
     ],
   });
 
+  const dashboardSlikeRaw = await prisma.slikaObjekta.findMany({
+    where: {
+      aktivna: true,
+      prikaziNaDashboardu: true,
+      objektId: {
+        not: null,
+      },
+    },
+    include: {
+      objekt: true,
+    },
+    orderBy: {
+      sortOrder: "asc",
+    },
+  });
+
+  const dashboardSlike = dashboardSlikeRaw.map((s) => ({
+    id: s.id,
+    url: s.url,
+    objektNaziv: s.objekt?.naziv ?? "",
+    sortOrder: s.sortOrder,
+  }));
+
   const jedinice = jediniceRaw.map((j) => ({
     id: j.id,
     naziv: j.naziv,
@@ -156,6 +179,7 @@ export default async function KalendarPage(props: {
       prevMonth={prevMonth}
       nextMonth={nextMonth}
       jedinice={jedinice}
+      dashboardSlike={dashboardSlike}
     />
   );
 }

@@ -1,6 +1,7 @@
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 import fs from "fs";
 import path from "path";
+import { createClient } from "@supabase/supabase-js";
 
 function safeFileName(value: string) {
   return String(value || "racun")
@@ -137,15 +138,10 @@ async function drawLogo(pdfDoc: PDFDocument, page: any, racun: any) {
 }
 
 export async function generateRacunPdf(racun: any) {
-  const dir = path.join(process.cwd(), "public", "racuni");
 
-  if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true });
-  }
 
   const brojRacuna = racun.brojRacuna || `RAC-${Date.now()}`;
   const fileName = `${safeFileName(brojRacuna)}.pdf`;
-  const filePath = path.join(dir, fileName);
 
   const pdfDoc = await PDFDocument.create();
   const page = pdfDoc.addPage([595, 842]);
@@ -552,7 +548,30 @@ export async function generateRacunPdf(racun: any) {
   });
 
   const pdfBytes = await pdfDoc.save();
-  fs.writeFileSync(filePath, pdfBytes);
 
-  return `/racuni/${fileName}`;
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+
+  const supabase = createClient(
+    supabaseUrl,
+    supabaseServiceKey
+  );
+
+  const { error } = await supabase.storage
+    .from("racuni")
+    .upload(storagePath, Buffer.from(pdfBytes), {
+      contentType: "application/pdf",
+      upsert: true,
+    });
+
+  if (error) {
+    console.error("Greška kod spremanja PDF računa:", error);
+    throw new Error("PDF račun nije spremljen.");
+  }
+
+  const { data } = supabase.storage
+    .from("racuni")
+    .getPublicUrl(storagePath);
+
+  return data.publicUrl;
 }
