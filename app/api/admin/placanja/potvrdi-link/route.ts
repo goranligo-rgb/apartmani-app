@@ -2,8 +2,6 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { stripe } from "@/lib/stripe";
 import { generateRacunPdf } from "@/lib/generateRacunPdf";
-import fs from "fs";
-import path from "path";
 import { Resend } from "resend";
 import { revalidatePath } from "next/cache";
 
@@ -143,10 +141,21 @@ export async function GET(req: Request) {
         }
 
         if (placanje.status === "PLACENO") {
-            return NextResponse.redirect(
-                new URL(`/admin/rezervacije/${placanje.rezervacijaId}`, req.url),
-                303
-            );
+            const postojiRacun = await prisma.racun.findFirst({
+                where: {
+                    placanjeId: placanje.id,
+                },
+            });
+
+            if (postojiRacun?.pdfUrl) {
+                return NextResponse.redirect(
+                    new URL(`/admin/rezervacije/${placanje.rezervacijaId}`, req.url),
+                    303
+                );
+            }
+
+            // Plaćanje je označeno kao plaćeno, ali račun nedostaje.
+            // Nastavljamo dalje da se račun može izraditi i poslati.
         }
 
         let paymentIntentId: string | null = null;
@@ -168,10 +177,13 @@ export async function GET(req: Request) {
                 paymentIntentId
             );
 
-            if (paymentIntent.status === "requires_capture") {
+            if (placanje.status !== "PLACENO" && paymentIntent.status === "requires_capture") {
                 await stripe.paymentIntents.capture(paymentIntentId);
-            } else if (paymentIntent.status === "succeeded") {
-                // već naplaćeno, samo nastavljamo evidenciju u sustavu
+            } else if (
+                paymentIntent.status === "succeeded" ||
+                placanje.status === "PLACENO"
+            ) {
+                // već naplaćeno, samo nastavljamo izradu računa i slanje maila
             } else {
                 return NextResponse.json(
                     {
@@ -190,8 +202,10 @@ export async function GET(req: Request) {
         );
 
         const novoPlaceno =
-            Number(placanje.rezervacija.iznosPlaceno || 0) +
-            Number(placanje.iznos || 0);
+            placanje.status === "PLACENO"
+                ? Number(placanje.rezervacija.iznosPlaceno || 0)
+                : Number(placanje.rezervacija.iznosPlaceno || 0) +
+                Number(placanje.iznos || 0);
 
         const noviOstatak = Math.max(ukupnoRezervacije - novoPlaceno, 0);
 
@@ -269,9 +283,14 @@ export async function GET(req: Request) {
             });
 
             if (pdfUrl) {
-                const cleanPdfUrl = pdfUrl.startsWith("/") ? pdfUrl.slice(1) : pdfUrl;
-                const filePath = path.join(process.cwd(), "public", cleanPdfUrl);
-                const fileBuffer = fs.readFileSync(filePath);
+                const pdfResponse = await fetch(pdfUrl);
+
+                if (!pdfResponse.ok) {
+                    throw new Error(`PDF račun nije moguće dohvatiti: ${pdfResponse.status}`);
+                }
+
+                const arrayBuffer = await pdfResponse.arrayBuffer();
+                const fileBuffer = Buffer.from(arrayBuffer);
 
                 const email =
                     placanje.rezervacija.gost?.email || "goran.ligo@gmail.com";

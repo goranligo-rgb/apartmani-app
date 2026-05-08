@@ -153,7 +153,18 @@ async function obradiPlacanjeAkoTreba(placanjeId: string, sessionId?: string) {
   if (!placanje) return null;
 
   if (placanje.status === "PLACENO") {
-    return placanje;
+    const postojiRacun = await prisma.racun.findFirst({
+      where: {
+        placanjeId: placanje.id,
+      },
+    });
+
+    if (postojiRacun?.pdfUrl) {
+      return placanje;
+    }
+
+    // ako je plaćanje označeno kao plaćeno, ali račun nije napravljen,
+    // nastavi obradu da se račun i mail mogu generirati
   }
 
   const r = placanje.rezervacija;
