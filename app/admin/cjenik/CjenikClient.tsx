@@ -279,22 +279,36 @@ export default function CjenikClient({ jedinice }: { jedinice: JedinicaItem[] })
     setError("");
     setMessage("");
 
-    const res = await fetch("/api/admin/cjenik", {
-      method: "DELETE",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id }),
-    });
+    const potvrda = confirm(
+      "Jesi siguran da želiš obrisati ovaj period cjenika?"
+    );
 
-    const data = await res.json();
+    if (!potvrda) return;
 
-    if (!res.ok) {
-      setError(data.error || "Greška kod brisanja.");
-      return;
+    try {
+      const res = await fetch("/api/admin/cjenik", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setError(data.error || "Greška kod brisanja.");
+        return;
+      }
+
+      setMessage("Cjenik je obrisan.");
+
+      router.refresh();
+
+      setTimeout(() => {
+        window.location.reload();
+      }, 300);
+    } catch {
+      setError("Greška kod brisanja.");
     }
-
-    setMessage("Cjenik je obrisan.");
-    router.refresh();
-    window.location.reload();
   }
 
   function cellStyle(dayIso: string) {
