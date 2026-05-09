@@ -507,7 +507,7 @@ export default async function RezervacijaDetaljPage({
 
     const baseUrl = await getAppUrl();
 
-    const potvrda = await fetch(`${baseUrl}/api/admin/placanja/potvrdi`, {
+    const potvrda = await fetch(`${baseUrl}/api/admin/placanja/potvrdi-link`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
