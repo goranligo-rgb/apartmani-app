@@ -45,64 +45,59 @@ export default async function HomePage() {
       className="min-h-screen bg-[#f4efe6]"
       style={{ fontFamily: "Calibri, Segoe UI, Arial, sans-serif" }}
     >
-      <header className="fixed left-0 top-0 z-50 w-full border-b border-white/10 bg-[#0b252b]/95 text-white backdrop-blur">
-        <div className="flex h-[74px] items-center justify-between">
-          <Link href="/" className="px-4 md:px-8">
-            <div className="text-center">
-              <div className="text-[22px] font-bold leading-none tracking-[0.22em] md:text-2xl md:tracking-[0.25em]">
+      <header className="fixed left-0 top-0 z-50 w-full border-b border-white/10 bg-[#071e24]/95 text-white backdrop-blur">
+        <div className="flex items-center justify-between border-b border-white/10">
+
+          <Link
+            href="/"
+            className="flex h-[88px] flex-1 items-center px-5"
+          >
+            <div>
+              <div className="text-[22px] font-black tracking-[0.16em] md:text-[30px]">
                 MALINSKA
               </div>
-              <div className="mt-1 text-[10px] uppercase tracking-[0.24em] text-[#d6b36a] md:text-xs md:tracking-[0.35em]">
-                Apartments & Houses
+
+              <div className="mt-1 text-[10px] uppercase tracking-[0.28em] text-[#caa870] md:text-xs">
+                Apartments & Experience
               </div>
             </div>
           </Link>
 
-          <div className="hidden md:flex">
+          <div className="flex">
             <Link
               href="/posebne-prilike"
-              className="posebne-btn flex h-[74px] items-center px-8 text-sm font-bold uppercase text-white"
+              className="posebne-btn flex h-[88px] w-[122px] items-center justify-center px-3 text-center text-[11px] font-black uppercase leading-tight text-white md:w-[160px] md:text-sm"
             >
-              Posebne prilike
+              Posebne
+              <br />
+              prilike
             </Link>
 
             <Link
               href="/kalendar"
-              className="flex h-[74px] items-center bg-[#c79a57] px-8 text-sm font-bold uppercase text-white transition hover:brightness-95"
+              className="flex h-[88px] w-[110px] items-center justify-center bg-[#c79a57] px-3 text-center text-[11px] font-black uppercase leading-tight text-white transition hover:brightness-95 md:w-[150px] md:text-sm"
             >
-              Book now
+              Book
+              <br />
+              now
             </Link>
           </div>
-
-          <Link
-            href="/kalendar"
-            className="flex h-[74px] items-center bg-[#c79a57] px-5 text-sm font-bold uppercase text-white md:hidden"
-          >
-            Book
-          </Link>
         </div>
 
-        <div className="grid grid-cols-3 border-t border-white/10 text-center text-[11px] font-bold uppercase tracking-wide md:text-sm">
+        <div className="grid grid-cols-3 text-center text-[12px] font-black uppercase tracking-wide md:text-sm">
           {objekti.map((o) => (
             <Link
               key={o.naziv}
               href={o.href}
-              className="flex min-h-[58px] items-center justify-center border-r border-white/10 px-2 py-3 leading-snug transition hover:bg-white/10 md:min-h-0 md:px-4 md:py-3"
+              className="flex min-h-[96px] items-center justify-center border-r border-white/10 bg-[#071e24]/95 px-3 py-4 leading-snug transition hover:bg-white/10 md:min-h-[110px]"
             >
               {o.naziv}
             </Link>
           ))}
         </div>
-
-        <Link
-          href="/posebne-prilike"
-          className="posebne-btn block border-t border-white/10 px-4 py-3 text-center text-xs font-bold uppercase tracking-[0.22em] text-white md:hidden"
-        >
-          Posebne prilike
-        </Link>
       </header>
 
-      <section className="relative min-h-[92vh] overflow-hidden pt-[174px] md:pt-[118px]">
+      <section className="relative min-h-[86vh] overflow-hidden pt-[184px] md:pt-[200px]">
         {heroImages.map((src, index) => (
           <div
             key={`${src}-${index}`}
