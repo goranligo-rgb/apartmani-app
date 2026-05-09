@@ -471,20 +471,29 @@ export default async function RezervacijaDetaljPage({
 
     if (!r) throw new Error("Rezervacija nije pronađena.");
 
-    await prisma.placanje.create({
+    const placanje = await prisma.placanje.create({
       data: {
         rezervacijaId,
         tip,
-        status: "PLACENO",
+        status: "CEKA_PLACANJE",
         iznos,
         valuta: "EUR",
         nacinPlacanja,
         napomena,
-        placenoAt: new Date(),
       },
     });
 
-    await osvjeziStatusPlacanja(rezervacijaId);
+    const baseUrl = await getAppUrl();
+
+    await fetch(`${baseUrl}/api/admin/placanja/potvrdi-link`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        placanjeId: placanje.id,
+      }),
+    });
 
     await prisma.rezervacijaPromjena.create({
       data: {
@@ -497,6 +506,7 @@ export default async function RezervacijaDetaljPage({
           tip,
           nacinPlacanja,
           napomena,
+          placanjeId: placanje.id,
         }),
         korisnikIme: "Admin",
       },
@@ -525,7 +535,14 @@ export default async function RezervacijaDetaljPage({
 
     const r = await prisma.rezervacija.findUnique({
       where: { id: rezervacijaId },
-      include: { gost: true },
+      include: {
+        gost: true,
+        jedinica: {
+          include: {
+            objekt: true,
+          },
+        },
+      },
     });
 
     if (!r) throw new Error("Rezervacija nije pronađena.");
@@ -552,26 +569,99 @@ export default async function RezervacijaDetaljPage({
       },
     });
 
+    const subject =
+      tip === "AKONTACIJA"
+        ? "Zahtjev za uplatu akontacije"
+        : tip === "RAZLIKA"
+          ? "Zahtjev za uplatu razlike"
+          : "Zahtjev za uplatu ostatka";
+
+    const tipEmaila =
+      tip === "AKONTACIJA"
+        ? "ZAHTJEV_AKONTACIJA"
+        : tip === "RAZLIKA"
+          ? "ZAHTJEV_RAZLIKA"
+          : "ZAHTJEV_OSTATAK";
+
+    let mailStatus: "POSLANO" | "GRESKA" = "GRESKA";
+    let mailGreska: string | null = null;
+
+    if (!r.gost?.email) {
+      mailGreska = "Gost nema upisanu email adresu. Mail nije stvarno poslan.";
+    } else {
+      try {
+        await resend.emails.send({
+          from: getMailFrom(),
+          to: r.gost.email,
+          subject,
+          html: `
+          <div style="font-family:Arial,sans-serif;background:#f4efe6;padding:24px;">
+            <div style="max-width:640px;margin:0 auto;background:white;border:1px solid #eadfce;">
+              <div style="background:#2e2923;color:white;padding:22px;">
+                <h2 style="margin:0;">${subject}</h2>
+                <p style="margin:8px 0 0;color:#eadfce;">
+                  Rezervacija čeka uplatu.
+                </p>
+              </div>
+
+              <div style="padding:24px;color:#2e2923;line-height:1.55;">
+                <p>
+                  Poštovani <strong>${r.gost.ime || "goste"} ${r.gost.prezime || ""
+            }</strong>,
+                </p>
+
+                <p>
+                  Vaša rezervacija je evidentirana. Molimo uplatu kako bismo
+                  mogli potvrditi rezervaciju.
+                </p>
+
+                <div style="margin:22px 0;padding:18px;background:#fcfaf6;border:1px solid #eadfce;">
+                  <h3 style="margin:0 0 14px;">Detalji rezervacije</h3>
+                  <p><strong>Objekt:</strong> ${r.jedinica.objekt.naziv}</p>
+                  <p><strong>Smještajna jedinica:</strong> ${r.jedinica.naziv}</p>
+                  <p><strong>Dolazak:</strong> ${formatDate(r.datumOd)}</p>
+                  <p><strong>Odlazak:</strong> ${formatDate(r.datumDo)}</p>
+                  <p><strong>Iznos za uplatu:</strong> ${money(iznos)}</p>
+                  ${rokUplateAkontacije
+              ? `<p><strong>Rok uplate:</strong> ${formatDate(
+                rokUplateAkontacije
+              )}</p>`
+              : ""
+            }
+                </div>
+
+                <div style="padding:16px;background:#fff6e2;border:1px solid #c79a57;color:#7a5a22;">
+                  Nakon što uplata bude vidljiva na našem računu, poslat ćemo
+                  vam potvrdu rezervacije i račun.
+                </div>
+
+                <p style="margin-top:28px;">
+                  Lijep pozdrav,<br/>
+                  <strong>Malinska Stay</strong>
+                </p>
+              </div>
+            </div>
+          </div>
+        `,
+        });
+
+        mailStatus = "POSLANO";
+      } catch (error: any) {
+        mailGreska =
+          error?.message ||
+          JSON.stringify(error) ||
+          "Greška kod slanja emaila.";
+      }
+    }
+
     await prisma.emailLog.create({
       data: {
         rezervacijaId,
         to: r.gost?.email || "bez-emaila",
-        subject:
-          tip === "AKONTACIJA"
-            ? "Zahtjev za uplatu akontacije"
-            : tip === "RAZLIKA"
-              ? "Zahtjev za uplatu razlike"
-              : "Zahtjev za uplatu ostatka",
-        tip:
-          tip === "AKONTACIJA"
-            ? "ZAHTJEV_AKONTACIJA"
-            : tip === "RAZLIKA"
-              ? "ZAHTJEV_RAZLIKA"
-              : "ZAHTJEV_OSTATAK",
-        status: r.gost?.email ? "POSLANO" : "GRESKA",
-        greska: r.gost?.email
-          ? null
-          : "Gost nema upisanu email adresu. Mail nije stvarno poslan.",
+        subject,
+        tip: tipEmaila,
+        status: mailStatus,
+        greska: mailGreska,
       },
     });
 
@@ -586,6 +676,8 @@ export default async function RezervacijaDetaljPage({
           tip,
           rokUplate: rokRaw || null,
           napomena,
+          mailStatus,
+          mailGreska,
         }),
         korisnikIme: "Admin",
       },
@@ -649,7 +741,7 @@ export default async function RezervacijaDetaljPage({
         ibanIzdavatelja: objekt.ibanZaRacun || null,
         emailIzdavatelja: objekt.emailZaRacun || null,
         telefonIzdavatelja: objekt.telefonZaRacun || null,
-        
+
         pdfUrl: null,
         poslanGostu: false,
       },

@@ -850,37 +850,83 @@ export default async function NovaAdminRezervacijaPage({
             "Termin je rezerviran. Čeka se uplata preko banke / transakcijskog računa.",
         },
       });
+
+      const subject = "Rezervacija zaprimljena — čekamo uplatu";
+
+      let mailStatus: "POSLANO" | "GRESKA" = "GRESKA";
+      let mailGreska: string | null = null;
+
+      if (!email) {
+        mailGreska = "Gost nema email adresu. Mail nije poslan.";
+      } else {
+        const mail = await sendMail({
+          to: email,
+          subject,
+          html: paymentMailTemplate({
+            title: "Rezervacija je zaprimljena",
+            subtitle: "Čekamo uplatu za potvrdu rezervacije.",
+            imePrezime: `${ime}${prezime ? " " + prezime : ""}`,
+            objekt: jedinica.objekt.naziv,
+            jedinica: jedinica.naziv,
+            datumOd: datumOd.toLocaleDateString("hr-HR"),
+            datumDo: datumDo.toLocaleDateString("hr-HR"),
+            ukupno: `${dogovoreniIznos.toFixed(2)} €`,
+            zaPlatiti: `${iznosAkontacije.toFixed(2)} €`,
+            ostatak: `${Math.max(dogovoreniIznos - iznosAkontacije, 0).toFixed(2)} €`,
+            rokPlacanja: rokUplateAkontacije.toLocaleDateString("hr-HR"),
+            paymentLink: "#",
+            buttonText: "Čekamo uplatu preko banke",
+            infoText:
+              "Vaša rezervacija je evidentirana. Za potvrdu rezervacije potrebno je izvršiti uplatu u navedenom roku. Nakon što uplata bude vidljiva na našem računu, poslat ćemo vam potvrdu rezervacije i račun. Ako uplata ne sjedne u roku, rezervacija se može automatski stornirati.",
+          }),
+        });
+
+        if (mail.ok) {
+          mailStatus = "POSLANO";
+        } else {
+          mailGreska = mail.error || "Greška kod slanja maila.";
+        }
+      }
+
+      await prisma.emailLog.create({
+        data: {
+          rezervacijaId: rezervacija.id,
+          to: email || "bez-emaila",
+          subject,
+          tip: "ZAHTJEV_AKONTACIJA",
+          status: mailStatus,
+          greska: mailGreska,
+        },
+      });
     }
 
     if (nacinKreiranja === "UPLATA_SJELA") {
-      await prisma.placanje.create({
+      const placanje = await prisma.placanje.create({
         data: {
           rezervacijaId: rezervacija.id,
           tip:
             iznosPlaceno >= dogovoreniIznos
               ? "CIJELI_IZNOS"
               : "AKONTACIJA",
-          status: "PLACENO",
+          status: "CEKA_PLACANJE",
           iznos: iznosPlaceno,
           valuta: "EUR",
           nacinPlacanja: "TEKUCI_RACUN",
           napomena:
             "Admin označio da je uplata sjela prilikom kreiranja rezervacije.",
-          placenoAt: new Date(),
         },
       });
 
-      await prisma.emailLog.create({
-        data: {
-          rezervacijaId: rezervacija.id,
-          to: email || "bez-emaila",
-          subject: "Potvrda rezervacije",
-          tip: "POTVRDA_REZERVACIJE",
-          status: email ? "POSLANO" : "GRESKA",
-          greska: email
-            ? null
-            : "Gost nema email adresu. Mail nije stvarno poslan.",
+      const baseUrl = await getAppUrl();
+
+      await fetch(`${baseUrl}/api/admin/placanja/potvrdi-link`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
         },
+        body: JSON.stringify({
+          placanjeId: placanje.id,
+        }),
       });
     }
 
@@ -987,8 +1033,8 @@ export default async function NovaAdminRezervacijaPage({
                           key={j.id}
                           href={`/admin/rezervacije/nova?${q.toString()}#kalendar`}
                           className={`block cursor-pointer border px-3 py-2 text-sm font-black transition ${odabranaJedinicaId === j.id
-                              ? "border-[#c79a57] bg-[#fff6e2] text-[#2e2923]"
-                              : "border-[#e2d8c8] bg-white text-[#6f665a] hover:bg-[#f8f3ea]"
+                            ? "border-[#c79a57] bg-[#fff6e2] text-[#2e2923]"
+                            : "border-[#e2d8c8] bg-white text-[#6f665a] hover:bg-[#f8f3ea]"
                             }`}
                         >
                           {j.naziv}
