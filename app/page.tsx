@@ -47,26 +47,25 @@ export default async function HomePage() {
     >
       <header className="fixed left-0 top-0 z-50 w-full border-b border-white/10 bg-[#071e24]/95 text-white backdrop-blur">
         <div className="flex items-center justify-between border-b border-white/10">
-
           <Link
             href="/"
-            className="flex h-[88px] flex-1 items-center px-5"
+            className="flex h-[88px] min-w-0 flex-1 items-center px-4 md:px-8"
           >
-            <div>
-              <div className="text-[22px] font-black tracking-[0.16em] md:text-[30px]">
+            <div className="min-w-0">
+              <div className="text-[22px] font-black leading-none tracking-[0.14em] md:text-[30px] md:tracking-[0.16em]">
                 MALINSKA
               </div>
 
-              <div className="mt-1 text-[10px] uppercase tracking-[0.28em] text-[#caa870] md:text-xs">
+              <div className="mt-2 text-[10px] uppercase leading-tight tracking-[0.22em] text-[#caa870] md:text-xs md:tracking-[0.28em]">
                 Apartments & Experience
               </div>
             </div>
           </Link>
 
-          <div className="flex">
+          <div className="mr-3 flex shrink-0 gap-3 md:mr-0 md:gap-0">
             <Link
               href="/posebne-prilike"
-              className="posebne-btn flex h-[88px] w-[122px] items-center justify-center px-3 text-center text-[11px] font-black uppercase leading-tight text-white md:w-[160px] md:text-sm"
+              className="posebne-btn flex h-[56px] w-[104px] items-center justify-center rounded-[4px] border border-white/10 px-2 text-center text-[11px] font-black uppercase leading-tight text-white shadow-[0_8px_22px_rgba(0,0,0,0.28)] md:h-[88px] md:w-[160px] md:rounded-none md:text-sm"
             >
               Posebne
               <br />
@@ -75,7 +74,7 @@ export default async function HomePage() {
 
             <Link
               href="/kalendar"
-              className="flex h-[88px] w-[110px] items-center justify-center bg-[#c79a57] px-3 text-center text-[11px] font-black uppercase leading-tight text-white transition hover:brightness-95 md:w-[150px] md:text-sm"
+              className="flex h-[56px] w-[92px] items-center justify-center rounded-[4px] bg-[#c79a57] px-2 text-center text-[11px] font-black uppercase leading-tight text-white shadow-[0_8px_22px_rgba(0,0,0,0.28)] transition hover:brightness-95 md:h-[88px] md:w-[150px] md:rounded-none md:text-sm"
             >
               Book
               <br />
@@ -89,7 +88,7 @@ export default async function HomePage() {
             <Link
               key={o.naziv}
               href={o.href}
-              className="flex min-h-[96px] items-center justify-center border-r border-white/10 bg-[#071e24]/95 px-3 py-4 leading-snug transition hover:bg-white/10 md:min-h-[110px]"
+              className="flex min-h-[92px] items-center justify-center border-r border-white/10 bg-[#071e24]/95 px-3 py-4 leading-snug transition hover:bg-white/10 md:min-h-[110px]"
             >
               {o.naziv}
             </Link>
@@ -97,7 +96,7 @@ export default async function HomePage() {
         </div>
       </header>
 
-      <section className="relative min-h-[86vh] overflow-hidden pt-[184px] md:pt-[200px]">
+      <section className="relative min-h-[86vh] overflow-hidden pt-[180px] md:pt-[200px]">
         {heroImages.map((src, index) => (
           <div
             key={`${src}-${index}`}
