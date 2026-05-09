@@ -670,8 +670,8 @@ export default async function NovaAdminRezervacijaPage({
       status = "REZERVIRANO";
       iznosPlaceno = 0;
     } else if (nacinKreiranja === "UPLATA_SJELA") {
-      iznosPlaceno = Math.min(uplataSjelaIznos, dogovoreniIznos);
-      status = iznosPlaceno >= dogovoreniIznos ? "PLACENO" : "POTVRDENO";
+      iznosPlaceno = 0;
+      status = "REZERVIRANO";
     } else {
       throw new Error("Odaberite način kreiranja rezervacije.");
     }
@@ -901,15 +901,21 @@ export default async function NovaAdminRezervacijaPage({
     }
 
     if (nacinKreiranja === "UPLATA_SJELA") {
+      const iznosZaEvidenciju = Math.min(uplataSjelaIznos, dogovoreniIznos);
+
+      if (iznosZaEvidenciju <= 0) {
+        throw new Error("Za uplatu koja je već sjela moraš upisati iznos.");
+      }
+
       const placanje = await prisma.placanje.create({
         data: {
           rezervacijaId: rezervacija.id,
           tip:
-            iznosPlaceno >= dogovoreniIznos
+            iznosZaEvidenciju >= dogovoreniIznos
               ? "CIJELI_IZNOS"
               : "AKONTACIJA",
           status: "CEKA_PLACANJE",
-          iznos: iznosPlaceno,
+          iznos: iznosZaEvidenciju,
           valuta: "EUR",
           nacinPlacanja: "TEKUCI_RACUN",
           napomena:
@@ -917,22 +923,7 @@ export default async function NovaAdminRezervacijaPage({
         },
       });
 
-      const baseUrl = await getAppUrl();
-
-      const potvrda = await fetch(`${baseUrl}/api/admin/placanja/potvrdi-link`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          placanjeId: placanje.id,
-        }),
-      });
-
-      if (!potvrda.ok) {
-        const tekst = await potvrda.text();
-        throw new Error(`Greška kod potvrde uplate i slanja računa: ${tekst}`);
-      }
+      redirect(`/admin/rezervacije/${rezervacija.id}?placanjeId=${placanje.id}`);
     }
 
     await prisma.rezervacijaPromjena.create({
