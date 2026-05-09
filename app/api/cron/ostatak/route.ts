@@ -179,22 +179,23 @@ export async function GET() {
     </p>
 
     <p>
-      Lijep pozdrav,<br/>
-      <strong>Malinska Stay</strong>
-    </p>
-  `,
+       Lijep pozdrav,<br/>
+              <strong>Malinska Stay</strong>
+            </p>
+          `,
         }),
+      });
 
-        await prisma.emailLog.create({
-          data: {
-            rezervacijaId: r.id,
-            to: r.gost.email,
-            subject: "Podsjetnik za uplatu ostatka",
-            tip: "ZAHTJEV_OSTATAK",
-          },
-        });
+      await prisma.emailLog.create({
+        data: {
+          rezervacijaId: r.id,
+          to: r.gost.email,
+          subject: "Podsjetnik za uplatu ostatka",
+          tip: "ZAHTJEV_OSTATAK",
+        },
+      });
 
-        poslano++;
+      poslano++;
     }
 
     return NextResponse.json({
