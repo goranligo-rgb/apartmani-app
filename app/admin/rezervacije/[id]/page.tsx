@@ -482,7 +482,7 @@ export default async function RezervacijaDetaljPage({
         napomena,
       },
     });
-   
+
     await prisma.rezervacijaPromjena.create({
       data: {
         rezervacijaId,
@@ -505,7 +505,21 @@ export default async function RezervacijaDetaljPage({
     revalidatePath("/admin/rezervacije/naplata");
     revalidatePath("/admin/monitor");
 
-    redirect(`/api/admin/placanja/potvrdi-link?placanjeId=${placanje.id}`);
+    const baseUrl = await getAppUrl();
+
+    const potvrda = await fetch(`${baseUrl}/api/admin/placanja/potvrdi`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        placanjeId: placanje.id,
+      }),
+    });
+
+    if (!potvrda.ok) {
+      throw new Error("Greška kod potvrde uplate.");
+    }
   }
 
   async function kreirajZahtjevZaUplatu(formData: FormData) {
