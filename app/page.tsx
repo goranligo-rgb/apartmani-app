@@ -30,7 +30,7 @@ const objekti = [
 ];
 
 export default async function HomePage() {
-  const slikeIzBaze = await prisma.slikaObjekta.findMany({
+  await prisma.slikaObjekta.findMany({
     where: {
       aktivna: true,
       prikaziNaPocetnoj: true,
@@ -46,49 +46,63 @@ export default async function HomePage() {
       style={{ fontFamily: "Calibri, Segoe UI, Arial, sans-serif" }}
     >
       <header className="fixed left-0 top-0 z-50 w-full border-b border-white/10 bg-[#0b252b]/95 text-white backdrop-blur">
-        <div className="grid grid-cols-3 items-center">
-          <div />
-
-          <div className="text-center">
-            <div className="text-2xl font-bold tracking-[0.25em]">
-              MALINSKA
+        <div className="flex h-[74px] items-center justify-between">
+          <Link href="/" className="px-4 md:px-8">
+            <div className="text-center">
+              <div className="text-[22px] font-bold leading-none tracking-[0.22em] md:text-2xl md:tracking-[0.25em]">
+                MALINSKA
+              </div>
+              <div className="mt-1 text-[10px] uppercase tracking-[0.24em] text-[#d6b36a] md:text-xs md:tracking-[0.35em]">
+                Apartments & Houses
+              </div>
             </div>
-            <div className="text-xs uppercase tracking-[0.35em] text-[#d6b36a]">
-              Apartments & Houses
-            </div>
-          </div>
+          </Link>
 
-          <div className="flex justify-end">
+          <div className="hidden md:flex">
             <Link
               href="/posebne-prilike"
-              className="posebne-btn h-16 cursor-pointer bg-[#0b3f4a] px-8 py-5 text-sm font-bold uppercase text-white"
+              className="posebne-btn flex h-[74px] items-center px-8 text-sm font-bold uppercase text-white"
             >
               Posebne prilike
             </Link>
 
             <Link
               href="/kalendar"
-              className="h-16 cursor-pointer bg-[#c79a57] px-8 py-5 text-sm font-bold uppercase text-white transition hover:brightness-95"
+              className="flex h-[74px] items-center bg-[#c79a57] px-8 text-sm font-bold uppercase text-white transition hover:brightness-95"
             >
               Book now
             </Link>
           </div>
+
+          <Link
+            href="/kalendar"
+            className="flex h-[74px] items-center bg-[#c79a57] px-5 text-sm font-bold uppercase text-white md:hidden"
+          >
+            Book
+          </Link>
         </div>
 
-        <div className="grid grid-cols-3 border-t border-white/10 text-center text-sm font-bold uppercase tracking-wide">
+        <div className="grid grid-cols-3 border-t border-white/10 text-center text-[11px] font-bold uppercase tracking-wide md:text-sm">
           {objekti.map((o) => (
             <Link
               key={o.naziv}
               href={o.href}
-              className="cursor-pointer border-r border-white/10 px-4 py-3 transition hover:bg-white/10"
+              className="flex min-h-[58px] items-center justify-center border-r border-white/10 px-2 py-3 leading-snug transition hover:bg-white/10 md:min-h-0 md:px-4 md:py-3"
             >
               {o.naziv}
             </Link>
           ))}
         </div>
+
+        <Link
+          href="/posebne-prilike"
+          className="posebne-btn block border-t border-white/10 px-4 py-3 text-center text-xs font-bold uppercase tracking-[0.22em] text-white md:hidden"
+        >
+          Posebne prilike
+        </Link>
       </header>
 
-      <section className="relative min-h-[86vh] overflow-hidden pt-28">
+      <section className="relative min-h-[92vh] overflow-hidden pt-[174px] md:pt-[118px]">
         {heroImages.map((src, index) => (
           <div
             key={`${src}-${index}`}
@@ -101,50 +115,50 @@ export default async function HomePage() {
           />
         ))}
 
-        <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-black/10 to-black/65" />
+        <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-black/10 to-black/70" />
 
-        <div className="relative z-10 flex min-h-[72vh] items-end px-8 pb-16 md:px-20">
+        <div className="relative z-10 flex min-h-[calc(92vh-174px)] items-end px-6 pb-12 md:min-h-[72vh] md:px-20 md:pb-16">
           <div className="max-w-4xl text-white">
-            <p className="mb-4 text-sm font-bold uppercase tracking-[0.35em] text-[#d6b36a]">
+            <p className="mb-3 text-xs font-bold uppercase tracking-[0.3em] text-[#d6b36a] md:mb-4 md:text-sm md:tracking-[0.35em]">
               Otok Krk · Hrvatska
             </p>
 
-            <h1 className="text-6xl font-bold leading-none md:text-8xl">
+            <h1 className="text-5xl font-bold leading-none md:text-8xl">
               Malinska
             </h1>
 
-            <p className="mt-6 max-w-2xl text-xl leading-relaxed text-white/90">
+            <p className="mt-5 max-w-2xl text-lg leading-relaxed text-white/90 md:mt-6 md:text-xl">
               Odaberite House Art, Luxury Apartments Marty ili Apartments Eva i
               provjerite slobodne termine, cijene i dostupnost.
             </p>
 
-            <div className="mt-5 flex flex-wrap items-center gap-4 text-sm font-bold text-white/95">
+            <div className="mt-6 grid gap-3 text-sm font-bold text-white/95 md:flex md:flex-wrap md:items-center md:gap-4">
               <a
                 href="tel:+38598700415"
-                className="cursor-pointer border border-white/30 bg-black/20 px-4 py-2 backdrop-blur transition hover:bg-white/15"
+                className="border border-white/30 bg-black/25 px-4 py-3 backdrop-blur transition hover:bg-white/15"
               >
                 Rezervacije: +385 98 700 415
               </a>
 
               <a
                 href="mailto:rezervacije@malinska-stay.hr"
-                className="cursor-pointer border border-white/30 bg-black/20 px-4 py-2 backdrop-blur transition hover:bg-white/15"
+                className="border border-white/30 bg-black/25 px-4 py-3 backdrop-blur transition hover:bg-white/15"
               >
                 rezervacije@malinska-stay.hr
               </a>
             </div>
 
-            <div className="mt-8 flex flex-wrap gap-4">
+            <div className="mt-7 grid gap-3 md:mt-8 md:flex md:flex-wrap md:gap-4">
               <Link
                 href="/kalendar"
-                className="cursor-pointer border border-[#caa870] bg-[#c79a57] px-7 py-4 font-bold text-white transition hover:brightness-95"
+                className="border border-[#caa870] bg-[#c79a57] px-7 py-4 text-center font-bold text-white transition hover:brightness-95"
               >
                 Pogledaj kalendar
               </Link>
 
               <a
                 href="#objekti"
-                className="cursor-pointer border border-white/70 bg-white/10 px-7 py-4 font-bold text-white backdrop-blur transition hover:bg-white/20"
+                className="border border-white/70 bg-white/10 px-7 py-4 text-center font-bold text-white backdrop-blur transition hover:bg-white/20"
               >
                 Pogledaj objekte
               </a>
@@ -185,7 +199,7 @@ export default async function HomePage() {
                 ✓ Rezervacije:{" "}
                 <a
                   href="tel:+38598700415"
-                  className="cursor-pointer font-bold text-[#9b6b12] hover:underline"
+                  className="font-bold text-[#9b6b12] hover:underline"
                 >
                   +385 98 700 415
                 </a>
@@ -194,7 +208,7 @@ export default async function HomePage() {
                 ✓ Email:{" "}
                 <a
                   href="mailto:rezervacije@malinska-stay.hr"
-                  className="cursor-pointer font-bold text-[#9b6b12] hover:underline"
+                  className="font-bold text-[#9b6b12] hover:underline"
                 >
                   rezervacije@malinska-stay.hr
                 </a>
@@ -208,7 +222,7 @@ export default async function HomePage() {
             <Link
               key={objekt.naziv}
               href={objekt.href}
-              className="group cursor-pointer border border-white/80 bg-white p-7 shadow-[0_12px_35px_rgba(0,0,0,0.08)] transition duration-300 hover:-translate-y-1 hover:shadow-[0_18px_45px_rgba(0,0,0,0.14)]"
+              className="group border border-white/80 bg-white p-7 shadow-[0_12px_35px_rgba(0,0,0,0.08)] transition duration-300 hover:-translate-y-1 hover:shadow-[0_18px_45px_rgba(0,0,0,0.14)]"
               style={{
                 animation: "cardUp 700ms ease both",
                 animationDelay: `${index * 120}ms`,
@@ -248,14 +262,14 @@ export default async function HomePage() {
         <div className="mt-6 flex flex-wrap justify-center gap-4 text-sm font-bold">
           <a
             href="tel:+38598700415"
-            className="cursor-pointer border border-white/20 px-4 py-2 transition hover:bg-white/10"
+            className="border border-white/20 px-4 py-2 transition hover:bg-white/10"
           >
             +385 98 700 415
           </a>
 
           <a
             href="mailto:rezervacije@malinska-stay.hr"
-            className="cursor-pointer border border-white/20 px-4 py-2 transition hover:bg-white/10"
+            className="border border-white/20 px-4 py-2 transition hover:bg-white/10"
           >
             rezervacije@malinska-stay.hr
           </a>
@@ -277,7 +291,7 @@ export default async function HomePage() {
         }
 
         .posebne-btn {
-          background: linear-gradient(270deg, #0b3f4a, #00e0d2, #0b3f4a);
+          background: linear-gradient(270deg, #0b3f4a, #00c8bd, #0b3f4a);
           background-size: 300% 300%;
           animation: posebneGlow 3s ease infinite;
         }

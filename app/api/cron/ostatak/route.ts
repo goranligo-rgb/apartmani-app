@@ -22,6 +22,31 @@ async function getAppUrl() {
   return "http://localhost:3000";
 }
 
+function mailWrapper({
+  title,
+  subtitle,
+  children,
+}: {
+  title: string;
+  subtitle: string;
+  children: string;
+}) {
+  return `
+    <div style="font-family: Arial, sans-serif; background:#f4efe6; padding:24px;">
+      <div style="max-width:640px; margin:0 auto; background:white; border:1px solid #eadfce;">
+        <div style="background:#2e2923; color:white; padding:22px;">
+          <h2 style="margin:0;">${title}</h2>
+          <p style="margin:8px 0 0; color:#eadfce;">${subtitle}</p>
+        </div>
+
+        <div style="padding:24px; color:#2e2923; line-height:1.55;">
+          ${children}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
 export async function GET() {
   try {
     const postavke = await prisma.postavkeNaplate.findFirst({
@@ -120,48 +145,56 @@ export async function GET() {
         from: getMailFrom(),
         to: r.gost.email,
         subject: "Molimo uplatu ostatka rezervacije",
-        html: `
-          <h2>Podsjetnik za uplatu ostatka</h2>
+        html: mailWrapper({
+          title: "Podsjetnik za uplatu ostatka",
+          subtitle: "Vaš dolazak se približava.",
+          children: `
+    <p>Poštovani <strong>${r.gost.ime || "goste"}</strong>,</p>
 
-          <p>Poštovani ${r.gost.ime || "goste"},</p>
+    <p>
+      Ljubazno vas podsjećamo da je preostali iznos za vašu rezervaciju potrebno podmiriti prije dolaska.
+    </p>
 
-          <p>Vaš dolazak je za ${danaPrijeDolaska} dana.</p>
+    <div style="margin:22px 0; padding:18px; background:#fcfaf6; border:1px solid #eadfce;">
+      <h3 style="margin:0 0 14px;">Detalji rezervacije</h3>
+      <p><strong>Objekt:</strong> ${r.jedinica.objekt.naziv}</p>
+      <p><strong>Smještajna jedinica:</strong> ${r.jedinica.naziv}</p>
+      <p><strong>Dolazak:</strong> ${new Date(r.datumOd).toLocaleDateString("hr-HR")}</p>
+      <p><strong>Odlazak:</strong> ${new Date(r.datumDo).toLocaleDateString("hr-HR")}</p>
+      <p><strong>Preostalo za uplatu:</strong> ${ostatak.toFixed(2)} ${r.valuta || "EUR"}</p>
+    </div>
 
-          <p>
-            <strong>Objekt:</strong> ${r.jedinica.objekt.naziv}<br/>
-            <strong>Smještajna jedinica:</strong> ${r.jedinica.naziv}<br/>
-            <strong>Dolazak:</strong> ${new Date(r.datumOd).toLocaleDateString("hr-HR")}<br/>
-            <strong>Odlazak:</strong> ${new Date(r.datumDo).toLocaleDateString("hr-HR")}
-          </p>
+    <p style="margin:24px 0;">
+      <a href="${paymentLink}" style="display:inline-block;background:#2e2923;color:#fff;padding:13px 20px;text-decoration:none;font-weight:bold;">
+        Plati ostatak rezervacije
+      </a>
+    </p>
 
-          <p>
-            Preostali iznos za uplatu:
-            <strong>${ostatak.toFixed(2)} ${r.valuta || "EUR"}</strong>
-          </p>
+    <div style="padding:16px; background:#fff6e2; border:1px solid #c79a57; color:#7a5a22;">
+      Ako ste uplatu već izvršili, ovu poruku možete zanemariti.
+    </div>
 
-          <p>
-            <a href="${paymentLink}" style="display:inline-block;background:#111;color:#fff;padding:12px 18px;text-decoration:none;font-weight:bold;">
-              Klikni i plati ostatak
-            </a>
-          </p>
+    <p style="margin-top:28px;">
+      Veselimo se vašem dolasku u Malinsku.
+    </p>
 
-          <p>Ako ste uplatu već izvršili, ovu poruku možete zanemariti.</p>
+    <p>
+      Lijep pozdrav,<br/>
+      <strong>Malinska Stay</strong>
+    </p>
+  `,
+        }),
 
-          <br/>
-          <p>Lijep pozdrav,<br/>Malinska Stay</p>
-        `,
-      });
+        await prisma.emailLog.create({
+          data: {
+            rezervacijaId: r.id,
+            to: r.gost.email,
+            subject: "Podsjetnik za uplatu ostatka",
+            tip: "ZAHTJEV_OSTATAK",
+          },
+        });
 
-      await prisma.emailLog.create({
-        data: {
-          rezervacijaId: r.id,
-          to: r.gost.email,
-          subject: "Podsjetnik za uplatu ostatka",
-          tip: "ZAHTJEV_OSTATAK",
-        },
-      });
-
-      poslano++;
+        poslano++;
     }
 
     return NextResponse.json({
