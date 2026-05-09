@@ -47,7 +47,7 @@ export default async function HomePage() {
     >
       <header className="fixed left-0 top-0 z-50 w-full border-b border-white/10 bg-[#071e24]/95 text-white backdrop-blur">
         <div className="relative h-[78px] border-b border-white/10 md:flex md:h-[88px] md:items-center md:justify-between">
-          <div className="absolute left-3 top-3 flex items-center gap-2 md:static md:order-2 md:mr-0 md:flex md:shrink-0 md:gap-0">
+          <div className="absolute left-3 top-[58px] flex items-center gap-2 md:static md:order-2 md:mr-0 md:flex md:shrink-0 md:gap-0">
             <Link
               href="/posebne-prilike"
               className="posebne-btn flex h-[38px] w-[68px] items-center justify-center rounded-[4px] border border-white/10 px-2 text-center text-[8px] font-black uppercase leading-tight text-white shadow-[0_8px_22px_rgba(0,0,0,0.28)] md:h-[88px] md:w-[160px] md:rounded-none md:text-sm"
