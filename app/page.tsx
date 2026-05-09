@@ -62,10 +62,10 @@ export default async function HomePage() {
             </div>
           </Link>
 
-          <div className="mr-3 flex shrink-0 gap-3 md:mr-0 md:gap-0">
+          <div className="mr-2 flex shrink-0 items-center gap-2 md:mr-0 md:gap-0">
             <Link
               href="/posebne-prilike"
-              className="posebne-btn flex h-[56px] w-[104px] items-center justify-center rounded-[4px] border border-white/10 px-2 text-center text-[11px] font-black uppercase leading-tight text-white shadow-[0_8px_22px_rgba(0,0,0,0.28)] md:h-[88px] md:w-[160px] md:rounded-none md:text-sm"
+              className="posebne-btn flex h-[50px] w-[88px] items-center justify-center rounded-[4px] border border-white/10 px-2 text-center text-[10px] font-black uppercase leading-tight text-white shadow-[0_8px_22px_rgba(0,0,0,0.28)] md:h-[88px] md:w-[160px] md:rounded-none md:text-sm"
             >
               Posebne
               <br />
@@ -74,7 +74,7 @@ export default async function HomePage() {
 
             <Link
               href="/kalendar"
-              className="flex h-[56px] w-[92px] items-center justify-center rounded-[4px] bg-[#c79a57] px-2 text-center text-[11px] font-black uppercase leading-tight text-white shadow-[0_8px_22px_rgba(0,0,0,0.28)] transition hover:brightness-95 md:h-[88px] md:w-[150px] md:rounded-none md:text-sm"
+              className="flex h-[50px] w-[76px] items-center justify-center rounded-[4px] bg-[#c79a57] px-2 text-center text-[10px] font-black uppercase leading-tight text-white shadow-[0_8px_22px_rgba(0,0,0,0.28)] transition hover:brightness-95 md:h-[88px] md:w-[150px] md:rounded-none md:text-sm"
             >
               Book
               <br />
