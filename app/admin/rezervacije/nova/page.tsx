@@ -930,7 +930,8 @@ export default async function NovaAdminRezervacijaPage({
       });
 
       if (!potvrda.ok) {
-        throw new Error("Greška kod potvrde uplate i slanja računa.");
+        const tekst = await potvrda.text();
+        throw new Error(`Greška kod potvrde uplate i slanja računa: ${tekst}`);
       }
     }
 
