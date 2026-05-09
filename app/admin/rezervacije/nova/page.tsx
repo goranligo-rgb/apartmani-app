@@ -919,7 +919,7 @@ export default async function NovaAdminRezervacijaPage({
 
       const baseUrl = await getAppUrl();
 
-      await fetch(`${baseUrl}/api/admin/placanja/potvrdi-link`, {
+      const potvrda = await fetch(`${baseUrl}/api/admin/placanja/potvrdi`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -928,6 +928,10 @@ export default async function NovaAdminRezervacijaPage({
           placanjeId: placanje.id,
         }),
       });
+
+      if (!potvrda.ok) {
+        throw new Error("Greška kod potvrde uplate i slanja računa.");
+      }
     }
 
     await prisma.rezervacijaPromjena.create({
