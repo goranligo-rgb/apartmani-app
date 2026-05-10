@@ -143,40 +143,41 @@ export default async function AdminMonitorPage({
 
   const rezervacije = await prisma.rezervacija.findMany({
     where: {
-       notIn: ["OTKAZANO", "OBRISANO"],
-      datumOd: { lt: kalendarDo },
-      datumDo: { gt: kalendarOd },
-      ...(selectedJedinicaIds.length > 0
-        ? {
+      status: {
+        notIn: ["OTKAZANO", "OBRISANO"],
+        datumOd: { lt: kalendarDo },
+        datumDo: { gt: kalendarOd },
+        ...(selectedJedinicaIds.length > 0
+          ? {
             jedinicaId: {
               in: selectedJedinicaIds,
             },
           }
-        : {}),
-    },
-    include: {
-      gost: true,
-      jedinica: {
-        include: {
-          objekt: true,
+          : {}),
+      },
+      include: {
+        gost: true,
+        jedinica: {
+          include: {
+            objekt: true,
+          },
         },
       },
-    },
-    orderBy: [{ datumOd: "asc" }, { datumDo: "asc" }],
-  });
+      orderBy: [{ datumOd: "asc" }, { datumDo: "asc" }],
+    });
 
   const detaljRezervacije = params.rezervacijaId
     ? await prisma.rezervacija.findUnique({
-        where: { id: params.rezervacijaId },
-        include: {
-          gost: true,
-          jedinica: {
-            include: {
-              objekt: true,
-            },
+      where: { id: params.rezervacijaId },
+      include: {
+        gost: true,
+        jedinica: {
+          include: {
+            objekt: true,
           },
         },
-      })
+      },
+    })
     : null;
 
   const mjeseci = [0, 1, 2, 3].map((i) => {
@@ -410,9 +411,8 @@ export default async function AdminMonitorPage({
             <div className="mt-3 grid gap-2 md:grid-cols-2 lg:grid-cols-4">
               <Detail
                 label="Gost"
-                value={`${detaljRezervacije.gost?.ime || ""} ${
-                  detaljRezervacije.gost?.prezime || ""
-                }`}
+                value={`${detaljRezervacije.gost?.ime || ""} ${detaljRezervacije.gost?.prezime || ""
+                  }`}
               />
               <Detail
                 label="Email"
