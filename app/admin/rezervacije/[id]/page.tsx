@@ -239,7 +239,7 @@ async function osvjeziStatusPlacanja(rezervacijaId: string) {
   await prisma.rezervacija.update({
     where: { id: rezervacijaId },
     data: {
-      statusPrijeBrisanja: r.status,
+      statusPrijeBrisanja: rezervacija.status,
       status: "OTKAZANO",
       obrisanoAt: new Date(),
       obrisaoKorisnik: "Admin",
