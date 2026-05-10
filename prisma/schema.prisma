@@ -183,6 +183,8 @@ model Jedinica {
 
   oprema JedinicaOprema[]
 
+  ttlockBrave JedinicaTtlockBrava[]
+
   @@index([objektId])
 }
 
@@ -258,6 +260,7 @@ model Rezervacija {
   racuni   Racun[]
   emailovi EmailLog[]
   promjene RezervacijaPromjena[]
+  ttlockSifre RezervacijaTtlockSifra[]
 
   @@index([jedinicaId])
   @@index([datumOd, datumDo])
@@ -726,4 +729,174 @@ model PostavkeNaplate {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+enum TtlockTipBrave {
+  GLAVNI_ULAZ
+  VRATA_JEDINICE
+  KAPIJA
+  OSTALO
+}
+
+enum TtlockStatusSifre {
+  CEKA
+  POSLANO
+  GRESKA
+  OBRISANO
+  ISTEKLO
+}
+
+model TtlockBrava {
+  id String @id @default(uuid())
+
+  naziv String
+  lockId String @unique
+
+  tip TtlockTipBrave @default(OSTALO)
+
+  objektNaziv String?
+  napomena    String?
+
+  aktivna Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  jedinice JedinicaTtlockBrava[]
+  sifre    RezervacijaTtlockSifra[]
+  pristupi TtlockPristupBrava[]
+
+  @@index([lockId])
+  @@index([aktivna])
+  @@index([tip])
+}
+
+model JedinicaTtlockBrava {
+  id String @id @default(uuid())
+
+  jedinicaId String
+  bravaId    String
+
+  glavnaZaJedinicu Boolean @default(false)
+  sortOrder        Int     @default(0)
+
+  createdAt DateTime @default(now())
+
+  jedinica Jedinica    @relation(fields: [jedinicaId], references: [id], onDelete: Cascade)
+  brava    TtlockBrava @relation(fields: [bravaId], references: [id], onDelete: Cascade)
+
+  @@unique([jedinicaId, bravaId])
+  @@index([jedinicaId])
+  @@index([bravaId])
+}
+
+model RezervacijaTtlockSifra {
+  id String @id @default(uuid())
+
+  rezervacijaId String
+  bravaId       String
+
+  sifra String
+
+  vrijediOd DateTime
+  vrijediDo DateTime
+
+  status TtlockStatusSifre @default(CEKA)
+
+  ttlockKeyboardPwdId String?
+  greska              String?
+
+  poslanaGostu Boolean   @default(false)
+  poslanaAt    DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  rezervacija Rezervacija @relation(fields: [rezervacijaId], references: [id], onDelete: Cascade)
+  brava       TtlockBrava @relation(fields: [bravaId], references: [id], onDelete: Cascade)
+
+  @@unique([rezervacijaId, bravaId])
+  @@index([rezervacijaId])
+  @@index([bravaId])
+  @@index([status])
+  @@index([vrijediOd])
+  @@index([vrijediDo])
+}
+
+enum TtlockTipOsobe {
+  GOST
+  CISTACICA
+  VLASNIK
+  SERVIS
+  OSTALO
+}
+
+enum TtlockStatusPristupa {
+  AKTIVNO
+  NEAKTIVNO
+  GRESKA
+}
+
+model TtlockOsoba {
+  id String @id @default(uuid())
+
+  ime     String
+  prezime String?
+  email   String?
+  telefon String?
+
+  tip TtlockTipOsobe @default(OSTALO)
+
+  napomena String?
+  aktivna  Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  pristupi TtlockPristup[]
+
+  @@index([tip])
+  @@index([aktivna])
+  @@index([ime])
+}
+
+model TtlockPristup {
+  id String @id @default(uuid())
+
+  osobaId String
+
+  naziv String?
+  sifra String
+
+  vrijediOd DateTime?
+  vrijediDo DateTime?
+
+  status TtlockStatusPristupa @default(AKTIVNO)
+
+  napomena String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  osoba TtlockOsoba @relation(fields: [osobaId], references: [id], onDelete: Cascade)
+  brave TtlockPristupBrava[]
+
+  @@index([osobaId])
+  @@index([status])
+  @@index([vrijediOd])
+  @@index([vrijediDo])
+}
+
+model TtlockPristupBrava {
+  id String @id @default(uuid())
+
+  pristupId String
+  bravaId   String
+
+  pristup TtlockPristup @relation(fields: [pristupId], references: [id], onDelete: Cascade)
+  brava   TtlockBrava   @relation(fields: [bravaId], references: [id], onDelete: Cascade)
+
+  @@unique([pristupId, bravaId])
+  @@index([pristupId])
+  @@index([bravaId])
 }

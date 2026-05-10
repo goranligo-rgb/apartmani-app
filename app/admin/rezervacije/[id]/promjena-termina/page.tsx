@@ -12,6 +12,7 @@ type PageParams = Promise<{
 type SearchParams = Promise<{
   od?: string;
   do?: string;
+  error?: string;
 }>;
 
 const COLOR_SLOBODNO = "rgba(134,239,172,0.46)";
@@ -142,6 +143,7 @@ export default async function PromjenaTerminaPage({
 }) {
   const { id } = await params;
   const sp = await searchParams;
+  const error = sp.error || "";
 
   const rezervacija = await prisma.rezervacija.findUnique({
     where: { id },
@@ -162,9 +164,9 @@ export default async function PromjenaTerminaPage({
 
   const trenutniUkupno = Number(
     rezervacija.dogovoreniIznos ||
-      rezervacija.iznosUkupno ||
-      rezervacija.iznosOsnovni ||
-      0
+    rezervacija.iznosUkupno ||
+    rezervacija.iznosOsnovni ||
+    0
   );
 
   const placeno = Number(rezervacija.iznosPlaceno || 0);
@@ -178,10 +180,10 @@ export default async function PromjenaTerminaPage({
   const novaOsnovnaCijena =
     odabraniOd && odabraniDo && odabraniOd < odabraniDo
       ? await izracunajCijenuTermina({
-          jedinicaId: rezervacija.jedinicaId,
-          datumOd: odabraniOd,
-          datumDo: odabraniDo,
-        })
+        jedinicaId: rezervacija.jedinicaId,
+        datumOd: odabraniOd,
+        datumDo: odabraniDo,
+      })
       : 0;
 
   let novaCijena = novaOsnovnaCijena;
@@ -254,22 +256,22 @@ export default async function PromjenaTerminaPage({
   const postojiPreklapanje =
     odabraniOd && odabraniDo && odabraniOd < odabraniDo
       ? await prisma.rezervacija.findFirst({
-          where: {
-            id: {
-              not: rezervacija.id,
-            },
-            jedinicaId: rezervacija.jedinicaId,
-            status: {
-              not: "OTKAZANO",
-            },
-            datumOd: {
-              lt: odabraniDo,
-            },
-            datumDo: {
-              gt: odabraniOd,
-            },
+        where: {
+          id: {
+            not: rezervacija.id,
           },
-        })
+          jedinicaId: rezervacija.jedinicaId,
+          status: {
+            not: "OTKAZANO",
+          },
+          datumOd: {
+            lt: odabraniDo,
+          },
+          datumDo: {
+            gt: odabraniOd,
+          },
+        },
+      })
       : null;
 
   const mjeseci = [0, 1, 2, 3, 4, 5].map((i) => {
@@ -293,8 +295,8 @@ export default async function PromjenaTerminaPage({
       .toUpperCase();
 
     if (!potvrdaIzmjene || potvrdaTekst !== "POTVRĐUJEM") {
-      throw new Error(
-        "Izmjena nije potvrđena. Označite potvrdu i upišite POTVRĐUJEM."
+      redirect(
+        `/admin/rezervacije/${rezervacijaId}/promjena-termina?od=${noviDatumOdRaw}&do=${noviDatumDoRaw}&error=potvrda`
       );
     }
 
@@ -302,13 +304,17 @@ export default async function PromjenaTerminaPage({
       where: { id: rezervacijaId },
     });
 
-    if (!r) throw new Error("Rezervacija nije pronađena.");
+    if (!r) {
+      redirect("/admin/rezervacije?error=rezervacija-nije-pronadena");
+    }
 
     const noviDatumOd = parseDateOnly(noviDatumOdRaw);
     const noviDatumDo = parseDateOnly(noviDatumDoRaw);
 
     if (!noviDatumOd || !noviDatumDo || noviDatumOd >= noviDatumDo) {
-      throw new Error("Odaberite ispravan novi dolazak i odlazak.");
+      redirect(
+        `/admin/rezervacije/${rezervacijaId}/promjena-termina?error=datum`
+      );
     }
 
     const preklapanje = await prisma.rezervacija.findFirst({
@@ -330,7 +336,9 @@ export default async function PromjenaTerminaPage({
     });
 
     if (preklapanje) {
-      throw new Error("Novi termin se preklapa s drugom rezervacijom.");
+      redirect(
+        `/admin/rezervacije/${rezervacijaId}/promjena-termina?od=${noviDatumOdRaw}&do=${noviDatumDoRaw}&error=preklapanje`
+      );
     }
 
     const stariUkupno = Number(
@@ -462,12 +470,24 @@ export default async function PromjenaTerminaPage({
             {rezervacija.jedinica.objekt.naziv} / {rezervacija.jedinica.naziv}
           </p>
 
+          {error && (
+            <div className="mt-5 border border-red-300 bg-red-50 p-4 text-sm font-black text-red-700">
+              {error === "potvrda" &&
+                "Označite potvrdu i upišite POTVRĐUJEM prije spremanja promjene."}
+
+              {error === "datum" &&
+                "Odaberite ispravan novi dolazak i odlazak."}
+
+              {error === "preklapanje" &&
+                "Novi termin se preklapa s drugom rezervacijom."}
+            </div>
+          )}
+
           <div className="mt-5 grid gap-3 lg:grid-cols-4">
             <Info
               label="Gost"
-              value={`${rezervacija.gost?.ime || "Gost"} ${
-                rezervacija.gost?.prezime || ""
-              }`}
+              value={`${rezervacija.gost?.ime || "Gost"} ${rezervacija.gost?.prezime || ""
+                }`}
             />
 
             <Info

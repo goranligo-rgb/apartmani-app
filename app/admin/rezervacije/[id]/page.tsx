@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { Resend } from "resend";
 import { stripe } from "@/lib/stripe";
+import { dodajTtlockSifru } from "@/lib/ttlock";
 
 export const dynamic = "force-dynamic";
 
@@ -144,6 +145,34 @@ function parseDateOnly(value: string) {
   return new Date(year, month - 1, day, 12, 0, 0, 0);
 }
 
+function generirajSifruIzTelefona(telefon?: string | null) {
+  const brojevi = String(telefon || "").replace(/\D/g, "");
+  if (brojevi.length >= 4) return brojevi.slice(-4);
+  return String(Math.floor(1000 + Math.random() * 9000));
+}
+
+function setTime(date: Date, hour: number, minute: number) {
+  const d = new Date(date);
+  d.setHours(hour, minute, 0, 0);
+  return d;
+}
+
+function parseTime(value?: string | null) {
+  const [h, m] = String(value || "").split(":").map(Number);
+  return {
+    hour: Number.isFinite(h) ? h : 16,
+    minute: Number.isFinite(m) ? m : 0,
+  };
+}
+
+function formatTime(value?: Date | null) {
+  if (!value) return "16:00";
+  return value.toLocaleTimeString("hr-HR", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 async function izracunajPlaceno(rezervacijaId: string) {
   const placanja = await prisma.placanje.findMany({
     where: {
@@ -231,6 +260,11 @@ export default async function RezervacijaDetaljPage({
       jedinica: {
         include: {
           objekt: true,
+          ttlockBrave: {
+            include: {
+              brava: true,
+            },
+          },
         },
       },
       placanja: {
@@ -244,6 +278,14 @@ export default async function RezervacijaDetaljPage({
       },
       promjene: {
         orderBy: { createdAt: "desc" },
+      },
+      ttlockSifre: {
+        include: {
+          brava: true,
+        },
+        orderBy: {
+          createdAt: "asc",
+        },
       },
       zadaci: {
         orderBy: { datum: "asc" },
@@ -283,6 +325,17 @@ export default async function RezervacijaDetaljPage({
     gostOznake.includes("PROBLEMATICAN") ||
     gostOznake.includes("KASNI_S_PLACANJEM") ||
     gostOznake.includes("ZAHTJEVAN");
+
+      const ttlockPrva = rezervacija.ttlockSifre?.[0];
+
+  const ttlockSifra =
+    ttlockPrva?.sifra || generirajSifruIzTelefona(rezervacija.gost?.telefon);
+
+  const ttlockUlaz =
+    ttlockPrva?.vrijediOd || setTime(rezervacija.datumOd, 16, 0);
+
+  const ttlockIzlaz =
+    ttlockPrva?.vrijediDo || setTime(rezervacija.datumDo, 10, 0);
 
   async function odbijRezervaciju(formData: FormData) {
     "use server";
@@ -985,6 +1038,126 @@ export default async function RezervacijaDetaljPage({
     redirect(`/admin/rezervacije/${rezervacijaId}`);
   }
 
+  async function spremiTtlockPristup(formData: FormData) {
+    "use server";
+
+    const rezervacijaId = String(formData.get("rezervacijaId") || "");
+    const sifraRaw = String(formData.get("sifra") || "").replace(/\D/g, "").slice(0, 4);
+    const ulazVrijeme = String(formData.get("ulazVrijeme") || "16:00");
+    const izlazVrijeme = String(formData.get("izlazVrijeme") || "10:00");
+
+    const r = await prisma.rezervacija.findUnique({
+      where: { id: rezervacijaId },
+      include: {
+        gost: true,
+        jedinica: {
+          include: {
+            ttlockBrave: true,
+          },
+        },
+      },
+    });
+
+    if (!r) throw new Error("Rezervacija nije pronađena.");
+    if (r.jedinica.ttlockBrave.length === 0) {
+      throw new Error("Jedinica nema povezane TTLock brave.");
+    }
+
+    const sifra = sifraRaw || generirajSifruIzTelefona(r.gost?.telefon);
+
+    const ulaz = parseTime(ulazVrijeme);
+    const izlaz = parseTime(izlazVrijeme);
+
+    const vrijediOd = setTime(r.datumOd, ulaz.hour, ulaz.minute);
+    const vrijediDo = setTime(r.datumDo, izlaz.hour, izlaz.minute);
+
+    for (const veza of r.jedinica.ttlockBrave) {
+      await prisma.rezervacijaTtlockSifra.upsert({
+        where: {
+          rezervacijaId_bravaId: {
+            rezervacijaId: r.id,
+            bravaId: veza.bravaId,
+          },
+        },
+        update: {
+          sifra,
+          vrijediOd,
+          vrijediDo,
+          status: "CEKA",
+          greska: null,
+        },
+        create: {
+          rezervacijaId: r.id,
+          bravaId: veza.bravaId,
+          sifra,
+          vrijediOd,
+          vrijediDo,
+          status: "CEKA",
+        },
+      });
+    }
+
+    revalidatePath(`/admin/rezervacije/${rezervacijaId}`);
+    redirect(`/admin/rezervacije/${rezervacijaId}`);
+  }
+
+  async function posaljiTtlockNaBrave(formData: FormData) {
+    "use server";
+
+    const rezervacijaId = String(formData.get("rezervacijaId") || "");
+
+    const sifre = await prisma.rezervacijaTtlockSifra.findMany({
+      where: { rezervacijaId },
+      include: {
+        brava: true,
+        rezervacija: {
+          include: {
+            gost: true,
+            jedinica: {
+              include: {
+                objekt: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    for (const s of sifre) {
+      try {
+        const response = await dodajTtlockSifru({
+          lockId: s.brava.lockId,
+          sifra: s.sifra,
+          naziv: `${s.rezervacija.jedinica.naziv} ${s.rezervacija.gost?.ime || "Gost"}`,
+          vrijediOd: s.vrijediOd,
+          vrijediDo: s.vrijediDo,
+        });
+
+        await prisma.rezervacijaTtlockSifra.update({
+          where: { id: s.id },
+          data: {
+            status: "POSLANO",
+            ttlockKeyboardPwdId: response.keyboardPwdId
+              ? String(response.keyboardPwdId)
+              : null,
+            greska: null,
+          },
+        });
+      } catch (error: any) {
+        await prisma.rezervacijaTtlockSifra.update({
+          where: { id: s.id },
+          data: {
+            status: "GRESKA",
+            greska: error?.message || "Greška kod slanja na TTLock.",
+          },
+        });
+      }
+    }
+
+    revalidatePath(`/admin/rezervacije/${rezervacijaId}`);
+    redirect(`/admin/rezervacije/${rezervacijaId}`);
+  }
+
   async function obrisiAdminRezervaciju(formData: FormData) {
     "use server";
 
@@ -1164,7 +1337,7 @@ export default async function RezervacijaDetaljPage({
           <Stat title="Popust" value={money(popust)} color="text-[#2e2923]" />
         </section>
 
-        <section className="mb-6 grid gap-4 lg:grid-cols-3">
+        <section className="mb-6 grid gap-4 lg:grid-cols-4">
           <Card title="Gost">
             {gostUpozorenje && (
               <div className="mb-4 border border-red-300 bg-red-50 p-3 text-sm font-black text-red-700">
@@ -1346,6 +1519,104 @@ export default async function RezervacijaDetaljPage({
             <Detail label="Odlazak" value={formatDate(rezervacija.datumDo)} />
             <Detail label="Noćenja" value={`${rezervacija.brojNocenja}`} />
             <Detail label="Broj osoba" value={`${rezervacija.brojOsoba}`} />
+          </Card>
+
+          <Card title="TTLock pristup">
+            {rezervacija.jedinica.ttlockBrave.length === 0 ? (
+              <div className="border border-red-300 bg-red-50 p-3 text-sm font-bold text-red-700">
+                Ova jedinica još nema povezane TTLock brave.
+              </div>
+            ) : (
+              <>
+                <form action={spremiTtlockPristup} className="space-y-3">
+                  <input type="hidden" name="rezervacijaId" value={rezervacija.id} />
+
+                  <Field label="Šifra gosta">
+                    <input
+                      name="sifra"
+                      maxLength={4}
+                      defaultValue={ttlockSifra}
+                      className="w-full border border-[#d8c8aa] bg-white px-3 py-3 text-center text-3xl font-black tracking-[0.25em] text-[#2e2923] outline-none"
+                    />
+                  </Field>
+
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <Field label={`Ulaz ${formatDate(rezervacija.datumOd)}`}>
+                      <input
+                        name="ulazVrijeme"
+                        type="time"
+                        defaultValue={formatTime(ttlockUlaz)}
+                        className="w-full border border-[#d8c8aa] bg-white px-3 py-2 text-[#2e2923] outline-none"
+                      />
+                    </Field>
+
+                    <Field label={`Izlaz ${formatDate(rezervacija.datumDo)}`}>
+                      <input
+                        name="izlazVrijeme"
+                        type="time"
+                        defaultValue={formatTime(ttlockIzlaz)}
+                        className="w-full border border-[#d8c8aa] bg-white px-3 py-2 text-[#2e2923] outline-none"
+                      />
+                    </Field>
+                  </div>
+
+                  <button className="cursor-pointer border border-[#caa870] bg-[#c79a57] px-4 py-3 text-sm font-black text-white transition hover:brightness-95">
+                    Spremi šifru i vrijeme
+                  </button>
+                </form>
+
+                <div className="mt-4 border border-[#e2d8c8] bg-[#fcfaf6] p-3">
+                  <div className="mb-2 text-xs font-black uppercase tracking-[0.14em] text-[#7a5a22]">
+                    Brave
+                  </div>
+
+                  <div className="flex flex-wrap gap-2">
+                    {rezervacija.jedinica.ttlockBrave.map((veza) => (
+                      <span
+                        key={veza.id}
+                        className="border border-[#e2d8c8] bg-white px-3 py-2 text-xs font-black text-[#2e2923]"
+                      >
+                        {veza.brava.naziv}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+
+                {rezervacija.ttlockSifre.length > 0 && (
+                  <form action={posaljiTtlockNaBrave} className="mt-4">
+                    <input type="hidden" name="rezervacijaId" value={rezervacija.id} />
+
+                    <button className="w-full cursor-pointer border border-green-700 bg-green-700 px-4 py-3 text-sm font-black text-white hover:brightness-95">
+                      Pošalji šifru na TTLock brave
+                    </button>
+                  </form>
+                )}
+
+                {rezervacija.ttlockSifre.length > 0 && (
+                  <div className="mt-4 space-y-2">
+                    {rezervacija.ttlockSifre.map((s) => (
+                      <div
+                        key={s.id}
+                        className="border border-[#e2d8c8] bg-white p-3 text-xs"
+                      >
+                        <div className="font-black">{s.brava.naziv}</div>
+                        <div className="mt-1 text-[#6f665a]">
+                          {formatDateTime(s.vrijediOd)} - {formatDateTime(s.vrijediDo)}
+                        </div>
+                        <div className="mt-1 font-black text-[#9b6b12]">
+                          Status: {s.status}
+                        </div>
+                        {s.greska && (
+                          <div className="mt-2 bg-red-50 p-2 text-red-700">
+                            {s.greska}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
           </Card>
 
           <Card title="Cijena i status">
@@ -1829,7 +2100,7 @@ export default async function RezervacijaDetaljPage({
                 {rezervacija.promjene.map((p) => {
                   const stari = safeJson(p.stariPodaci);
                   const novi = safeJson(p.noviPodaci);
-
+                  
                   return (
                     <details
                       key={p.id}
