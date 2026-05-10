@@ -181,7 +181,7 @@ export default async function NovaRezervacijaPage(props: {
     if (postojiPreklapanje) {
       console.error("PREKLAPANJE", postojiPreklapanje);
 
-      throw new Error("Termin je već zauzet DEBUG");
+      throw new Error("Termin je već zauzet DEBUG 2");
     }
   
   const params = new URLSearchParams({
