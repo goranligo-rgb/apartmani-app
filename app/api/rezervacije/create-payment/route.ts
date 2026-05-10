@@ -340,6 +340,7 @@ export async function POST(req: Request) {
         status: {
           notIn: ["OTKAZANO", "UPIT"],
         },
+        obrisanoAt: null,
         datumOd: {
           lt: datumDo,
         },
