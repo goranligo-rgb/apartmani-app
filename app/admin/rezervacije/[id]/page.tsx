@@ -1237,7 +1237,7 @@ export default async function RezervacijaDetaljPage({
               </Link>
 
               <h1 className="mt-4 text-4xl font-black">
-                Admin detalj rezervacije
+                Admin detalj rezervacije TEST NOVI
               </h1>
 
               <p className="mt-2 text-[#6f665a]">
