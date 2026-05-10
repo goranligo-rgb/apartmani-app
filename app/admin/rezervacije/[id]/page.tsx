@@ -326,7 +326,7 @@ export default async function RezervacijaDetaljPage({
     gostOznake.includes("KASNI_S_PLACANJEM") ||
     gostOznake.includes("ZAHTJEVAN");
 
-      const ttlockPrva = rezervacija.ttlockSifre?.[0];
+  const ttlockPrva = rezervacija.ttlockSifre?.[0];
 
   const ttlockSifra =
     ttlockPrva?.sifra || generirajSifruIzTelefona(rezervacija.gost?.telefon);
@@ -1181,12 +1181,6 @@ export default async function RezervacijaDetaljPage({
 
     if (!r) {
       throw new Error("Rezervacija nije pronađena.");
-    }
-
-    if (r.izvor !== "ADMIN") {
-      throw new Error(
-        "Brisanje je dopušteno samo za rezervacije unesene ručno u adminu."
-      );
     }
 
     await prisma.rezervacija.update({
@@ -2047,15 +2041,15 @@ export default async function RezervacijaDetaljPage({
           </Card>
 
           <Card title="Povijest promjena">
-            {rezervacija.izvor === "ADMIN" ? (
+            {rezervacija.status !== "OBRISANO" ? (
               <div className="mb-5 border-2 border-red-300 bg-red-50 p-4 text-red-800">
                 <div className="text-xs font-black uppercase tracking-[0.16em]">
-                  Brisanje ručno unesene rezervacije
+                  Brisanje / arhiviranje rezervacije
                 </div>
 
                 <p className="mt-2 text-sm">
-                  Ova rezervacija je unesena ručno u adminu. Može se trajno
-                  obrisati ako je krivo unesena ili testna.
+                  Ova rezervacija će biti označena kao obrisana, termin će se osloboditi,
+                  a zapis ostaje u povijesti promjena.
                 </p>
 
                 <form
@@ -2086,11 +2080,6 @@ export default async function RezervacijaDetaljPage({
                   </button>
                 </form>
               </div>
-            ) : (
-              <div className="mb-5 border border-[#ead7b6] bg-[#fff9ef] p-4 text-sm font-bold text-[#7a5a22]">
-                Brisanje nije dostupno za rezervacije koje su došle preko weba
-                ili Bookinga.
-              </div>
             )}
 
             {rezervacija.promjene.length === 0 ? (
@@ -2100,7 +2089,7 @@ export default async function RezervacijaDetaljPage({
                 {rezervacija.promjene.map((p) => {
                   const stari = safeJson(p.stariPodaci);
                   const novi = safeJson(p.noviPodaci);
-                  
+
                   return (
                     <details
                       key={p.id}
