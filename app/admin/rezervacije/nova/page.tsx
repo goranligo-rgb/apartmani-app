@@ -435,8 +435,9 @@ export default async function NovaAdminRezervacijaPage({
       where: {
         jedinicaId: jedinica.id,
         status: {
-          notIn: ["OTKAZANO"],
+          not: "OTKAZANO",
         },
+        obrisanoAt: null,
         datumOd: {
           lt: kalendarDo,
         },
@@ -497,8 +498,9 @@ export default async function NovaAdminRezervacijaPage({
         where: {
           jedinicaId: jedinica.id,
           status: {
-            notIn: ["OTKAZANO"],
+            not: "OTKAZANO",
           },
+          obrisanoAt: null,
           datumOd: {
             lt: odabraniDo,
           },
@@ -591,8 +593,9 @@ export default async function NovaAdminRezervacijaPage({
       where: {
         jedinicaId,
         status: {
-          notIn: ["OTKAZANO"],
+          not: "OTKAZANO",
         },
+        obrisanoAt: null,
         datumOd: {
           lt: datumDo,
         },

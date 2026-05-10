@@ -76,6 +76,7 @@ export default async function KalendarPage(props: {
           status: {
             not: "OTKAZANO",
           },
+          obrisanoAt: null,
         },
         include: {
           gost: true,
