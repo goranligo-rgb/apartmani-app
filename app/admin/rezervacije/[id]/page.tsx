@@ -1237,7 +1237,7 @@ export default async function RezervacijaDetaljPage({
               </Link>
 
               <h1 className="mt-4 text-4xl font-black">
-                Admin detalj rezervacije TEST NOVI
+                Admin detalj rezervacije
               </h1>
 
               <p className="mt-2 text-[#6f665a]">
@@ -1318,39 +1318,6 @@ export default async function RezervacijaDetaljPage({
               <p className="mt-2 text-sm font-bold">
                 Rezervacija je potvrđena.
               </p>
-            </div>
-          )}
-          {rezervacija.status !== "OBRISANO" && (
-            <div className="mt-5 border-2 border-red-300 bg-red-50 p-4 text-red-800">
-              <div className="text-xs font-black uppercase tracking-[0.16em]">
-                BRISANJE / ARHIVIRANJE REZERVACIJE
-              </div>
-
-              <p className="mt-2 text-sm">
-                Rezervacija će biti označena kao obrisana, termin će se osloboditi,
-                a zapis ostaje u povijesti promjena.
-              </p>
-
-              <form action={obrisiAdminRezervaciju} className="mt-4 space-y-3">
-                <input type="hidden" name="rezervacijaId" value={rezervacija.id} />
-
-                <label className="block">
-                  <div className="mb-1 text-xs font-black uppercase tracking-[0.14em]">
-                    Za potvrdu upiši: OBRIŠI
-                  </div>
-
-                  <input
-                    name="potvrdaBrisanja"
-                    required
-                    placeholder="OBRIŠI"
-                    className="w-full border border-red-300 bg-white px-3 py-2 font-black text-red-900 outline-none"
-                  />
-                </label>
-
-                <button className="cursor-pointer border border-red-700 bg-red-700 px-4 py-3 text-sm font-black text-white hover:brightness-95">
-                  Obriši rezervaciju
-                </button>
-              </form>
             </div>
           )}
         </div>
