@@ -183,7 +183,7 @@ export default async function NovaRezervacijaPage(props: {
 
       throw new Error("Termin je već zauzet DEBUG");
     }
-  }
+  
   const params = new URLSearchParams({
     jedinicaId,
     ime,
