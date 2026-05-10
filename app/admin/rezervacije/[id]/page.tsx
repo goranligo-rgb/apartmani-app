@@ -239,9 +239,10 @@ async function osvjeziStatusPlacanja(rezervacijaId: string) {
   await prisma.rezervacija.update({
     where: { id: rezervacijaId },
     data: {
-      iznosPlaceno: placeno,
-      iznosOstatka: ostatak,
-      status: noviStatus,
+      statusPrijeBrisanja: r.status,
+      status: "OTKAZANO",
+      obrisanoAt: new Date(),
+      obrisaoKorisnik: "Admin",
     },
   });
 }
@@ -1202,7 +1203,8 @@ export default async function RezervacijaDetaljPage({
           status: r.status,
         }),
         noviPodaci: JSON.stringify({
-          status: "OBRISANO",
+          status: "OTKAZANO",
+          oznacenoKaoObrisano: true,
         }),
         korisnikIme: "Admin",
       },
