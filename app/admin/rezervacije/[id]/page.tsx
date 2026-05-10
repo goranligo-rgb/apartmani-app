@@ -239,10 +239,9 @@ async function osvjeziStatusPlacanja(rezervacijaId: string) {
   await prisma.rezervacija.update({
     where: { id: rezervacijaId },
     data: {
-      statusPrijeBrisanja: rezervacija.status,
-      status: "OTKAZANO",
-      obrisanoAt: new Date(),
-      obrisaoKorisnik: "Admin",
+      iznosPlaceno: placeno,
+      iznosOstatka: ostatak,
+      status: noviStatus,
     },
   });
 }
@@ -1865,12 +1864,16 @@ export default async function RezervacijaDetaljPage({
                       p.status !== "PLACENO" &&
                       rezervacija.status === "CEKA_POTVRDU" && (
                         <div className="mt-3 flex flex-wrap gap-2">
-                          <Link
-                            href={`/api/admin/placanja/potvrdi-link?placanjeId=${p.id}`}
-                            className="inline-block cursor-pointer border border-green-700 bg-green-700 px-4 py-2 text-xs font-black text-white hover:brightness-95"
-                          >
-                            ✅ Provjeri uplatu i potvrdi
-                          </Link>
+                          <form action="/api/admin/placanja/potvrdi-link" method="POST">
+                            <input type="hidden" name="placanjeId" value={p.id} />
+
+                            <button
+                              type="submit"
+                              className="cursor-pointer border border-green-700 bg-green-700 px-4 py-2 text-xs font-black text-white hover:brightness-95"
+                            >
+                              ✅ Provjeri uplatu i potvrdi
+                            </button>
+                          </form>
 
                           <form action={odbijRezervaciju}>
                             <input type="hidden" name="rezervacijaId" value={rezervacija.id} />
