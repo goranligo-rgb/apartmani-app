@@ -165,7 +165,7 @@ export default async function NovaRezervacijaPage(props: {
       where: {
         jedinicaId,
         status: {
-          not: "OTKAZANO",
+          notIn: ["OTKAZANO", "OBRISANO"],
         },
         datumOd: {
           lt: doDatuma,
