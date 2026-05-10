@@ -801,7 +801,7 @@ model RezervacijaTtlockSifra {
   vrijediOd DateTime
   vrijediDo DateTime
 
-  status String @default("CEKA")
+  status TtlockStatusSifre @default(CEKA)
   greska String?
 
   ttlockKeyboardPwdId String?
