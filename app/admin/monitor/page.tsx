@@ -143,7 +143,7 @@ export default async function AdminMonitorPage({
 
   const rezervacije = await prisma.rezervacija.findMany({
     where: {
-      status: { not: "OTKAZANO" },
+       notIn: ["OTKAZANO", "OBRISANO"],
       datumOd: { lt: kalendarDo },
       datumDo: { gt: kalendarOd },
       ...(selectedJedinicaIds.length > 0

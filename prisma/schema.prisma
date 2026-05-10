@@ -801,26 +801,24 @@ model RezervacijaTtlockSifra {
   vrijediOd DateTime
   vrijediDo DateTime
 
-  status TtlockStatusSifre @default(CEKA)
+  status String @default("CEKA")
+  greska String?
 
   ttlockKeyboardPwdId String?
-  greska              String?
 
-  poslanaGostu Boolean   @default(false)
+  poslanaGostu Boolean @default(false)
   poslanaAt    DateTime?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   rezervacija Rezervacija @relation(fields: [rezervacijaId], references: [id], onDelete: Cascade)
-  brava       TtlockBrava @relation(fields: [bravaId], references: [id], onDelete: Cascade)
+  brava       TtlockBrava  @relation(fields: [bravaId], references: [id], onDelete: Cascade)
 
   @@unique([rezervacijaId, bravaId])
   @@index([rezervacijaId])
   @@index([bravaId])
   @@index([status])
-  @@index([vrijediOd])
-  @@index([vrijediDo])
 }
 
 enum TtlockTipOsobe {
