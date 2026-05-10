@@ -2080,7 +2080,7 @@ export default async function RezervacijaDetaljPage({
                   </button>
                 </form>
               </div>
-            )}
+            ) : null}
 
             {rezervacija.promjene.length === 0 ? (
               <Empty text="Nema promjena." />
