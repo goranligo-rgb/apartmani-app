@@ -105,10 +105,26 @@ function mailWrapper({
   `;
 }
 
-export async function GET(req: Request) {
+export async function GET() {
+    return NextResponse.json(
+        { error: "Potvrda naplate ne smije ići preko GET metode." },
+        { status: 405 }
+    );
+}
+
+export async function POST(req: Request) {
     try {
-        const { searchParams } = new URL(req.url);
-        const placanjeId = searchParams.get("placanjeId");
+        let placanjeId = "";
+
+        const contentType = req.headers.get("content-type") || "";
+
+        if (contentType.includes("application/json")) {
+            const body = await req.json();
+            placanjeId = String(body.placanjeId || "");
+        } else {
+            const formData = await req.formData();
+            placanjeId = String(formData.get("placanjeId") || "");
+        }
 
         if (!placanjeId) {
             return NextResponse.json(
