@@ -145,26 +145,27 @@ export default async function AdminMonitorPage({
     where: {
       status: {
         notIn: ["OTKAZANO", "OBRISANO"],
-        datumOd: { lt: kalendarDo },
-        datumDo: { gt: kalendarOd },
-        ...(selectedJedinicaIds.length > 0
-          ? {
-            jedinicaId: {
-              in: selectedJedinicaIds,
-            },
-          }
-          : {}),
       },
-      include: {
-        gost: true,
-        jedinica: {
-          include: {
-            objekt: true,
+      datumOd: { lt: kalendarDo },
+      datumDo: { gt: kalendarOd },
+      ...(selectedJedinicaIds.length > 0
+        ? {
+          jedinicaId: {
+            in: selectedJedinicaIds,
           },
+        }
+        : {}),
+    },
+    include: {
+      gost: true,
+      jedinica: {
+        include: {
+          objekt: true,
         },
       },
-      orderBy: [{ datumOd: "asc" }, { datumDo: "asc" }],
-    });
+    },
+    orderBy: [{ datumOd: "asc" }, { datumDo: "asc" }],
+  });
 
   const detaljRezervacije = params.rezervacijaId
     ? await prisma.rezervacija.findUnique({
