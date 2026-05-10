@@ -139,7 +139,7 @@ function isDayOccupied(dayIso: string, rezervacije: RezervacijaItem[]) {
   const current = parseIsoDate(dayIso);
 
   return rezervacije.find((r) => {
-    if (["OTKAZANO", "OBRISANO"].includes(r.status)) return false;
+    if (r.status === "OTKAZANO") return false;
 
     const start = parseIsoDate(r.datumOd);
     const end = parseIsoDate(r.datumDo);
@@ -152,7 +152,7 @@ function isCheckoutDay(dayIso: string, rezervacije: RezervacijaItem[]) {
   const current = parseIsoDate(dayIso);
 
   return rezervacije.find((r) => {
-    if (["OTKAZANO", "OBRISANO"].includes(r.status)) return false;
+    if (r.status === "OTKAZANO") return false;
 
     const end = parseIsoDate(r.datumDo);
 

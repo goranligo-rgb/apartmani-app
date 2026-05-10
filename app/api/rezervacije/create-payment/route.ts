@@ -338,7 +338,7 @@ export async function POST(req: Request) {
       where: {
         jedinicaId,
         status: {
-          notIn: ["OTKAZANO", "OBRISANO", "UPIT"],
+          notIn: ["OTKAZANO", "UPIT"],
         },
         datumOd: {
           lt: datumDo,

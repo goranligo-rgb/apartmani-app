@@ -1188,7 +1188,7 @@ export default async function RezervacijaDetaljPage({
       where: { id: rezervacijaId },
       data: {
         statusPrijeBrisanja: r.status,
-        status: "OBRISANO",
+        status: "OTKAZANO",
         obrisanoAt: new Date(),
         obrisaoKorisnik: "Admin",
       },
@@ -2043,7 +2043,7 @@ export default async function RezervacijaDetaljPage({
           </Card>
 
           <Card title="Povijest promjena">
-            {rezervacija.status !== "OBRISANO" ? (
+            {rezervacija.status !== "OTKAZANO" ? (
               <div className="mb-5 border-2 border-red-300 bg-red-50 p-4 text-red-800">
                 <div className="text-xs font-black uppercase tracking-[0.16em]">
                   BRISANJE / ARHIVIRANJE  REZERVACIJE
