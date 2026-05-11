@@ -1578,13 +1578,27 @@ export default async function RezervacijaDetaljPage({
                 </div>
 
                 {rezervacija.ttlockSifre.length > 0 && (
-                  <form action={posaljiTtlockNaBrave} className="mt-4">
-                    <input type="hidden" name="rezervacijaId" value={rezervacija.id} />
+                  <>
+                    <form action={posaljiTtlockNaBrave} className="mt-4">
+                      <input type="hidden" name="rezervacijaId" value={rezervacija.id} />
 
-                    <button className="w-full cursor-pointer border border-green-700 bg-green-700 px-4 py-3 text-sm font-black text-white hover:brightness-95">
-                      Pošalji šifru na TTLock brave
-                    </button>
-                  </form>
+                      <button className="w-full cursor-pointer border border-green-700 bg-green-700 px-4 py-3 text-sm font-black text-white hover:brightness-95">
+                        Pošalji šifru na TTLock brave
+                      </button>
+                    </form>
+
+                    {rezervacija.ttlockSifre.some((x) => x.status === "POSLANO") && (
+                      <div className="mt-4 border-2 border-green-300 bg-green-50 p-4 text-sm font-black text-green-800">
+                        ✅ Šifra je uspješno poslana na TTLock brave.
+                      </div>
+                    )}
+
+                    {rezervacija.ttlockSifre.some((x) => x.status === "GRESKA") && (
+                      <div className="mt-4 border-2 border-red-300 bg-red-50 p-4 text-sm font-black text-red-800">
+                        ❌ Došlo je do greške kod slanja TTLock šifre.
+                      </div>
+                    )}
+                  </>
                 )}
 
                 {rezervacija.ttlockSifre.length > 0 && (

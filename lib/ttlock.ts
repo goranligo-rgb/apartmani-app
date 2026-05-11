@@ -6,20 +6,13 @@ function md5(value: string) {
   return crypto.createHash("md5").update(value).digest("hex");
 }
 
-function getEnv(name: string) {
+function env(name: string) {
   const value = process.env[name];
-
-  if (!value) {
-    throw new Error(`Missing env: ${name}`);
-  }
-
+  if (!value) throw new Error(`Nedostaje ENV: ${name}`);
   return value;
 }
 
-async function postForm(
-  path: string,
-  data: Record<string, string | number>
-) {
+async function postForm(path: string, data: Record<string, string | number>) {
   const body = new URLSearchParams();
 
   for (const [key, value] of Object.entries(data)) {
@@ -38,7 +31,7 @@ async function postForm(
   const json = await res.json();
 
   if (!res.ok || json.errcode) {
-    throw new Error(json.errmsg || "TTLock API greška");
+    throw new Error(json.errmsg || JSON.stringify(json));
   }
 
   return json;
@@ -46,10 +39,10 @@ async function postForm(
 
 export async function getTtlockAccessToken() {
   const json = await postForm("/oauth2/token", {
-    client_id: getEnv("TTLOCK_CLIENT_ID"),
-    client_secret: getEnv("TTLOCK_CLIENT_SECRET"),
-    username: getEnv("TTLOCK_USERNAME"),
-    password: md5(getEnv("TTLOCK_PASSWORD")),
+    client_id: env("TTLOCK_CLIENT_ID"),
+    client_secret: env("TTLOCK_CLIENT_SECRET"),
+    username: env("TTLOCK_USERNAME"),
+    password: md5(env("TTLOCK_PASSWORD")),
   });
 
   return String(json.access_token);
@@ -64,8 +57,8 @@ export async function dodajTtlockSifru(params: {
 }) {
   const accessToken = await getTtlockAccessToken();
 
-  return await postForm("/v3/keyboardPwd/add", {
-    clientId: getEnv("TTLOCK_CLIENT_ID"),
+  return postForm("/v3/keyboardPwd/add", {
+    clientId: env("TTLOCK_CLIENT_ID"),
     accessToken,
     lockId: Number(params.lockId),
     keyboardPwd: params.sifra,
