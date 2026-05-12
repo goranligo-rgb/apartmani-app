@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import Link from "next/link";
 
 export const dynamic = "force-dynamic";
 
@@ -170,8 +171,8 @@ export default async function PlanCiscenjaPdfPage({
 
     const sljedeciUlazak = sljedecaRezervacija
       ? `${formatDatum(sljedecaRezervacija.datumOd)} — ${guestName(
-          sljedecaRezervacija.gost
-        )}`
+        sljedecaRezervacija.gost
+      )}`
       : "Nema najavljenog ulaska";
 
     planItems.push({
@@ -268,9 +269,9 @@ export default async function PlanCiscenjaPdfPage({
   return (
     <main>
       <div className="no-print" style={toolbarStyle}>
-        <a href="/admin/ciscenje" style={backStyle}>
+        <Link href="/admin/ciscenje" style={backStyle}>
           ← Natrag
-        </a>
+        </Link>
 
         <button
           type="button"
@@ -290,6 +291,18 @@ export default async function PlanCiscenjaPdfPage({
               }, 500);
             });
           `,
+        }}
+      />
+
+      <script
+        dangerouslySetInnerHTML={{
+          __html: `
+      window.addEventListener('load', function () {
+        setTimeout(function () {
+          window.print();
+        }, 500);
+      });
+    `,
         }}
       />
 
