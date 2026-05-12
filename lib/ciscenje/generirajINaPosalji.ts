@@ -49,7 +49,11 @@ function escapeHtml(value: any) {
     .replaceAll("'", "&#039;");
 }
 
-async function findNextReservation(jedinicaId: string, currentReservationId: string, datumDo: Date) {
+async function findNextReservation(
+  jedinicaId: string,
+  currentReservationId: string,
+  datumDo: Date
+) {
   return prisma.rezervacija.findFirst({
     where: {
       id: {
@@ -77,11 +81,11 @@ async function findOrCreateZadatak(data: {
   rezervacijaId?: string | null;
   datum: Date;
   tip:
-  | "ZAVRSNO_CISCENJE"
-  | "MEDJUCISCENJE"
-  | "PROMJENA_POSTELJINE"
-  | "MEDJUCISCENJE_I_POSTELJINA"
-  | "DODATNO_CISCENJE";
+    | "ZAVRSNO_CISCENJE"
+    | "MEDJUCISCENJE"
+    | "PROMJENA_POSTELJINE"
+    | "MEDJUCISCENJE_I_POSTELJINA"
+    | "DODATNO_CISCENJE";
   naslov: string;
   opis: string;
   prioritet?: boolean;
@@ -120,13 +124,12 @@ export async function generirajINaPosalji() {
       error: "Molimo prije slanja upišite email agencije za čišćenje.",
     };
   }
-  
+
   if (!postavke) throw new Error("Nisu spremljene postavke čišćenja");
 
   const danas = startOfDay(new Date());
   const doDatuma = addDays(danas, postavke.brojDanaUnaprijed || 7);
 
-  // 1. Završna čišćenja - rezervacije koje završavaju u periodu
   const rezervacijeZaOdlazak = await prisma.rezervacija.findMany({
     where: {
       status: {
@@ -159,8 +162,8 @@ export async function generirajINaPosalji() {
 
       const sljedeciUlazak = sljedecaRezervacija
         ? `${formatDate(sljedecaRezervacija.datumOd)} — ${guestName(
-          sljedecaRezervacija.gost
-        )}`
+            sljedecaRezervacija.gost
+          )}`
         : "Nema najavljenog ulaska";
 
       const opis =
@@ -187,6 +190,7 @@ export async function generirajINaPosalji() {
         nazivObjekta: r.jedinica.objekt.naziv,
         gost: guestName(r.gost),
         brojGostiju: r.brojOsoba || 0,
+        osnovniKapacitet: r.jedinica.osnovniKapacitet || 0,
         opis: "Završno čišćenje nakon odlaska gosta.",
         sljedeciUlazak,
         cijena: 0,
@@ -194,8 +198,6 @@ export async function generirajINaPosalji() {
     })
   );
 
-  // 2. Međučisćenja za boravke duže od 7 noći
-  // Ako je gost duže od 7 noći, radimo jedan zadatak na sredini boravka.
   const duzeRezervacije = await prisma.rezervacija.findMany({
     where: {
       status: {
@@ -265,6 +267,7 @@ export async function generirajINaPosalji() {
       nazivObjekta: r.jedinica.objekt.naziv,
       gost: guestName(r.gost),
       brojGostiju: r.brojOsoba || 0,
+      osnovniKapacitet: r.jedinica.osnovniKapacitet || 0,
       opis:
         "Međučisćenje na sredini boravka: očistiti apartman/kuću, promijeniti posteljinu i ostaviti nove ručnike.",
       sljedeciUlazak: "Gost ostaje u smještaju",
@@ -272,7 +275,6 @@ export async function generirajINaPosalji() {
     });
   }
 
-  // 3. Marty bazen / okoliš
   const prvaJedinica = await prisma.jedinica.findFirst({
     where: {
       objekt: {
@@ -314,6 +316,7 @@ export async function generirajINaPosalji() {
           nazivObjekta: prvaJedinica.objekt.naziv,
           gost: "-",
           brojGostiju: 0,
+          osnovniKapacitet: 0,
           opis,
           sljedeciUlazak: "-",
           cijena: 0,
@@ -368,56 +371,100 @@ export async function generirajINaPosalji() {
 
   const ccList = agencija.ccEmails
     ? agencija.ccEmails
-      .split(",")
-      .map((e) => e.trim())
-      .filter(Boolean)
+        .split(",")
+        .map((e) => e.trim())
+        .filter(Boolean)
     : [];
 
-  const html = `
-    <div style="font-family: Arial, sans-serif; color:#222;">
-      <h2>Raspored čišćenja - Malinska Stay</h2>
+  function dodatnaPosteljinaText(s: any) {
+    const brojGostiju = Number(s.brojGostiju || 0);
+    const osnovniKapacitet = Number(s.osnovniKapacitet || 0);
+    const dodatnoOsoba = Math.max(0, brojGostiju - osnovniKapacitet);
 
-      <p>
+    if (dodatnoOsoba <= 0) return "-";
+    if (dodatnoOsoba === 1) return "1 dodatna posteljina + ručnici";
+    if (dodatnoOsoba === 2) return "2 dodatne posteljine + ručnici";
+
+    return `${dodatnoOsoba} dodatne posteljine + ručnici`;
+  }
+
+  const html = `
+  <div style="font-family: Calibri, Segoe UI, Arial, sans-serif; color:#111; background:#f5f6f7; padding:24px;">
+    <div style="background:white; border:1px solid #ddd; padding:20px;">
+      <h2 style="margin:0; font-size:26px; font-weight:900; color:#111;">
+        Plan čišćenja - Malinska Stay
+      </h2>
+
+      <p style="margin:8px 0 18px; color:#555; font-size:15px;">
         Period:
         <b>${formatDate(narudzba.datumOd)}</b>
         –
         <b>${formatDate(narudzba.datumDo)}</b>
       </p>
 
-      <table border="1" cellpadding="8" cellspacing="0" style="border-collapse: collapse; width: 100%; font-size:14px;">
-        <tr style="background:#f2f2f2;">
-          <th align="left">Datum</th>
-          <th align="left">Objekt</th>
-          <th align="left">Jedinica</th>
-          <th align="left">Gost</th>
-          <th align="left">Broj gostiju</th>
-          <th align="left">Opis</th>
-          <th align="left">Sljedeći ulazak</th>
+      <table cellpadding="8" cellspacing="0" style="border-collapse: collapse; width:100%; font-size:13px; background:white;">
+        <tr style="background:#e9ecef;">
+          <th align="left" style="border:1px solid #999;">Datum odlaska</th>
+          <th align="left" style="border:1px solid #999;">Objekt</th>
+          <th align="left" style="border:1px solid #999;">Jedinica</th>
+          <th align="left" style="border:1px solid #999;">Gost</th>
+          <th align="left" style="border:1px solid #999; background:#d1fae5;">Broj gostiju</th>
+          <th align="left" style="border:1px solid #999;">Opis</th>
+          <th align="left" style="border:1px solid #999; background:#d1fae5;">Sljedeći ulazak</th>
+          <th align="left" style="border:1px solid #999; background:#fff3cd;">Napomena</th>
         </tr>
 
         ${sveStavkeZaMail
-      .map(
-        (s) => `
-              <tr>
-                <td>${escapeHtml(formatDate(s.datum))}</td>
-                <td>${escapeHtml(s.nazivObjekta || "")}</td>
-                <td>${escapeHtml(s.nazivJedinice)}</td>
-                <td>${escapeHtml(s.gost || "-")}</td>
-                <td>${s.brojGostiju && s.brojGostiju > 0 ? s.brojGostiju : "-"}</td>
-                <td>${escapeHtml(s.opis || "")}</td>
-                <td><b>${escapeHtml(s.sljedeciUlazak || "-")}</b></td>
+          .map((s) => {
+            const smjenaIstiDan =
+              String(s.opis || "").toUpperCase().includes("BRZI") ||
+              String(s.opis || "").toUpperCase().includes("ISTI DAN");
+
+            const napomena = dodatnaPosteljinaText(s);
+
+            return `
+              <tr style="${smjenaIstiDan ? "background:#fff1f1;" : ""}">
+                <td style="border:1px solid #ccc; vertical-align:top;">${escapeHtml(
+                  formatDate(s.datum)
+                )}</td>
+                <td style="border:1px solid #ccc; vertical-align:top;">${escapeHtml(
+                  s.nazivObjekta || ""
+                )}</td>
+                <td style="border:1px solid #ccc; vertical-align:top;">${escapeHtml(
+                  s.nazivJedinice
+                )}</td>
+                <td style="border:1px solid #ccc; vertical-align:top;">${escapeHtml(
+                  s.gost || "-"
+                )}</td>
+                <td style="border:1px solid #999; vertical-align:top; font-weight:900; background:#f0fdf4;">
+                  ${s.brojGostiju && s.brojGostiju > 0 ? s.brojGostiju : "-"}
+                </td>
+                <td style="border:1px solid #ccc; vertical-align:top;">
+                  ${
+                    smjenaIstiDan
+                      ? `<span style="display:inline-block; background:#b42318; color:white; padding:4px 6px; font-size:11px; font-weight:900;">SMJENA ISTI DAN</span>`
+                      : escapeHtml(s.opis || "")
+                  }
+                </td>
+                <td style="border:1px solid #999; vertical-align:top; font-weight:900; background:#f0fdf4;">
+                  ${escapeHtml(s.sljedeciUlazak || "-")}
+                </td>
+                <td style="border:1px solid #999; vertical-align:top; font-weight:900; background:#fffdf0;">
+                  ${escapeHtml(napomena)}
+                </td>
               </tr>
-            `
-      )
-      .join("")}
+            `;
+          })
+          .join("")}
       </table>
 
-      <p style="margin-top:20px;">
+      <p style="margin-top:20px; font-size:14px;">
         Lijep pozdrav,<br/>
-        Malinska Stay
+        <b>Malinska Stay</b>
       </p>
     </div>
-  `;
+  </div>
+`;
 
   await resend.emails.send({
     from: "Malinska Stay <rezervacije@malinska-stay.hr>",
