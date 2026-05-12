@@ -1,6 +1,6 @@
 "use client";
 
-import SmartCalendar from "../../../components/calendar/SmartCalendar";
+import SmartCalendar from "@/components/calendar/SmartCalendar";
 
 export default function Page() {
   const rezervacije = [
