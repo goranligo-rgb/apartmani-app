@@ -161,13 +161,11 @@ export async function generirajINaPosalji() {
       );
 
       const sljedeciUlazak = sljedecaRezervacija
-        ? `${formatDate(sljedecaRezervacija.datumOd)} — ${guestName(
-            sljedecaRezervacija.gost
-          )}`
+        ? `${formatDate(sljedecaRezervacija.datumOd)}`
         : "Nema najavljenog ulaska";
 
       const opis =
-        `Završno čišćenje nakon odlaska gosta: ${guestName(r.gost)}. ` +
+        `Završno čišćenje nakon odlaska gosta. ` +
         `Broj gostiju: ${r.brojOsoba || 0}. ` +
         `Sljedeći ulazak: ${sljedeciUlazak}.`;
 
@@ -188,7 +186,6 @@ export async function generirajINaPosalji() {
         zadatakId: zadatak.id,
         nazivJedinice: r.jedinica.naziv,
         nazivObjekta: r.jedinica.objekt.naziv,
-        gost: guestName(r.gost),
         brojGostiju: r.brojOsoba || 0,
         osnovniKapacitet: r.jedinica.osnovniKapacitet || 0,
         opis: "Završno čišćenje nakon odlaska gosta.",
@@ -246,7 +243,7 @@ export async function generirajINaPosalji() {
     const opis =
       `Gost ostaje dulje od 7 noći. Potrebno je očistiti smještaj, ` +
       `promijeniti posteljinu i ostaviti nove ručnike. ` +
-      `Gost: ${guestName(r.gost)}. Broj gostiju: ${r.brojOsoba || 0}.`;
+      `Broj gostiju: ${r.brojOsoba || 0}.`;
 
     const zadatak = await findOrCreateZadatak({
       jedinicaId: r.jedinicaId,
@@ -265,7 +262,6 @@ export async function generirajINaPosalji() {
       zadatakId: zadatak.id,
       nazivJedinice: r.jedinica.naziv,
       nazivObjekta: r.jedinica.objekt.naziv,
-      gost: guestName(r.gost),
       brojGostiju: r.brojOsoba || 0,
       osnovniKapacitet: r.jedinica.osnovniKapacitet || 0,
       opis:
@@ -314,7 +310,6 @@ export async function generirajINaPosalji() {
           zadatakId: zadatak.id,
           nazivJedinice: "Marty bazen / okoliš",
           nazivObjekta: prvaJedinica.objekt.naziv,
-          gost: "-",
           brojGostiju: 0,
           osnovniKapacitet: 0,
           opis,
@@ -349,7 +344,7 @@ export async function generirajINaPosalji() {
     nazivObjekta: s.nazivObjekta,
     opis:
       s.brojGostiju && s.brojGostiju > 0
-        ? `${s.opis} | Gost: ${s.gost} | Broj gostiju: ${s.brojGostiju} | Sljedeći ulazak: ${s.sljedeciUlazak}`
+        ? `${s.opis} | Broj gostiju: ${s.brojGostiju} | Sljedeći ulazak: ${s.sljedeciUlazak}`
         : `${s.opis} | Sljedeći ulazak: ${s.sljedeciUlazak}`,
     cijena: s.cijena,
   }));
@@ -407,7 +402,6 @@ export async function generirajINaPosalji() {
           <th align="left" style="border:1px solid #999;">Datum odlaska</th>
           <th align="left" style="border:1px solid #999;">Objekt</th>
           <th align="left" style="border:1px solid #999;">Jedinica</th>
-          <th align="left" style="border:1px solid #999;">Gost</th>
           <th align="left" style="border:1px solid #999; background:#d1fae5;">Broj gostiju</th>
           <th align="left" style="border:1px solid #999;">Opis</th>
           <th align="left" style="border:1px solid #999; background:#d1fae5;">Sljedeći ulazak</th>
@@ -417,8 +411,10 @@ export async function generirajINaPosalji() {
         ${sveStavkeZaMail
           .map((s) => {
             const smjenaIstiDan =
-              String(s.opis || "").toUpperCase().includes("BRZI") ||
-              String(s.opis || "").toUpperCase().includes("ISTI DAN");
+              s.sljedeciUlazak &&
+              s.sljedeciUlazak !== "-" &&
+              !String(s.sljedeciUlazak).includes("Nema") &&
+              String(s.sljedeciUlazak).includes(formatDate(s.datum));
 
             const napomena = dodatnaPosteljinaText(s);
 
@@ -433,17 +429,15 @@ export async function generirajINaPosalji() {
                 <td style="border:1px solid #ccc; vertical-align:top;">${escapeHtml(
                   s.nazivJedinice
                 )}</td>
-                <td style="border:1px solid #ccc; vertical-align:top;">${escapeHtml(
-                  s.gost || "-"
-                )}</td>
                 <td style="border:1px solid #999; vertical-align:top; font-weight:900; background:#f0fdf4;">
                   ${s.brojGostiju && s.brojGostiju > 0 ? s.brojGostiju : "-"}
                 </td>
                 <td style="border:1px solid #ccc; vertical-align:top;">
+                  ${escapeHtml(s.opis || "")}
                   ${
                     smjenaIstiDan
-                      ? `<span style="display:inline-block; background:#b42318; color:white; padding:4px 6px; font-size:11px; font-weight:900;">SMJENA ISTI DAN</span>`
-                      : escapeHtml(s.opis || "")
+                      ? `<div style="margin-top:6px; color:#b42318; font-weight:900; font-size:13px;">SMJENA ISTI DAN</div>`
+                      : ""
                   }
                 </td>
                 <td style="border:1px solid #999; vertical-align:top; font-weight:900; background:#f0fdf4;">
