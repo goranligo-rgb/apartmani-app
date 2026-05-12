@@ -258,7 +258,7 @@ export default function CjenikClient({ jedinice }: { jedinice: JedinicaItem[] })
       setMinimalniBoravak("2");
       setBojaPerioda("ZELENA");
 
-      router.refresh();
+      window.location.reload();
     } catch {
       setError("Došlo je do greške kod spremanja.");
     } finally {
@@ -289,7 +289,7 @@ export default function CjenikClient({ jedinice }: { jedinice: JedinicaItem[] })
     }
 
     setMessage("Cjenik je obrisan.");
-    router.refresh();
+    window.location.reload();
   }
 
   function cellStyle(dayIso: string) {
