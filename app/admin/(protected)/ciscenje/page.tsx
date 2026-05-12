@@ -600,6 +600,7 @@ export default async function CiscenjeAdminPage({
                 <Link
                   href={`/admin/ciscenje/pdf?dana=${brojDanaZaPlan}`}
                   target="_blank"
+                  rel="noopener noreferrer"
                   style={{
                     ...smallButtonStyle,
                     background: "#0f5132",

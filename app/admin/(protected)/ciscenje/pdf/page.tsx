@@ -293,19 +293,7 @@ export default async function PlanCiscenjaPdfPage({
           `,
         }}
       />
-
-      <script
-        dangerouslySetInnerHTML={{
-          __html: `
-      window.addEventListener('load', function () {
-        setTimeout(function () {
-          window.print();
-        }, 500);
-      });
-    `,
-        }}
-      />
-
+     
       <section style={headerStyle}>
         <div>
           <h1 style={titleStyle}>Plan čišćenja</h1>
