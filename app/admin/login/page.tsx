@@ -1,35 +1,17 @@
-"use client";
+export const dynamic = "force-dynamic";
 
 import Link from "next/link";
 
-export default function AdminLoginPage() {
-  const router = useRouter();
+type SearchParams = Promise<{
+  error?: string;
+}>;
 
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
-
-  async function handleLogin(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    setError("");
-
-    const formData = new FormData();
-    formData.append("username", username);
-    formData.append("password", password);
-
-    const res = await fetch("/api/admin/login", {
-      method: "POST",
-      body: formData,
-      credentials: "include",
-    });
-
-    if (!res.ok && res.redirected === false) {
-      setError("Neispravno korisničko ime ili lozinka.");
-      return;
-    }
-
-    window.location.href = "/admin";
-  }
+export default async function AdminLoginPage({
+  searchParams,
+}: {
+  searchParams: SearchParams;
+}) {
+  const params = await searchParams;
 
   return (
     <main
@@ -41,7 +23,10 @@ export default function AdminLoginPage() {
       }}
     >
       <div className="w-full max-w-md border border-white/80 bg-white p-6 shadow-[0_18px_45px_rgba(0,0,0,0.12)]">
-        <Link href="/" className="mb-4 inline-block text-sm font-bold text-[#9b6b12]">
+        <Link
+          href="/"
+          className="mb-4 inline-block text-sm font-bold text-[#9b6b12]"
+        >
           ← Povratak na web
         </Link>
 
@@ -57,9 +42,9 @@ export default function AdminLoginPage() {
           Unesite korisničko ime i lozinku za administraciju.
         </p>
 
-        {error && (
+        {params.error && (
           <div className="mt-4 border border-[#f0c3c1] bg-[#f8d7da] p-3 text-sm font-bold text-[#8a2d2b]">
-            {error}
+            Neispravno korisničko ime ili lozinka.
           </div>
         )}
 
@@ -69,8 +54,7 @@ export default function AdminLoginPage() {
               Korisničko ime
             </label>
             <input
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
+              name="username"
               type="text"
               required
               autoComplete="username"
@@ -83,8 +67,7 @@ export default function AdminLoginPage() {
               Lozinka
             </label>
             <input
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              name="password"
               type="password"
               required
               autoComplete="current-password"
