@@ -1,17 +1,37 @@
-export const dynamic = "force-dynamic";
+"use client";
 
 import Link from "next/link";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
 
-type SearchParams = Promise<{
-  error?: string;
-}>;
+export default function AdminLoginPage() {
+  const router = useRouter();
 
-export default async function AdminLoginPage({
-  searchParams,
-}: {
-  searchParams: SearchParams;
-}) {
-  const params = await searchParams;
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+
+  async function handleLogin(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setError("");
+
+    const formData = new FormData();
+    formData.append("username", username);
+    formData.append("password", password);
+
+    const res = await fetch("/api/admin/login", {
+      method: "POST",
+      body: formData,
+      credentials: "include",
+    });
+
+    if (!res.ok && res.redirected === false) {
+      setError("Neispravno korisničko ime ili lozinka.");
+      return;
+    }
+
+    window.location.href = "/admin";
+  }
 
   return (
     <main
@@ -23,10 +43,7 @@ export default async function AdminLoginPage({
       }}
     >
       <div className="w-full max-w-md border border-white/80 bg-white p-6 shadow-[0_18px_45px_rgba(0,0,0,0.12)]">
-        <Link
-          href="/"
-          className="mb-4 inline-block text-sm font-bold text-[#9b6b12]"
-        >
+        <Link href="/" className="mb-4 inline-block text-sm font-bold text-[#9b6b12]">
           ← Povratak na web
         </Link>
 
@@ -42,19 +59,20 @@ export default async function AdminLoginPage({
           Unesite korisničko ime i lozinku za administraciju.
         </p>
 
-        {params.error && (
+        {error && (
           <div className="mt-4 border border-[#f0c3c1] bg-[#f8d7da] p-3 text-sm font-bold text-[#8a2d2b]">
-            Neispravno korisničko ime ili lozinka.
+            {error}
           </div>
         )}
 
-        <form action="/api/admin/login" method="POST" className="mt-5 space-y-4">
+        <form onSubmit={handleLogin} className="mt-5 space-y-4">
           <div>
             <label className="mb-1 block text-xs font-black uppercase tracking-[0.15em] text-[#9b7a4c]">
               Korisničko ime
             </label>
             <input
-              name="username"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
               type="text"
               required
               autoComplete="username"
@@ -67,7 +85,8 @@ export default async function AdminLoginPage({
               Lozinka
             </label>
             <input
-              name="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
               type="password"
               required
               autoComplete="current-password"
