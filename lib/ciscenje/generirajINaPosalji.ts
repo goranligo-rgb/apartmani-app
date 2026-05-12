@@ -291,7 +291,7 @@ export async function generirajINaPosalji() {
 
     while (d <= doDatuma) {
       if (martyBazenZaDan(postavke, d)) {
-        const opis = "Čišćenje bazena i okoliša.";
+        const opis = "Čišćenje oko bazena i roštilja.";
 
         const zadatak = await findOrCreateZadatak({
           jedinicaId: prvaJedinica.id,
