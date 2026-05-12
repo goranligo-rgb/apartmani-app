@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
+const COOKIE_NAME = "admin_session_v3";
+
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
@@ -9,10 +11,13 @@ export function middleware(req: NextRequest) {
   }
 
   if (pathname.startsWith("/admin")) {
-    const session = req.cookies.get("admin_session_v3")?.value;
+    const session = req.cookies.get(COOKIE_NAME)?.value;
 
     if (session !== "ok") {
-      return NextResponse.redirect(new URL("/admin/login", req.url));
+      const loginUrl = new URL("/admin/login", req.url);
+      loginUrl.searchParams.set("from", pathname);
+
+      return NextResponse.redirect(loginUrl);
     }
   }
 
