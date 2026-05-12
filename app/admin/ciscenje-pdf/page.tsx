@@ -293,7 +293,7 @@ export default async function PlanCiscenjaPdfPage({
           `,
         }}
       />
-     
+
       <section style={headerStyle}>
         <div>
           <h1 style={titleStyle}>Plan čišćenja</h1>

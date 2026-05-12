@@ -598,7 +598,7 @@ export default async function CiscenjeAdminPage({
                 </Link>
 
                 <Link
-                  href={`/admin/ciscenje/pdf?dana=${brojDanaZaPlan}`}
+                  href={`/admin/ciscenje-pdf?dana=${brojDanaZaPlan}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   style={{
