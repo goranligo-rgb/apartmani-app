@@ -4,17 +4,16 @@ import type { NextRequest } from "next/server";
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
-  const isAdminRoute = pathname.startsWith("/admin");
-  const isLoginPage = pathname === "/admin/login";
-
-  if (!isAdminRoute || isLoginPage) {
+  if (pathname === "/admin/login") {
     return NextResponse.next();
   }
 
-  const session = req.cookies.get("admin_session_v3")?.value;
+  if (pathname.startsWith("/admin")) {
+    const session = req.cookies.get("admin_session_v3")?.value;
 
-  if (session !== "ok") {
-    return NextResponse.redirect(new URL("/admin/login", req.url));
+    if (session !== "ok") {
+      return NextResponse.redirect(new URL("/admin/login", req.url));
+    }
   }
 
   return NextResponse.next();
