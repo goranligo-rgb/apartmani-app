@@ -7,12 +7,10 @@ export async function GET(request: Request) {
     status: 303,
   });
 
-  response.cookies.set({
-    name: COOKIE_NAME,
-    value: "",
+  response.cookies.set("admin_session_v3", "", {
     httpOnly: true,
     sameSite: "lax",
-    secure: true,
+    secure: process.env.NODE_ENV === "production",
     path: "/",
     maxAge: 0,
   });
