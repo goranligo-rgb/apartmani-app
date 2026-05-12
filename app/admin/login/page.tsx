@@ -1,8 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
-import { useRouter } from "next/navigation";
 
 export default function AdminLoginPage() {
   const router = useRouter();
@@ -65,7 +63,7 @@ export default function AdminLoginPage() {
           </div>
         )}
 
-        <form onSubmit={handleLogin} className="mt-5 space-y-4">
+        <form action="/api/admin/login" method="POST" className="mt-5 space-y-4">
           <div>
             <label className="mb-1 block text-xs font-black uppercase tracking-[0.15em] text-[#9b7a4c]">
               Korisničko ime

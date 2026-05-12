@@ -17,17 +17,20 @@ export async function POST(request: Request) {
     username !== adminUsername ||
     password !== adminPassword
   ) {
-    return NextResponse.json({ error: "Neispravna prijava" }, { status: 401 });
+    return NextResponse.redirect(
+      new URL("/admin/login?error=1", request.url),
+      { status: 303 }
+    );
   }
 
-  const response = NextResponse.json({ success: true });
+  const response = NextResponse.redirect(new URL("/admin", request.url), {
+    status: 303,
+  });
 
-  response.cookies.set({
-    name: COOKIE_NAME,
-    value: "ok",
+  response.cookies.set("admin_session_v3", "ok", {
     httpOnly: true,
     sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
+    secure: true,
     path: "/",
     maxAge: 60 * 60 * 24 * 7,
   });
