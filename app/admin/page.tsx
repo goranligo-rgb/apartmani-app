@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
+import LogoutButton from "./LogoutButton";
 
 export const dynamic = "force-dynamic";
 
@@ -261,12 +262,7 @@ export default async function AdminPage() {
                 Mail · PDF · Plaćanja
               </div>
 
-              <Link
-                href="/api/admin/logout"
-                className="mt-4 inline-block border border-[#d8c8aa] bg-white px-4 py-2 text-sm font-black text-[#7a5a22] transition hover:bg-[#fff6e2]"
-              >
-                Odjava
-              </Link>
+              <LogoutButton />
             </div>
           </div>
         </section>
