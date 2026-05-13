@@ -160,6 +160,18 @@ function isCheckoutDay(dayIso: string, rezervacije: RezervacijaItem[]) {
   });
 }
 
+function isCheckinDay(dayIso: string, rezervacije: RezervacijaItem[]) {
+  const current = parseIsoDate(dayIso);
+
+  return rezervacije.find((r) => {
+    if (r.status === "OTKAZANO") return false;
+
+    const start = parseIsoDate(r.datumOd);
+
+    return current.getTime() === start.getTime();
+  });
+}
+
 function isDayBlocked(dayIso: string, blokade: BlokadaItem[]) {
   const current = parseIsoDate(dayIso);
 
@@ -177,6 +189,16 @@ function isBlockCheckoutDay(dayIso: string, blokade: BlokadaItem[]) {
     const end = parseIsoDate(b.datumDo);
 
     return current.getTime() === end.getTime();
+  });
+}
+
+function isBlockCheckinDay(dayIso: string, blokade: BlokadaItem[]) {
+  const current = parseIsoDate(dayIso);
+
+  return blokade.find((b) => {
+    const start = parseIsoDate(b.datumOd);
+
+    return current.getTime() === start.getTime();
   });
 }
 
@@ -415,8 +437,9 @@ export default function CalendarClient({
 
     if (adminMode) {
       const booked = isDayOccupied(dayIso, aktivnaJedinica.rezervacije);
+      const checkin = isCheckinDay(dayIso, aktivnaJedinica.rezervacije);
 
-      if (booked) {
+      if (booked && !checkin) {
         setMessage("Rezervirani dan se ne može dirati.");
         return;
       }
@@ -440,16 +463,23 @@ export default function CalendarClient({
 
     const price = getPrice(dayIso, aktivnaJedinica.cjenici);
     const booked = isDayOccupied(dayIso, aktivnaJedinica.rezervacije);
+    const checkin = isCheckinDay(dayIso, aktivnaJedinica.rezervacije);
     const blocked = isDayBlocked(dayIso, aktivnaJedinica.blokade);
+    const blockCheckin = isBlockCheckinDay(dayIso, aktivnaJedinica.blokade);
+    const blockCheckout = isBlockCheckoutDay(dayIso, aktivnaJedinica.blokade);
 
-    if (!price || booked || blocked) return;
+    if (!price) return;
+    if (booked && !checkin) return;
+    if (blocked && !blockCheckin && !blockCheckout) return;
 
     if (!selection || selection.datumDo) {
+      if (checkin || blockCheckin) return;
       setSelection({ datumOd: dayIso });
       return;
     }
 
     if (dayIso <= selection.datumOd) {
+      if (checkin || blockCheckin) return;
       setSelection({ datumOd: dayIso });
       return;
     }
@@ -505,12 +535,14 @@ export default function CalendarClient({
 
     const price = getPrice(dayIso, aktivnaJedinica.cjenici);
     const booked = isDayOccupied(dayIso, aktivnaJedinica.rezervacije);
+    const checkin = isCheckinDay(dayIso, aktivnaJedinica.rezervacije);
     const blocked = isDayBlocked(dayIso, aktivnaJedinica.blokade);
+    const blockCheckin = isBlockCheckinDay(dayIso, aktivnaJedinica.blokade);
     const blockCheckout = isBlockCheckoutDay(dayIso, aktivnaJedinica.blokade);
 
     if (!price) return true;
-    if (booked) return true;
-    if (blocked && !blockCheckout) return true;
+    if (booked && !checkin) return true;
+    if (blocked && !blockCheckin && !blockCheckout) return true;
     return false;
   }
 
@@ -889,8 +921,16 @@ export default function CalendarClient({
                     dayIso,
                     aktivnaJedinica.rezervacije
                   );
+                  const checkin = isCheckinDay(
+                    dayIso,
+                    aktivnaJedinica.rezervacije
+                  );
                   const blocked = isDayBlocked(dayIso, aktivnaJedinica.blokade);
                   const blockCheckout = isBlockCheckoutDay(
+                    dayIso,
+                    aktivnaJedinica.blokade
+                  );
+                  const blockCheckin = isBlockCheckinDay(
                     dayIso,
                     aktivnaJedinica.blokade
                   );
@@ -901,35 +941,53 @@ export default function CalendarClient({
                   const isPast = isPastDate(dayIso);
                   const today = isToday(dayIso);
 
+                  const isMiddleBooked = !!booked && !checkin;
+                  const isMiddleBlocked =
+                    !!blocked && !blockCheckin && !blockCheckout;
+
                   const splitCheckout =
-                    (!!checkout || !!blockCheckout) &&
-                    !booked &&
-                    !blocked &&
+                    (!!checkout ||
+                      !!blockCheckout ||
+                      !!checkin ||
+                      !!blockCheckin) &&
+                    !isMiddleBooked &&
+                    !isMiddleBlocked &&
                     !!price &&
                     !selected &&
                     !adminSelected;
 
+                  const splitDirection: "checkout" | "checkin" =
+                    checkout || blockCheckout ? "checkout" : "checkin";
+
                   const title = adminMode
-                    ? booked
+                    ? booked && !checkin
                       ? `Rezervirano: ${booked.gostIme} ${booked.gostPrezime}`
                       : checkout
                         ? `Odlazak: ${checkout.gostIme} ${checkout.gostPrezime} • slobodno za novi ulazak • €${price}`
                         : blockCheckout && !blocked && price
                           ? `Odlazak (${blockCheckout.razlog || blockCheckout.izvor}) • slobodno za novi ulazak • €${price}`
-                          : blocked
-                            ? `Zatvoreno: ${blocked.razlog || blocked.izvor}`
-                            : price
-                              ? `Slobodno • €${price}`
-                              : "Nema cijene"
-                    : booked
+                          : checkin && price
+                            ? `Dolazak: ${checkin.gostIme} ${checkin.gostPrezime} • slobodno za odlazak prethodnog • €${price}`
+                            : blockCheckin && !isMiddleBlocked && price
+                              ? `Dolazak (${blockCheckin.razlog || blockCheckin.izvor}) • slobodno za odlazak prethodnog • €${price}`
+                              : blocked
+                                ? `Zatvoreno: ${blocked.razlog || blocked.izvor}`
+                                : price
+                                  ? `Slobodno • €${price}`
+                                  : "Nema cijene"
+                    : booked && !checkin
                       ? "Zauzeto"
                       : checkout && price
                         ? `Odlazak gosta • slobodno za novi ulazak • €${price}`
                         : blockCheckout && !blocked && price
                           ? `Odlazak iz drugog kalendara • slobodno za novi ulazak • €${price}`
-                          : unavailable
-                            ? "Zauzeto"
-                            : `Slobodno • €${price}`;
+                          : checkin && price
+                            ? `Dolazak gosta • slobodno za odlazak prethodnog • €${price}`
+                            : blockCheckin && !isMiddleBlocked && price
+                              ? `Dolazak iz drugog kalendara • slobodno za odlazak prethodnog • €${price}`
+                              : unavailable
+                                ? "Zauzeto"
+                                : `Slobodno • €${price}`;
 
                   const style = isPast
                     ? {
@@ -951,7 +1009,7 @@ export default function CalendarClient({
                     <button
                       key={dayIso}
                       type="button"
-                      disabled={isPast || !!booked || (!adminMode && unavailable)}
+                      disabled={isPast || (!!booked && !checkin) || (!adminMode && unavailable)}
                       onClick={() => {
                         if (isPast) return;
                         handleClick(dayIso);
@@ -972,14 +1030,20 @@ export default function CalendarClient({
                           <span
                             className="absolute inset-0"
                             style={{
-                              backgroundColor: UI_COLORS.zauzeto,
+                              backgroundColor:
+                                splitDirection === "checkin"
+                                  ? UI_COLORS.slobodno
+                                  : UI_COLORS.zauzeto,
                               clipPath: "polygon(0 0, 0 100%, 100% 0)",
                             }}
                           />
                           <span
                             className="absolute inset-0"
                             style={{
-                              backgroundColor: UI_COLORS.slobodno,
+                              backgroundColor:
+                                splitDirection === "checkin"
+                                  ? UI_COLORS.zauzeto
+                                  : UI_COLORS.slobodno,
                               clipPath: "polygon(100% 0, 100% 100%, 0 100%)",
                             }}
                           />
