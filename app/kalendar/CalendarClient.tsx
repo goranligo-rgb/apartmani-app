@@ -170,6 +170,16 @@ function isDayBlocked(dayIso: string, blokade: BlokadaItem[]) {
   });
 }
 
+function isBlockCheckoutDay(dayIso: string, blokade: BlokadaItem[]) {
+  const current = parseIsoDate(dayIso);
+
+  return blokade.find((b) => {
+    const end = parseIsoDate(b.datumDo);
+
+    return current.getTime() === end.getTime();
+  });
+}
+
 function getPrice(dayIso: string, cjenici: CjenikItem[]) {
   return findCjenik(dayIso, cjenici)?.cijenaNocenja ?? null;
 }
@@ -496,8 +506,12 @@ export default function CalendarClient({
     const price = getPrice(dayIso, aktivnaJedinica.cjenici);
     const booked = isDayOccupied(dayIso, aktivnaJedinica.rezervacije);
     const blocked = isDayBlocked(dayIso, aktivnaJedinica.blokade);
+    const blockCheckout = isBlockCheckoutDay(dayIso, aktivnaJedinica.blokade);
 
-    return !price || !!booked || !!blocked;
+    if (!price) return true;
+    if (booked) return true;
+    if (blocked && !blockCheckout) return true;
+    return false;
   }
 
   function dayStyle(options: {
@@ -876,6 +890,10 @@ export default function CalendarClient({
                     aktivnaJedinica.rezervacije
                   );
                   const blocked = isDayBlocked(dayIso, aktivnaJedinica.blokade);
+                  const blockCheckout = isBlockCheckoutDay(
+                    dayIso,
+                    aktivnaJedinica.blokade
+                  );
                   const price = getPrice(dayIso, aktivnaJedinica.cjenici);
                   const selected = isSelected(dayIso, selection);
                   const adminSelected = isSelected(dayIso, adminSelection);
@@ -884,7 +902,7 @@ export default function CalendarClient({
                   const today = isToday(dayIso);
 
                   const splitCheckout =
-                    !!checkout &&
+                    (!!checkout || !!blockCheckout) &&
                     !booked &&
                     !blocked &&
                     !!price &&
@@ -896,18 +914,22 @@ export default function CalendarClient({
                       ? `Rezervirano: ${booked.gostIme} ${booked.gostPrezime}`
                       : checkout
                         ? `Odlazak: ${checkout.gostIme} ${checkout.gostPrezime} • slobodno za novi ulazak • €${price}`
-                        : blocked
-                          ? `Zatvoreno: ${blocked.razlog || blocked.izvor}`
-                          : price
-                            ? `Slobodno • €${price}`
-                            : "Nema cijene"
+                        : blockCheckout && !blocked && price
+                          ? `Odlazak (${blockCheckout.razlog || blockCheckout.izvor}) • slobodno za novi ulazak • €${price}`
+                          : blocked
+                            ? `Zatvoreno: ${blocked.razlog || blocked.izvor}`
+                            : price
+                              ? `Slobodno • €${price}`
+                              : "Nema cijene"
                     : booked
                       ? "Zauzeto"
                       : checkout && price
                         ? `Odlazak gosta • slobodno za novi ulazak • €${price}`
-                        : unavailable
-                          ? "Zauzeto"
-                          : `Slobodno • €${price}`;
+                        : blockCheckout && !blocked && price
+                          ? `Odlazak iz drugog kalendara • slobodno za novi ulazak • €${price}`
+                          : unavailable
+                            ? "Zauzeto"
+                            : `Slobodno • €${price}`;
 
                   const style = isPast
                     ? {
