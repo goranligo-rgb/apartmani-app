@@ -2,7 +2,7 @@
   "crons": [
     {
       "path": "/api/ical/sync",
-      "schedule": "*/15 * * * *"
+      "schedule": "*/5 * * * *"
     },
     {
       "path": "/api/cron/ostatak",

@@ -16,11 +16,17 @@ function parseICal(data: string) {
       const end = endMatch[1];
 
       const datumOd = new Date(
-        `${start.slice(0, 4)}-${start.slice(4, 6)}-${start.slice(6, 8)}`
+        Number(start.slice(0, 4)),
+        Number(start.slice(4, 6)) - 1,
+        Number(start.slice(6, 8)),
+        12, 0, 0, 0
       );
 
       const datumDo = new Date(
-        `${end.slice(0, 4)}-${end.slice(4, 6)}-${end.slice(6, 8)}`
+        Number(end.slice(0, 4)),
+        Number(end.slice(4, 6)) - 1,
+        Number(end.slice(6, 8)),
+        12, 0, 0, 0
       );
 
       events.push({
