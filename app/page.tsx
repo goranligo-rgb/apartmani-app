@@ -11,18 +11,21 @@ const fallbackHeroImages = [
 const objekti = [
   {
     naziv: "House Art",
+    nazivMobile: "House Art",
     href: "/objekti/house-art",
     opis: "Privatna kuća za do 10 osoba, 5 spavaćih soba, 3 kupaone i privatni bazen samo za goste kuće House Art.",
     info: "1 kuća · 5 soba · 3 kupaone · privatni bazen",
   },
   {
     naziv: "Luxury Apartments Marty",
+    nazivMobile: "Marty",
     href: "/objekti/marty",
     opis: "Pet apartmana različitih kapaciteta, idealno za obitelji i veće grupe. Objekt ima vlastiti bazen za goste apartmana Marty.",
     info: "5 apartmana · 1–3 sobe · 1–3 kupaone · bazen",
   },
   {
     naziv: "Apartments Eva",
+    nazivMobile: "Eva",
     href: "/objekti/eva",
     opis: "Tri apartmana za 4+2 osobe, svaki s dvije spavaće sobe i jednom ili dvije kupaone.",
     info: "3 apartmana · 2 sobe · 1–2 kupaone",
@@ -83,14 +86,15 @@ export default async function HomePage() {
           </Link>
         </div>
 
-        <div className="grid grid-cols-3 text-center text-[11px] font-black uppercase tracking-wide md:text-sm">
+        <div className="grid grid-cols-3 text-center text-[15px] font-black uppercase tracking-[0.04em] md:tracking-wide md:text-lg">
           {objekti.map((o) => (
             <Link
               key={o.naziv}
               href={o.href}
-              className="flex min-h-[82px] items-center justify-center border-r border-white/10 bg-[#071e24]/95 px-2 py-3 leading-snug transition hover:bg-white/10 md:min-h-[110px] md:px-3 md:py-4"
+              className="flex min-h-[64px] items-center justify-center border-r border-white/10 bg-[#071e24]/95 px-1.5 py-2 leading-tight transition hover:bg-white/10 md:min-h-[64px] md:px-3 md:py-2"
             >
-              {o.naziv}
+              <span className="md:hidden">{o.nazivMobile}</span>
+              <span className="hidden md:inline">{o.naziv}</span>
             </Link>
           ))}
         </div>
