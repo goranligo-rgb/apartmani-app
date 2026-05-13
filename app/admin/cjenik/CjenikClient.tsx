@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
 type BojaPerioda =
   | "PLAVA"
@@ -96,8 +96,15 @@ const BOJE: { value: BojaPerioda; label: string }[] = [
 
 export default function CjenikClient({ jedinice }: { jedinice: JedinicaItem[] }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
 
-  const [selectedId, setSelectedId] = useState(jedinice[0]?.id ?? "");
+  const jedinicaIdFromUrl = searchParams.get("jedinicaId");
+  const initialId =
+    jedinicaIdFromUrl && jedinice.some((j) => j.id === jedinicaIdFromUrl)
+      ? jedinicaIdFromUrl
+      : jedinice[0]?.id ?? "";
+
+  const [selectedId, setSelectedId] = useState(initialId);
   const [datumOd, setDatumOd] = useState("");
   const [datumDo, setDatumDo] = useState("");
   const [cijenaNocenja, setCijenaNocenja] = useState("");
@@ -134,7 +141,7 @@ export default function CjenikClient({ jedinice }: { jedinice: JedinicaItem[] })
     const doDatuma = parseIso(datumDo);
 
     return selectedJedinica.cjenici.some((c) =>
-      overlaps(od, doDatuma, parseIso(c.datumOd), parseIso(c.datumDo))
+      overlaps(od, doDatuma, new Date(c.datumOd), new Date(c.datumDo))
     );
   }, [selectedJedinica, previewValid, datumOd, datumDo]);
 
@@ -187,7 +194,10 @@ export default function CjenikClient({ jedinice }: { jedinice: JedinicaItem[] })
     if (!selectedJedinica) return null;
 
     return selectedJedinica.cjenici.find((c) => {
-      return dayIso >= c.datumOd && dayIso <= c.datumDo;
+      const od = toLocalIso(new Date(c.datumOd));
+      const doDatuma = toLocalIso(new Date(c.datumDo));
+
+      return dayIso >= od && dayIso <= doDatuma;
     });
   }
 
@@ -258,7 +268,7 @@ export default function CjenikClient({ jedinice }: { jedinice: JedinicaItem[] })
       setMinimalniBoravak("2");
       setBojaPerioda("ZELENA");
 
-      window.location.reload();
+      router.refresh();
     } catch {
       setError("Došlo je do greške kod spremanja.");
     } finally {
@@ -289,7 +299,7 @@ export default function CjenikClient({ jedinice }: { jedinice: JedinicaItem[] })
     }
 
     setMessage("Cjenik je obrisan.");
-    window.location.reload();
+    router.refresh();
   }
 
   function cellStyle(dayIso: string) {
@@ -379,8 +389,10 @@ export default function CjenikClient({ jedinice }: { jedinice: JedinicaItem[] })
               <select
                 value={selectedId}
                 onChange={(e) => {
-                  setSelectedId(e.target.value);
+                  const newId = e.target.value;
+                  setSelectedId(newId);
                   resetSelection();
+                  router.replace(`?jedinicaId=${newId}`, { scroll: false });
                 }}
                 className="w-full cursor-pointer border border-[#d9cfbf] bg-white px-3 py-2 outline-none"
               >
@@ -718,8 +730,8 @@ export default function CjenikClient({ jedinice }: { jedinice: JedinicaItem[] })
                       <div className="flex flex-wrap items-center justify-between gap-3">
                         <div>
                           <div className="font-bold text-[#2e2923]">
-                            {parseIso(c.datumOd).toLocaleDateString("hr-HR")} —{" "}
-                            {parseIso(c.datumDo).toLocaleDateString("hr-HR")}
+                            {new Date(c.datumOd).toLocaleDateString("hr-HR")} —{" "}
+                            {new Date(c.datumDo).toLocaleDateString("hr-HR")}
                           </div>
 
                           <div className="mt-1 text-sm text-[#5f5549]">
