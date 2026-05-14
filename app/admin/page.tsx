@@ -220,6 +220,13 @@ export default async function AdminPage() {
       icon: "🟣",
       badge: "Booking",
     },
+    {
+      title: "Booking Excel import",
+      opis: "Obogaćivanje iCal blokada s podacima iz Booking 'Prijava s kontaktnim podacima' Excela.",
+      href: "/admin/booking-import",
+      icon: "📥",
+      badge: "Booking",
+    },
   ];
 
   return (
