@@ -424,6 +424,23 @@ model BlokadaVanjskogKalendara {
   uid    String?
   naslov String?
 
+  // Excel obogaćivanje (iz Booking "Prijava s kontaktnim podacima")
+  gostIme            String?
+  gostPrezime        String?
+  gostEmail          String?
+  gostTelefon        String?
+  gostDrzava         String?
+  brojOsoba          Int?
+  brojOdraslih       Int?
+  brojDjece          Int?
+  dobDjece           String?
+  iznosBruto         Float?
+  iznosProvizije     Float?
+  iznosNeto          Float?
+  valuta             String    @default("EUR")
+  bookingId          String?
+  excelImportiranoAt DateTime?
+
   datumOd DateTime
   datumDo DateTime
 
@@ -437,6 +454,8 @@ model BlokadaVanjskogKalendara {
   @@index([jedinicaId])
   @@index([datumOd])
   @@index([datumDo])
+  @@index([uid])
+  @@index([bookingId])
 }
 
 model CiscenjeAgencija {
