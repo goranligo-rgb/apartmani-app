@@ -71,6 +71,29 @@ function parseFloat0(v: any): number | null {
   return isNaN(n) ? null : n;
 }
 
+// Razdvaja Booking "Nositelj rezervacije" string u ime i prezime.
+//   "Roland, Schmidt"  →  { ime: "Roland", prezime: "Schmidt" }
+//   "Roland"           →  { ime: "Roland", prezime: null }
+//   ""                 →  { ime: "", prezime: null }
+// Trim oko zareza i kolapsiraj višestruke razmake.
+export function splitNositelj(nositelj: string): {
+  ime: string;
+  prezime: string | null;
+} {
+  const trimmed = nositelj.trim().replace(/\s+/g, " ");
+  if (!trimmed) return { ime: "", prezime: null };
+
+  const idx = trimmed.indexOf(",");
+  if (idx === -1) return { ime: trimmed, prezime: null };
+
+  const ime = trimmed.slice(0, idx).trim();
+  const prezime = trimmed.slice(idx + 1).trim();
+  return {
+    ime: ime || trimmed,
+    prezime: prezime || null,
+  };
+}
+
 export function parseBookingExcel(
   buffer: Buffer | ArrayBuffer,
   objektKey: ObjektKey,
