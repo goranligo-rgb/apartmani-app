@@ -63,7 +63,6 @@ type CommitResponse = {
   ok: true;
   summary: {
     updated: number;
-    deleted: number;
     skipped: number;
     errors: number;
   };
@@ -142,7 +141,7 @@ export default function BookingImportClient({
 
   // Counters za "Importiraj" gumb
   const counters = useMemo(() => {
-    if (!preview) return { azurirati: 0, obrisati: 0, djelomicno: 0 };
+    if (!preview) return { azurirati: 0, djelomicno: 0 };
     let azurirati = 0;
     for (const r of preview.rows) {
       if (r.statusUkupno === "OK" || r.statusUkupno === "DJELOMICNO") {
@@ -151,15 +150,12 @@ export default function BookingImportClient({
     }
     return {
       azurirati,
-      obrisati: preview.summary.otkazano,
       djelomicno: preview.summary.djelomicno,
     };
   }, [preview]);
 
   const importDisabled =
-    loading !== "idle" ||
-    !preview ||
-    (counters.azurirati === 0 && counters.obrisati === 0);
+    loading !== "idle" || !preview || counters.azurirati === 0;
 
   function resetPreviewState() {
     setPreview(null);
@@ -214,7 +210,7 @@ export default function BookingImportClient({
     if (!objektKey || !file || !preview) return;
     if (
       !confirm(
-        `Importirat ćeš ${counters.azurirati} blokada (+ do ${counters.obrisati} otkazanih će biti obrisano). Nastavi?`
+        `Importirat ćeš ${counters.azurirati} blokada. Otkazane rezervacije se preskaču (iCal sync ih briše zasebno). Nastavi?`
       )
     )
       return;
@@ -331,8 +327,7 @@ export default function BookingImportClient({
             Import gotov
           </p>
           <p className="mt-1 text-lg font-black">
-            Uspješno ažurirano: {commitResult.summary.updated} blokada · obrisano:{" "}
-            {commitResult.summary.deleted} · preskočeno:{" "}
+            Uspješno ažurirano: {commitResult.summary.updated} blokada · preskočeno:{" "}
             {commitResult.summary.skipped}
           </p>
           {commitResult.errors.length > 0 && (
@@ -495,13 +490,17 @@ export default function BookingImportClient({
                 {counters.azurirati} ažurirati
               </span>
               {" • "}
-              <span className="text-slate-700">
-                do {counters.obrisati} obrisati
-              </span>
-              {" • "}
               <span className="text-amber-800">
                 {counters.djelomicno} djelomično
               </span>
+              {preview && preview.summary.otkazano > 0 && (
+                <>
+                  {" • "}
+                  <span className="text-slate-500">
+                    {preview.summary.otkazano} otkazano (preskačemo)
+                  </span>
+                </>
+              )}
             </div>
 
             <button

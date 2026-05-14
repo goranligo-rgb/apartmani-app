@@ -120,7 +120,6 @@ export async function POST(req: Request) {
   const writes: any[] = [];
   const errors: string[] = [];
   let updated = 0;
-  let deleted = 0;
   let skipped = 0;
 
   for (const r of rows) {
@@ -136,24 +135,11 @@ export async function POST(req: Request) {
     const odKey = ymdKey(r.datumOd);
     const doKey = ymdKey(r.datumDo);
 
-    // Edge: cancelled_by_guest → DELETE blokade ako postoje
+    // Edge: cancelled_by_guest → preskoči.
+    // iCal sync je jedini zadužen za brisanje blokada (kad UID nestane iz Booking feeda).
+    // Excel import samo obogaćuje postojeće blokade; ne briše ništa.
     if (r.status === "cancelled_by_guest") {
-      for (const tok of r.jedinice) {
-        if (!tok.mapiranNaziv) continue;
-        const jedinicaId = jedinicaByNaziv.get(tok.mapiranNaziv);
-        if (!jedinicaId) continue;
-        const lookupKey = `${jedinicaId}|${odKey}|${doKey}`;
-        const blokadaId = blokadeByKey.get(lookupKey);
-        if (blokadaId) {
-          writes.push(
-            prisma.blokadaVanjskogKalendara.delete({
-              where: { id: blokadaId },
-            })
-          );
-          deleted++;
-        }
-        // Ako blokada ne postoji → vjerojatno već obrisana iCal syncom, preskoči
-      }
+      skipped++;
       continue;
     }
 
@@ -229,7 +215,7 @@ export async function POST(req: Request) {
 
   return NextResponse.json({
     ok: true,
-    summary: { updated, deleted, skipped, errors: errors.length },
+    summary: { updated, skipped, errors: errors.length },
     errors: errors.slice(0, 50),
   });
 }
