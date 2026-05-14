@@ -53,93 +53,23 @@ async function syncJedanKalendar(kal: any) {
   const text = await res.text();
   const events = parseICal(text);
 
-  // UID-i koji su trenutno u Booking feedu (samo non-null)
-  const feedUids = new Set(
-    events.map((e) => e.uid).filter((u): u is string => !!u)
-  );
-
-  // Postojeće blokade za ovaj kalendar
-  const postojece = await prisma.blokadaVanjskogKalendara.findMany({
-    where: { vanjskiKalendarId: kal.id },
-    select: { id: true, uid: true },
+  await prisma.blokadaVanjskogKalendara.deleteMany({
+    where: {
+      vanjskiKalendarId: kal.id,
+    },
   });
 
-  const postojeceByUid = new Map<string, string>();
-  for (const p of postojece) {
-    if (p.uid) postojeceByUid.set(p.uid, p.id);
-  }
-
-  // Skupljamo SVE write operacije i izvršavamo ih u jednoj transakciji
-  const writes: any[] = [];
-  let skippedNoUid = 0;
-
   for (const e of events) {
-    if (!e.uid) {
-      // Bez UID-a ne možemo deduplicirati u sljedećim syncovima → preskačemo
-      skippedNoUid++;
-      continue;
-    }
-
-    if (postojeceByUid.has(e.uid)) {
-      // UPDATE: čuvamo Excel polja (gostIme, iznos, bookingId, ...), mijenjamo samo iCal podatke
-      writes.push(
-        prisma.blokadaVanjskogKalendara.update({
-          where: { id: postojeceByUid.get(e.uid)! },
-          data: {
-            naslov: e.naslov,
-            datumOd: e.datumOd,
-            datumDo: e.datumDo,
-          },
-        })
-      );
-    } else {
-      // CREATE: nova rezervacija iz Booking-a
-      writes.push(
-        prisma.blokadaVanjskogKalendara.create({
-          data: {
-            vanjskiKalendarId: kal.id,
-            jedinicaId: kal.jedinicaId,
-            uid: e.uid,
-            naslov: e.naslov,
-            datumOd: e.datumOd,
-            datumDo: e.datumDo,
-          },
-        })
-      );
-    }
-  }
-
-  // DELETE one koje su nestale iz feeda (otkazane).
-  // SIGURNOSNI GUARD: ako je feed PRAZAN, NE brisi ništa.
-  //   Prazan feed je vjerojatno greška Booking-a, ne stvarno otkazivanje svih rezervacija.
-  // Postojeći zapisi BEZ uid-a ostaju netaknuti (filter `p.uid &&`).
-  if (events.length > 0) {
-    const obrisiIds = postojece
-      .filter((p) => p.uid && !feedUids.has(p.uid))
-      .map((p) => p.id);
-
-    if (obrisiIds.length > 0) {
-      writes.push(
-        prisma.blokadaVanjskogKalendara.deleteMany({
-          where: { id: { in: obrisiIds } },
-        })
-      );
-    }
-  } else {
-    console.warn(
-      `[ICAL SYNC] Prazan feed za kalendar ${kal.id} — preskačem DELETE iz sigurnosti.`
-    );
-  }
-
-  // Atomično: ili sve UPDATE/CREATE/DELETE prođe, ili ništa
-  if (writes.length > 0) {
-    await prisma.$transaction(writes);
-  }
-
-  if (skippedNoUid > 0) {
-    console.warn(
-      `[ICAL SYNC] Preskočeno ${skippedNoUid} eventova bez UID-a za kalendar ${kal.id}`
-    );
+    await prisma.blokadaVanjskogKalendara.create({
+      data: {
+        vanjskiKalendarId: kal.id,
+        jedinicaId: kal.jedinicaId,
+        uid: e.uid,
+        naslov: e.naslov,
+        datumOd: e.datumOd,
+        datumDo: e.datumDo,
+      },
+    });
   }
 
   await prisma.vanjskiKalendar.update({
