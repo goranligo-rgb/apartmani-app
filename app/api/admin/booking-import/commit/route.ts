@@ -278,11 +278,34 @@ export async function POST(req: Request) {
           });
         }
 
-        // 2. Per blokada: resolve Gost + upsert Shadow Rezervacija
+        // 2. Per blokada: find-or-create Shadow Rezervacija (idempotentno)
+        //
+        // Idempotentnost: ako Shadow Rezervacija već postoji za blokadu,
+        // SAMO update-amo iznose + bookingExternalId. Gost se NE dira (ni novi
+        // se ne kreira), čime izbjegavamo duplikat Gost-ova pri re-importu istog
+        // Excel-a.
+        //
         // NAPOMENA: Excel trenutno NE postavlja gostEmail na blokadu, pa će
-        // email-upsert grana raditi samo ako je email došao iz drugog izvora
-        // (npr. ručno ili budući iCal parser). Inače pada na create-by-ime.
+        // email-upsert grana raditi samo ako je email došao iz drugog izvora.
         for (const op of shadowOps) {
+          const existing = await tx.rezervacija.findUnique({
+            where: { blokadaId: op.blokadaId },
+            select: { id: true },
+          });
+
+          if (existing) {
+            await tx.rezervacija.update({
+              where: { blokadaId: op.blokadaId },
+              data: {
+                iznosUkupno: op.iznosBruto,
+                iznosPlaceno: op.iznosBruto,
+                dogovoreniIznos: op.iznosBruto,
+                bookingExternalId: op.bookingId,
+              },
+            });
+            continue;
+          }
+
           let gostId: string | null = null;
 
           if (op.gostEmail) {
@@ -322,9 +345,8 @@ export async function POST(req: Request) {
             1
           );
 
-          await tx.rezervacija.upsert({
-            where: { blokadaId: op.blokadaId },
-            create: {
+          await tx.rezervacija.create({
+            data: {
               jedinicaId: op.jedinicaId,
               gostId,
               izvor: "BOOKING",
@@ -343,12 +365,6 @@ export async function POST(req: Request) {
               napomena: op.naslov,
               automatskoCiscenje: true,
               automatskaPosteljina: true,
-            },
-            update: {
-              iznosUkupno: op.iznosBruto,
-              iznosPlaceno: op.iznosBruto,
-              dogovoreniIznos: op.iznosBruto,
-              bookingExternalId: op.bookingId,
             },
           });
         }
