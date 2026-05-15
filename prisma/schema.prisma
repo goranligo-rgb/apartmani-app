@@ -241,6 +241,7 @@ model Rezervacija {
   placenoKarticom      Boolean @default(false)
   valuta               String  @default("EUR")
   bookingExternalId    String?
+  blokadaId            String? @unique // veza na BlokadaVanjskogKalendara (samo za izvor=BOOKING)
   napomena             String?
   automatskoCiscenje   Boolean @default(true)
   automatskaPosteljina Boolean @default(true)
@@ -268,6 +269,7 @@ model Rezervacija {
   @@index([izvor])
   @@index([rokUplateAkontacije])
   @@index([rokUplateOstatka])
+  @@index([blokadaId])
 }
 
 model RezervacijaPromjena {

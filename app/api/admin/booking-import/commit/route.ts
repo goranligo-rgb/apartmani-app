@@ -77,21 +77,6 @@ export async function POST(req: Request) {
     );
   }
 
-  // TEMP DEBUG — obrisati nakon dijagnostike
-  console.log("[BOOKING IMPORT DEBUG] Excel rows count:", rows.length);
-  console.log("[BOOKING IMPORT DEBUG] First 3 rows datumi:");
-  for (let i = 0; i < Math.min(3, rows.length); i++) {
-    const r = rows[i];
-    console.log(
-      "Row",
-      i,
-      "- datumOd:",
-      r.datumOd?.toISOString(),
-      "datumDo:",
-      r.datumDo?.toISOString()
-    );
-  }
-
   // Dohvati objekt + jedinice iz baze
   const objekt = await prisma.objekt.findFirst({
     where: { naziv: OBJEKT_KEY_TO_NAZIV[objektKey] },
@@ -122,30 +107,72 @@ export async function POST(req: Request) {
             jedinicaId: true,
             datumOd: true,
             datumDo: true,
+            naslov: true,
+            valuta: true,
+            gostEmail: true,
           },
         })
       : [];
 
-  const blokadeByKey = new Map<string, string>();
+  type BlokadaInfo = {
+    id: string;
+    naslov: string | null;
+    valuta: string;
+    gostEmail: string | null;
+  };
+  const blokadeByKey = new Map<string, BlokadaInfo>();
   for (const b of blokade) {
     const key = `${b.jedinicaId}|${ymdKey(b.datumOd)}|${ymdKey(b.datumDo)}`;
-    blokadeByKey.set(key, b.id);
+    blokadeByKey.set(key, {
+      id: b.id,
+      naslov: b.naslov,
+      valuta: b.valuta,
+      gostEmail: b.gostEmail,
+    });
   }
 
-  // TEMP DEBUG — obrisati nakon dijagnostike
-  console.log("[BOOKING IMPORT DEBUG] Blokade lookup keys (prvih 5):");
-  let cnt = 0;
-  for (const [key, id] of blokadeByKey.entries()) {
-    console.log("  ", key);
-    if (++cnt >= 5) break;
-  }
+  type BlokadaUpdate = {
+    id: string;
+    data: {
+      gostIme: string | null;
+      gostPrezime: string | null;
+      gostTelefon: string | null;
+      gostDrzava: string | null;
+      brojOsoba: number | null;
+      brojOdraslih: number | null;
+      brojDjece: number | null;
+      dobDjece: string | null;
+      iznosBruto: number | null;
+      iznosProvizije: number | null;
+      iznosNeto: number | null;
+      valuta: string;
+      bookingId: string | null;
+      excelImportiranoAt: Date;
+    };
+  };
 
-  const writes: any[] = [];
+  type ShadowOp = {
+    blokadaId: string;
+    jedinicaId: string;
+    datumOd: Date;
+    datumDo: Date;
+    gostIme: string | null;
+    gostPrezime: string | null;
+    gostEmail: string | null;
+    gostTelefon: string | null;
+    gostDrzava: string | null;
+    brojOsoba: number | null;
+    iznosBruto: number | null;
+    bookingId: string | null;
+    valuta: string;
+    naslov: string | null;
+  };
+
+  const blokadaUpdates: BlokadaUpdate[] = [];
+  const shadowOps: ShadowOp[] = [];
   const errors: string[] = [];
   let updated = 0;
   let skipped = 0;
-  let debugCnt = 0;
-  let debugTokCnt = 0;
 
   for (const r of rows) {
     // Edge: neispravan datum → preskoči
@@ -159,19 +186,6 @@ export async function POST(req: Request) {
 
     const odKey = ymdKey(r.datumOd);
     const doKey = ymdKey(r.datumDo);
-
-    // TEMP DEBUG — obrisati nakon dijagnostike
-    if (debugCnt < 5) {
-      console.log(
-        "[BOOKING IMPORT DEBUG] Row",
-        r.rowIndex,
-        "lookup key segment - od:",
-        odKey,
-        "do:",
-        doKey
-      );
-      debugCnt++;
-    }
 
     // Edge: cancelled_by_guest → preskoči.
     // iCal sync je jedini zadužen za brisanje blokada (kad UID nestane iz Booking feeda).
@@ -206,76 +220,156 @@ export async function POST(req: Request) {
       }
       const lookupKey = `${jedinicaId}|${odKey}|${doKey}`;
 
-      // TEMP DEBUG — obrisati nakon dijagnostike
-      if (debugTokCnt < 5) {
-        console.log(
-          "[BOOKING IMPORT DEBUG] Row",
-          r.rowIndex,
-          "token raw:",
-          tok.raw,
-          "→ mapiranNaziv:",
-          tok.mapiranNaziv,
-          "→ jedinicaId:",
-          jedinicaId
-        );
-        console.log(
-          "[BOOKING IMPORT DEBUG] Row",
-          r.rowIndex,
-          "FULL lookup key:",
-          lookupKey,
-          "found:",
-          blokadeByKey.has(lookupKey)
-        );
-        debugTokCnt++;
-      }
-
-      const blokadaId = blokadeByKey.get(lookupKey);
-      if (!blokadaId) {
+      const blokadaInfo = blokadeByKey.get(lookupKey);
+      if (!blokadaInfo) {
         skipped++;
         continue;
       }
 
-      writes.push(
-        prisma.blokadaVanjskogKalendara.update({
-          where: { id: blokadaId },
-          data: {
-            gostIme: gostIme || null,
-            gostPrezime: gostPrezime,
-            gostTelefon: r.telefon,
-            gostDrzava: r.drzava,
-            brojOsoba: r.brojOsoba,
-            brojOdraslih: r.brojOdraslih,
-            brojDjece: r.brojDjece,
-            dobDjece: r.dobDjece,
-            iznosBruto: iznosBrutoPoJedinici,
-            iznosProvizije: iznosProvizijePoJedinici,
-            iznosNeto: iznosNetoPoJedinici,
-            valuta: r.valuta || "EUR",
-            bookingId: r.bookingId || null,
-            excelImportiranoAt: new Date(),
-          },
-        })
-      );
+      blokadaUpdates.push({
+        id: blokadaInfo.id,
+        data: {
+          gostIme: gostIme || null,
+          gostPrezime: gostPrezime,
+          gostTelefon: r.telefon,
+          gostDrzava: r.drzava,
+          brojOsoba: r.brojOsoba,
+          brojOdraslih: r.brojOdraslih,
+          brojDjece: r.brojDjece,
+          dobDjece: r.dobDjece,
+          iznosBruto: iznosBrutoPoJedinici,
+          iznosProvizije: iznosProvizijePoJedinici,
+          iznosNeto: iznosNetoPoJedinici,
+          valuta: r.valuta || "EUR",
+          bookingId: r.bookingId || null,
+          excelImportiranoAt: new Date(),
+        },
+      });
+
+      shadowOps.push({
+        blokadaId: blokadaInfo.id,
+        jedinicaId,
+        datumOd: r.datumOd,
+        datumDo: r.datumDo,
+        gostIme: gostIme || null,
+        gostPrezime,
+        gostEmail: blokadaInfo.gostEmail,
+        gostTelefon: r.telefon,
+        gostDrzava: r.drzava,
+        brojOsoba: r.brojOsoba,
+        iznosBruto: iznosBrutoPoJedinici,
+        bookingId: r.bookingId || null,
+        valuta: r.valuta || blokadaInfo.valuta || "EUR",
+        naslov: blokadaInfo.naslov,
+      });
+
       updated++;
     }
   }
 
-  const auditOp = prisma.bookingExcelImport.create({
-    data: {
-      objektKey,
-      objektNaziv: objekt.naziv,
-      imeFajla: file instanceof File ? file.name : null,
-      brojRedakaUkupno: rows.length,
-      brojObogaceno: updated,
-      brojPreskoceno: skipped,
-      brojGresaka: errors.length,
-      greske: errors.length > 0 ? JSON.stringify(errors) : null,
-      korisnikIme: null,
-    },
-  });
-
   try {
-    await prisma.$transaction([...writes, auditOp]);
+    await prisma.$transaction(
+      async (tx) => {
+        // 1. UPDATE blokada (Excel obogaćivanje)
+        for (const u of blokadaUpdates) {
+          await tx.blokadaVanjskogKalendara.update({
+            where: { id: u.id },
+            data: u.data,
+          });
+        }
+
+        // 2. Per blokada: resolve Gost + upsert Shadow Rezervacija
+        // NAPOMENA: Excel trenutno NE postavlja gostEmail na blokadu, pa će
+        // email-upsert grana raditi samo ako je email došao iz drugog izvora
+        // (npr. ručno ili budući iCal parser). Inače pada na create-by-ime.
+        for (const op of shadowOps) {
+          let gostId: string | null = null;
+
+          if (op.gostEmail) {
+            const g = await tx.gost.upsert({
+              where: { email: op.gostEmail },
+              create: {
+                ime: op.gostIme || "Booking gost",
+                prezime: op.gostPrezime,
+                email: op.gostEmail,
+                telefon: op.gostTelefon,
+                drzava: op.gostDrzava,
+              },
+              update: {
+                ime: op.gostIme || undefined,
+                prezime: op.gostPrezime,
+                telefon: op.gostTelefon,
+                drzava: op.gostDrzava,
+              },
+            });
+            gostId = g.id;
+          } else if (op.gostIme) {
+            const g = await tx.gost.create({
+              data: {
+                ime: op.gostIme,
+                prezime: op.gostPrezime,
+                telefon: op.gostTelefon,
+                drzava: op.gostDrzava,
+              },
+            });
+            gostId = g.id;
+          }
+
+          const noci = Math.max(
+            Math.round(
+              (op.datumDo.getTime() - op.datumOd.getTime()) / 86400000
+            ),
+            1
+          );
+
+          await tx.rezervacija.upsert({
+            where: { blokadaId: op.blokadaId },
+            create: {
+              jedinicaId: op.jedinicaId,
+              gostId,
+              izvor: "BOOKING",
+              status: "PLACENO",
+              datumOd: op.datumOd,
+              datumDo: op.datumDo,
+              brojNocenja: noci,
+              brojOsoba: op.brojOsoba ?? 2,
+              iznosUkupno: op.iznosBruto,
+              iznosPlaceno: op.iznosBruto,
+              dogovoreniIznos: op.iznosBruto,
+              valuta: op.valuta,
+              placenoKarticom: true,
+              bookingExternalId: op.bookingId,
+              blokadaId: op.blokadaId,
+              napomena: op.naslov,
+              automatskoCiscenje: true,
+              automatskaPosteljina: true,
+            },
+            update: {
+              iznosUkupno: op.iznosBruto,
+              iznosPlaceno: op.iznosBruto,
+              dogovoreniIznos: op.iznosBruto,
+              bookingExternalId: op.bookingId,
+            },
+          });
+        }
+
+        // 3. Audit log
+        await tx.bookingExcelImport.create({
+          data: {
+            objektKey,
+            objektNaziv: objekt.naziv,
+            imeFajla: file instanceof File ? file.name : null,
+            brojRedakaUkupno: rows.length,
+            brojObogaceno: updated,
+            brojPreskoceno: skipped,
+            brojGresaka: errors.length,
+            greske: errors.length > 0 ? JSON.stringify(errors) : null,
+            korisnikIme: null,
+          },
+        });
+      },
+      { timeout: 30000, maxWait: 30000 }
+    );
   } catch (err) {
     console.error("[BOOKING IMPORT COMMIT] Transaction error:", err);
     return NextResponse.json(
