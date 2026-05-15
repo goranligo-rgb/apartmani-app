@@ -180,7 +180,7 @@ export async function getRezervacijeIBlokade(
       iznosPlaceno: 0,
       valuta: b.valuta,
       status: "BOOKING",
-      detailHref: null,
+      detailHref: `/admin/rezervacije/blokada/${b.id}`,
       blokada: b,
     });
   }
