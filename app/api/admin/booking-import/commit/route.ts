@@ -145,6 +145,7 @@ export async function POST(req: Request) {
   let updated = 0;
   let skipped = 0;
   let debugCnt = 0;
+  let debugTokCnt = 0;
 
   for (const r of rows) {
     // Edge: neispravan datum → preskoči
@@ -204,6 +205,30 @@ export async function POST(req: Request) {
         continue;
       }
       const lookupKey = `${jedinicaId}|${odKey}|${doKey}`;
+
+      // TEMP DEBUG — obrisati nakon dijagnostike
+      if (debugTokCnt < 5) {
+        console.log(
+          "[BOOKING IMPORT DEBUG] Row",
+          r.rowIndex,
+          "token raw:",
+          tok.raw,
+          "→ mapiranNaziv:",
+          tok.mapiranNaziv,
+          "→ jedinicaId:",
+          jedinicaId
+        );
+        console.log(
+          "[BOOKING IMPORT DEBUG] Row",
+          r.rowIndex,
+          "FULL lookup key:",
+          lookupKey,
+          "found:",
+          blokadeByKey.has(lookupKey)
+        );
+        debugTokCnt++;
+      }
+
       const blokadaId = blokadeByKey.get(lookupKey);
       if (!blokadaId) {
         skipped++;
