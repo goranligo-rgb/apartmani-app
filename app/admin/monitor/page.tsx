@@ -1,5 +1,9 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
+import {
+  getRezervacijeIBlokade,
+  type RezervacijaCard,
+} from "@/lib/rezervacije-union";
 
 export const dynamic = "force-dynamic";
 
@@ -141,44 +145,16 @@ export default async function AdminMonitorPage({
     orderBy: [{ sortOrder: "asc" }, { naziv: "asc" }],
   });
 
-  const rezervacije = await prisma.rezervacija.findMany({
-    where: {
-      status: {
-        not: "OTKAZANO"
-      },
-      datumOd: { lt: kalendarDo },
-      datumDo: { gt: kalendarOd },
-      ...(selectedJedinicaIds.length > 0
-        ? {
-          jedinicaId: {
-            in: selectedJedinicaIds,
-          },
-        }
-        : {}),
-    },
-    include: {
-      gost: true,
-      jedinica: {
-        include: {
-          objekt: true,
-        },
-      },
-    },
-    orderBy: [{ datumOd: "asc" }, { datumDo: "asc" }],
+  const rezervacije: RezervacijaCard[] = await getRezervacijeIBlokade({
+    datumOd: kalendarOd,
+    datumDo: kalendarDo,
+    ukljuciOtkazane: false,
+    jediniceIds:
+      selectedJedinicaIds.length > 0 ? selectedJedinicaIds : undefined,
   });
 
   const detaljRezervacije = params.rezervacijaId
-    ? await prisma.rezervacija.findUnique({
-      where: { id: params.rezervacijaId },
-      include: {
-        gost: true,
-        jedinica: {
-          include: {
-            objekt: true,
-          },
-        },
-      },
-    })
+    ? rezervacije.find((r) => r.id === params.rezervacijaId) ?? null
     : null;
 
   const mjeseci = [0, 1, 2, 3].map((i) => {
@@ -412,16 +388,21 @@ export default async function AdminMonitorPage({
             <div className="mt-3 grid gap-2 md:grid-cols-2 lg:grid-cols-4">
               <Detail
                 label="Gost"
-                value={`${detaljRezervacije.gost?.ime || ""} ${detaljRezervacije.gost?.prezime || ""
-                  }`}
+                value={
+                  detaljRezervacije.ime || detaljRezervacije.prezime
+                    ? `${detaljRezervacije.ime || ""} ${detaljRezervacije.prezime || ""}`.trim()
+                    : detaljRezervacije.source === "BLOKADA"
+                      ? "Booking"
+                      : "-"
+                }
               />
               <Detail
                 label="Email"
-                value={detaljRezervacije.gost?.email || "-"}
+                value={detaljRezervacije.email || "-"}
               />
               <Detail
                 label="Telefon"
-                value={detaljRezervacije.gost?.telefon || "-"}
+                value={detaljRezervacije.telefon || "-"}
               />
               <Detail
                 label="Jedinica"
@@ -437,13 +418,29 @@ export default async function AdminMonitorPage({
               />
               <Detail label="Izvor" value={detaljRezervacije.izvor} />
               <Detail label="Status" value={detaljRezervacije.status} />
+              <Detail
+                label="Tip"
+                value={
+                  detaljRezervacije.source === "BLOKADA"
+                    ? "Booking blokada"
+                    : "Rezervacija"
+                }
+              />
             </div>
 
-            {detaljRezervacije.napomena && (
-              <p className="mt-3 border bg-[#f8f3ea] p-3 text-sm text-[#6f665a]">
-                {detaljRezervacije.napomena}
-              </p>
-            )}
+            {detaljRezervacije.source === "REZERVACIJA" &&
+              detaljRezervacije.rezervacija.napomena && (
+                <p className="mt-3 border bg-[#f8f3ea] p-3 text-sm text-[#6f665a]">
+                  {detaljRezervacije.rezervacija.napomena}
+                </p>
+              )}
+
+            {detaljRezervacije.source === "BLOKADA" &&
+              detaljRezervacije.blokada.naslov && (
+                <p className="mt-3 border bg-[#f8f3ea] p-3 text-sm text-[#6f665a]">
+                  {detaljRezervacije.blokada.naslov}
+                </p>
+              )}
           </section>
         )}
 
@@ -710,7 +707,12 @@ function RezCard({
   mjesec: string;
   jediniceParam: string;
 }) {
-  const ime = `${r.gost?.ime || ""} ${r.gost?.prezime || ""}`.trim() || "Gost";
+  const gostIme =
+    r.ime && r.prezime
+      ? `${r.ime} ${r.prezime}`
+      : r.source === "BLOKADA"
+        ? "Booking"
+        : r.ime || "Gost";
 
   const q = new URLSearchParams();
   q.set("datum", datum);
@@ -726,7 +728,7 @@ function RezCard({
       href={`/admin/monitor?${q.toString()}`}
       className="block border bg-[#f8f3ea] p-2 transition hover:bg-[#efe2cc]"
     >
-      <div className="text-sm font-black text-[#2e2923]">{ime}</div>
+      <div className="text-sm font-black text-[#2e2923]">{gostIme}</div>
 
       <div className="text-xs text-[#6f665a]">
         {r.jedinica?.objekt?.naziv} / {r.jedinica?.naziv}
