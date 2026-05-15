@@ -242,6 +242,7 @@ model Rezervacija {
   valuta               String  @default("EUR")
   bookingExternalId    String?
   blokadaId            String? @unique // veza na BlokadaVanjskogKalendara (samo za izvor=BOOKING)
+  bookingIcalUid       String? @unique // iCal UID iz BlokadaVanjskogKalendara.uid (stabilan kroz iCal sync)
   napomena             String?
   automatskoCiscenje   Boolean @default(true)
   automatskaPosteljina Boolean @default(true)
@@ -270,6 +271,7 @@ model Rezervacija {
   @@index([rokUplateAkontacije])
   @@index([rokUplateOstatka])
   @@index([blokadaId])
+  @@index([bookingIcalUid])
 }
 
 model RezervacijaPromjena {

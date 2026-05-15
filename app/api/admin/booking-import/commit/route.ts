@@ -107,6 +107,7 @@ export async function POST(req: Request) {
             jedinicaId: true,
             datumOd: true,
             datumDo: true,
+            uid: true,
             naslov: true,
             valuta: true,
             gostEmail: true,
@@ -116,6 +117,7 @@ export async function POST(req: Request) {
 
   type BlokadaInfo = {
     id: string;
+    uid: string | null;
     naslov: string | null;
     valuta: string;
     gostEmail: string | null;
@@ -125,6 +127,7 @@ export async function POST(req: Request) {
     const key = `${b.jedinicaId}|${ymdKey(b.datumOd)}|${ymdKey(b.datumDo)}`;
     blokadeByKey.set(key, {
       id: b.id,
+      uid: b.uid,
       naslov: b.naslov,
       valuta: b.valuta,
       gostEmail: b.gostEmail,
@@ -153,6 +156,7 @@ export async function POST(req: Request) {
 
   type ShadowOp = {
     blokadaId: string;
+    icalUid: string;
     jedinicaId: string;
     datumOd: Date;
     datumDo: Date;
@@ -246,22 +250,28 @@ export async function POST(req: Request) {
         },
       });
 
-      shadowOps.push({
-        blokadaId: blokadaInfo.id,
-        jedinicaId,
-        datumOd: r.datumOd,
-        datumDo: r.datumDo,
-        gostIme: gostIme || null,
-        gostPrezime,
-        gostEmail: blokadaInfo.gostEmail,
-        gostTelefon: r.telefon,
-        gostDrzava: r.drzava,
-        brojOsoba: r.brojOsoba,
-        iznosBruto: iznosBrutoPoJedinici,
-        bookingId: r.bookingId || null,
-        valuta: r.valuta || blokadaInfo.valuta || "EUR",
-        naslov: blokadaInfo.naslov,
-      });
+      // Shadow Rezervaciju kreiramo samo ako blokada ima iCal UID
+      // (stabilan ključ kroz iCal sync). Bez UID-a (npr. ručno kreirane blokade)
+      // ne možemo garantirati idempotentnost re-importa.
+      if (blokadaInfo.uid) {
+        shadowOps.push({
+          blokadaId: blokadaInfo.id,
+          icalUid: blokadaInfo.uid,
+          jedinicaId,
+          datumOd: r.datumOd,
+          datumDo: r.datumDo,
+          gostIme: gostIme || null,
+          gostPrezime,
+          gostEmail: blokadaInfo.gostEmail,
+          gostTelefon: r.telefon,
+          gostDrzava: r.drzava,
+          brojOsoba: r.brojOsoba,
+          iznosBruto: iznosBrutoPoJedinici,
+          bookingId: r.bookingId || null,
+          valuta: r.valuta || blokadaInfo.valuta || "EUR",
+          naslov: blokadaInfo.naslov,
+        });
+      }
 
       updated++;
     }
@@ -280,27 +290,32 @@ export async function POST(req: Request) {
 
         // 2. Per blokada: find-or-create Shadow Rezervacija (idempotentno)
         //
-        // Idempotentnost: ako Shadow Rezervacija već postoji za blokadu,
-        // SAMO update-amo iznose + bookingExternalId. Gost se NE dira (ni novi
-        // se ne kreira), čime izbjegavamo duplikat Gost-ova pri re-importu istog
-        // Excel-a.
+        // KLJUČ: bookingIcalUid (stabilan kroz iCal sync), NE blokadaId.
+        // iCal sync briše/kreira blokade s novim UUID-evima ali istim UID-em,
+        // pa blokadaId nije pouzdan ključ za vezu Rezervacije.
+        //
+        // Idempotentnost: ako Shadow Rezervacija već postoji za UID,
+        // SAMO update-amo iznose + bookingExternalId + osvježeni blokadaId.
+        // Gost se NE dira (ni novi se ne kreira), čime izbjegavamo duplikat
+        // Gost-ova pri re-importu istog Excel-a.
         //
         // NAPOMENA: Excel trenutno NE postavlja gostEmail na blokadu, pa će
         // email-upsert grana raditi samo ako je email došao iz drugog izvora.
         for (const op of shadowOps) {
           const existing = await tx.rezervacija.findUnique({
-            where: { blokadaId: op.blokadaId },
+            where: { bookingIcalUid: op.icalUid },
             select: { id: true },
           });
 
           if (existing) {
             await tx.rezervacija.update({
-              where: { blokadaId: op.blokadaId },
+              where: { bookingIcalUid: op.icalUid },
               data: {
                 iznosUkupno: op.iznosBruto,
                 iznosPlaceno: op.iznosBruto,
                 dogovoreniIznos: op.iznosBruto,
                 bookingExternalId: op.bookingId,
+                blokadaId: op.blokadaId,
               },
             });
             continue;
@@ -362,6 +377,7 @@ export async function POST(req: Request) {
               placenoKarticom: true,
               bookingExternalId: op.bookingId,
               blokadaId: op.blokadaId,
+              bookingIcalUid: op.icalUid,
               napomena: op.naslov,
               automatskoCiscenje: true,
               automatskaPosteljina: true,
