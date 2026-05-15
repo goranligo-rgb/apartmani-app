@@ -77,6 +77,21 @@ export async function POST(req: Request) {
     );
   }
 
+  // TEMP DEBUG — obrisati nakon dijagnostike
+  console.log("[BOOKING IMPORT DEBUG] Excel rows count:", rows.length);
+  console.log("[BOOKING IMPORT DEBUG] First 3 rows datumi:");
+  for (let i = 0; i < Math.min(3, rows.length); i++) {
+    const r = rows[i];
+    console.log(
+      "Row",
+      i,
+      "- datumOd:",
+      r.datumOd?.toISOString(),
+      "datumDo:",
+      r.datumDo?.toISOString()
+    );
+  }
+
   // Dohvati objekt + jedinice iz baze
   const objekt = await prisma.objekt.findFirst({
     where: { naziv: OBJEKT_KEY_TO_NAZIV[objektKey] },
@@ -117,10 +132,19 @@ export async function POST(req: Request) {
     blokadeByKey.set(key, b.id);
   }
 
+  // TEMP DEBUG — obrisati nakon dijagnostike
+  console.log("[BOOKING IMPORT DEBUG] Blokade lookup keys (prvih 5):");
+  let cnt = 0;
+  for (const [key, id] of blokadeByKey.entries()) {
+    console.log("  ", key);
+    if (++cnt >= 5) break;
+  }
+
   const writes: any[] = [];
   const errors: string[] = [];
   let updated = 0;
   let skipped = 0;
+  let debugCnt = 0;
 
   for (const r of rows) {
     // Edge: neispravan datum → preskoči
@@ -134,6 +158,19 @@ export async function POST(req: Request) {
 
     const odKey = ymdKey(r.datumOd);
     const doKey = ymdKey(r.datumDo);
+
+    // TEMP DEBUG — obrisati nakon dijagnostike
+    if (debugCnt < 5) {
+      console.log(
+        "[BOOKING IMPORT DEBUG] Row",
+        r.rowIndex,
+        "lookup key segment - od:",
+        odKey,
+        "do:",
+        doKey
+      );
+      debugCnt++;
+    }
 
     // Edge: cancelled_by_guest → preskoči.
     // iCal sync je jedini zadužen za brisanje blokada (kad UID nestane iz Booking feeda).
