@@ -13,6 +13,19 @@ export async function spremiVanjskiKalendar(formData: FormData) {
     redirect("/admin/ical?error=1");
   }
 
+  // Provjeri postoji li već Booking link za ovu jedinicu
+  const postojeci = await prisma.vanjskiKalendar.findFirst({
+    where: {
+      jedinicaId,
+      izvor: "BOOKING",
+    },
+  });
+
+  // Ako već postoji, ne dozvoli duplikat — admin mora prvo obrisati stari
+  if (postojeci) {
+    redirect("/admin/ical?error=duplicate");
+  }
+
   await prisma.vanjskiKalendar.create({
     data: {
       jedinicaId,
@@ -25,6 +38,21 @@ export async function spremiVanjskiKalendar(formData: FormData) {
 
   revalidatePath("/admin/ical");
   redirect("/admin/ical?saved=1");
+}
+
+export async function obrisiVanjskiKalendar(formData: FormData) {
+  const kalendarId = String(formData.get("kalendarId") || "");
+
+  if (!kalendarId) {
+    redirect("/admin/ical?error=1");
+  }
+
+  await prisma.vanjskiKalendar.delete({
+    where: { id: kalendarId },
+  });
+
+  revalidatePath("/admin/ical");
+  redirect("/admin/ical?deleted=1");
 }
 
 export async function syncSveKalendare(formData: FormData) {
