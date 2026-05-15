@@ -198,19 +198,31 @@ export async function POST(req: Request) {
     }
   }
 
-  if (writes.length > 0) {
-    try {
-      await prisma.$transaction(writes);
-    } catch (err) {
-      console.error("[BOOKING IMPORT COMMIT] Transaction error:", err);
-      return NextResponse.json(
-        {
-          error: "Greška pri zapisivanju u bazu. Ništa nije promijenjeno.",
-          details: String(err),
-        },
-        { status: 500 }
-      );
-    }
+  const auditOp = prisma.bookingExcelImport.create({
+    data: {
+      objektKey,
+      objektNaziv: objekt.naziv,
+      imeFajla: file instanceof File ? file.name : null,
+      brojRedakaUkupno: rows.length,
+      brojObogaceno: updated,
+      brojPreskoceno: skipped,
+      brojGresaka: errors.length,
+      greske: errors.length > 0 ? JSON.stringify(errors) : null,
+      korisnikIme: null,
+    },
+  });
+
+  try {
+    await prisma.$transaction([...writes, auditOp]);
+  } catch (err) {
+    console.error("[BOOKING IMPORT COMMIT] Transaction error:", err);
+    return NextResponse.json(
+      {
+        error: "Greška pri zapisivanju u bazu. Ništa nije promijenjeno.",
+        details: String(err),
+      },
+      { status: 500 }
+    );
   }
 
   return NextResponse.json({

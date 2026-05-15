@@ -458,6 +458,28 @@ model BlokadaVanjskogKalendara {
   @@index([bookingId])
 }
 
+model BookingExcelImport {
+  id String @id @default(uuid())
+
+  objektKey   String // "EVA" | "MARTY" | "HOUSE_ART"
+  objektNaziv String // npr. "Apartments Eva" (snapshot za prikaz)
+  imeFajla    String?
+
+  brojRedakaUkupno Int @default(0)
+  brojObogaceno    Int @default(0)
+  brojPreskoceno   Int @default(0)
+  brojGresaka      Int @default(0)
+
+  greske String? // JSON array kao string, npr: ["Red 5: jedinica ne postoji", ...]
+
+  korisnikIme String?
+
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([objektKey])
+}
+
 model CiscenjeAgencija {
   id       String  @id @default(uuid())
   naziv    String
