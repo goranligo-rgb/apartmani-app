@@ -1391,18 +1391,46 @@ export default async function RezervacijaDetaljPage({
           <Stat title="Popust" value={money(popust)} color="#2f261d" />
         </section>
 
-        <section className="mb-6 grid gap-4 lg:grid-cols-4">
+        {/* Row 2: GOST + TERMIN */}
+        <section className="row2" style={{ marginBottom: 12 }}>
           <Card title="Gost">
             {gostUpozorenje && (
-              <div className="mb-4 border border-red-300 bg-red-50 p-3 text-sm font-black text-red-700">
+              <div
+                style={{
+                  marginBottom: 10,
+                  border: "1px solid #fca5a5",
+                  background: "#fef2f2",
+                  padding: "8px 10px",
+                  fontSize: 12,
+                  fontWeight: 600,
+                  color: "#991b1b",
+                }}
+              >
                 ⚠ Pažnja — gost ima oznaku: {gostOznake.join(", ")}
+              </div>
+            )}
+
+            {rezervacija.napomena?.trim() && (
+              <div
+                style={{
+                  marginBottom: 10,
+                  borderLeft: "3px solid #dc2626",
+                  background: "#fef2f2",
+                  padding: "8px 10px",
+                  fontSize: 12,
+                  color: "#991b1b",
+                }}
+              >
+                <div className="lm" style={{ color: "#7f1d1d", marginBottom: 4 }}>
+                  ⚠ Napomena gosta uz rezervaciju
+                </div>
+                <div style={{ whiteSpace: "pre-wrap" }}>{rezervacija.napomena}</div>
               </div>
             )}
 
             <Detail
               label="Ime"
-              value={`${rezervacija.gost?.ime || "Gost"} ${rezervacija.gost?.prezime || ""
-                }`}
+              value={`${rezervacija.gost?.ime || "Gost"} ${rezervacija.gost?.prezime || ""}`}
             />
             <Detail label="Email" value={rezervacija.gost?.email || "-"} />
             <Detail label="Telefon" value={rezervacija.gost?.telefon || "-"} />
@@ -1411,161 +1439,138 @@ export default async function RezervacijaDetaljPage({
             <Detail label="Država" value={rezervacija.gost?.drzava || "-"} />
 
             {gostOznake.length > 0 && (
-              <div className="mb-3 flex flex-wrap gap-2">
-                {gostOznake.map((oznaka) => (
-                  <span
-                    key={oznaka}
-                    className="border px-3 py-1 text-xs font-black"
-                    style={{
-                      backgroundColor:
+              <div style={{ marginBottom: 10 }}>
+                <div className="lm" style={{ marginBottom: 4 }}>Oznake gosta</div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                  {gostOznake.map((oznaka) => (
+                    <span
+                      key={oznaka}
+                      className={
                         oznaka === "NEUREDAN" ||
-                          oznaka === "PROBLEMATICAN" ||
-                          oznaka === "KASNI_S_PLACANJEM"
-                          ? "#fee2e2"
-                          : "#fff6e2",
-                      borderColor:
-                        oznaka === "NEUREDAN" ||
-                          oznaka === "PROBLEMATICAN" ||
-                          oznaka === "KASNI_S_PLACANJEM"
-                          ? UI_COLORS.zauzetoBorder
-                          : UI_COLORS.gold,
-                      color:
-                        oznaka === "NEUREDAN" ||
-                          oznaka === "PROBLEMATICAN" ||
-                          oznaka === "KASNI_S_PLACANJEM"
-                          ? UI_COLORS.zauzetoBorder
-                          : "#7a5a22",
-                    }}
-                  >
-                    {oznaka}
-                  </span>
-                ))}
+                        oznaka === "PROBLEMATICAN" ||
+                        oznaka === "KASNI_S_PLACANJEM"
+                          ? "rd"
+                          : "go"
+                      }
+                    >
+                      {oznaka}
+                    </span>
+                  ))}
+                </div>
               </div>
             )}
 
             <Detail
-              label="Napomena gosta"
+              label="Interna napomena o gostu"
               value={rezervacija.gost?.napomena || "-"}
             />
 
             {rezervacija.gost && (
-              <form
-                action={spremiGosta}
-                className="mt-5 border border-[#e2d8c8] bg-[#fcfaf6] p-4"
-              >
-                <input
-                  type="hidden"
-                  name="rezervacijaId"
-                  value={rezervacija.id}
-                />
-                <input type="hidden" name="gostId" value={rezervacija.gost.id} />
-
-                <div className="mb-4 grid gap-3 sm:grid-cols-2">
-                  <Field label="Ime">
-                    <input
-                      name="ime"
-                      defaultValue={rezervacija.gost.ime || ""}
-                      className="w-full border border-[#d8c8aa] bg-white px-3 py-2 text-[#2e2923] outline-none"
-                    />
-                  </Field>
-
-                  <Field label="Prezime">
-                    <input
-                      name="prezime"
-                      defaultValue={rezervacija.gost.prezime || ""}
-                      className="w-full border border-[#d8c8aa] bg-white px-3 py-2 text-[#2e2923] outline-none"
-                    />
-                  </Field>
-
-                  <Field label="Email">
-                    <input
-                      name="email"
-                      type="email"
-                      defaultValue={rezervacija.gost.email || ""}
-                      className="w-full border border-[#d8c8aa] bg-white px-3 py-2 text-[#2e2923] outline-none"
-                    />
-                  </Field>
-
-                  <Field label="Telefon">
-                    <input
-                      name="telefon"
-                      defaultValue={rezervacija.gost.telefon || ""}
-                      className="w-full border border-[#d8c8aa] bg-white px-3 py-2 text-[#2e2923] outline-none"
-                    />
-                  </Field>
-
-                  <Field label="Adresa">
-                    <input
-                      name="adresa"
-                      defaultValue={rezervacija.gost.adresa || ""}
-                      className="w-full border border-[#d8c8aa] bg-white px-3 py-2 text-[#2e2923] outline-none"
-                    />
-                  </Field>
-
-                  <Field label="Grad / mjesto">
-                    <input
-                      name="grad"
-                      defaultValue={rezervacija.gost.grad || ""}
-                      className="w-full border border-[#d8c8aa] bg-white px-3 py-2 text-[#2e2923] outline-none"
-                    />
-                  </Field>
-
-                  <Field label="Država">
-                    <input
-                      name="drzava"
-                      defaultValue={rezervacija.gost.drzava || ""}
-                      className="w-full border border-[#d8c8aa] bg-white px-3 py-2 text-[#2e2923] outline-none"
-                    />
-                  </Field>
-                </div>
-
-                <div className="mb-3 text-xs font-black uppercase tracking-[0.16em] text-[#7a5a22]">
-                  Oznake gosta
-                </div>
-
-                <div className="mb-4 grid gap-2 sm:grid-cols-2">
-                  {OZNAKE_GOSTA.map((oznaka) => (
-                    <label
-                      key={oznaka}
-                      className="flex cursor-pointer items-center gap-2 border border-[#e2d8c8] bg-white px-3 py-2 text-xs font-bold text-[#2e2923]"
-                    >
-                      <input
-                        type="checkbox"
-                        name="oznake"
-                        value={oznaka}
-                        defaultChecked={gostOznake.includes(oznaka)}
-                      />
-                      {oznaka}
-                    </label>
-                  ))}
-                </div>
-
-                <Field label="Interna napomena o gostu">
-                  <textarea
-                    name="napomenaGosta"
-                    rows={4}
-                    defaultValue={rezervacija.gost.napomena || ""}
-                    className="w-full border border-[#d8c8aa] bg-white px-3 py-2 text-[#2e2923] outline-none"
-                    placeholder="Npr. super gost, uredan, kasni s uplatom, traži raniji ulazak..."
-                  />
-                </Field>
-
-                <button
-                  className="mt-3 cursor-pointer border border-[#caa870] bg-[#c79a57] px-4 py-3 text-sm font-black text-white transition hover:brightness-95"
+              <details style={{ marginTop: 10 }}>
+                <summary
+                  className="bo"
+                  style={{
+                    listStyle: "none",
+                    textAlign: "center",
+                    display: "block",
+                  }}
                 >
-                  Spremi podatke o gostu
-                </button>
-              </form>
+                  Uredi podatke o gostu
+                </summary>
+
+                <form
+                  action={spremiGosta}
+                  style={{
+                    marginTop: 10,
+                    padding: 10,
+                    background: "#fcfaf6",
+                    border: "1px solid #e8dcc4",
+                  }}
+                >
+                  <input type="hidden" name="rezervacijaId" value={rezervacija.id} />
+                  <input type="hidden" name="gostId" value={rezervacija.gost.id} />
+
+                  <div className="row" style={{ marginBottom: 8 }}>
+                    <Field label="Ime">
+                      <input className="in" name="ime" defaultValue={rezervacija.gost.ime || ""} />
+                    </Field>
+                    <Field label="Prezime">
+                      <input className="in" name="prezime" defaultValue={rezervacija.gost.prezime || ""} />
+                    </Field>
+                    <Field label="Email">
+                      <input className="in" name="email" type="email" defaultValue={rezervacija.gost.email || ""} />
+                    </Field>
+                    <Field label="Telefon">
+                      <input className="in" name="telefon" defaultValue={rezervacija.gost.telefon || ""} />
+                    </Field>
+                    <Field label="Adresa">
+                      <input className="in" name="adresa" defaultValue={rezervacija.gost.adresa || ""} />
+                    </Field>
+                    <Field label="Grad / mjesto">
+                      <input className="in" name="grad" defaultValue={rezervacija.gost.grad || ""} />
+                    </Field>
+                    <Field label="Država">
+                      <input className="in" name="drzava" defaultValue={rezervacija.gost.drzava || ""} />
+                    </Field>
+                  </div>
+
+                  <div className="lm" style={{ marginBottom: 4 }}>Oznake gosta</div>
+                  <div className="row" style={{ marginBottom: 8 }}>
+                    {OZNAKE_GOSTA.map((oznaka) => (
+                      <label
+                        key={oznaka}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 6,
+                          border: "1px solid #e8dcc4",
+                          background: "#fff",
+                          padding: "5px 8px",
+                          fontSize: 12,
+                          color: "#2f261d",
+                          cursor: "pointer",
+                        }}
+                      >
+                        <input
+                          type="checkbox"
+                          name="oznake"
+                          value={oznaka}
+                          defaultChecked={gostOznake.includes(oznaka)}
+                        />
+                        {oznaka}
+                      </label>
+                    ))}
+                  </div>
+
+                  <Field label="Interna napomena o gostu">
+                    <textarea
+                      name="napomenaGosta"
+                      rows={3}
+                      defaultValue={rezervacija.gost.napomena || ""}
+                      className="in"
+                      placeholder="Npr. super gost, uredan, kasni s uplatom..."
+                    />
+                  </Field>
+
+                  <button className="bg" style={{ marginTop: 8, width: "100%" }}>
+                    Spremi podatke o gostu
+                  </button>
+                </form>
+              </details>
             )}
 
-            <div className="mt-4">
-              <Link
-                href={`/admin/rezervacije/${rezervacija.id}/promjena-termina`}
-                className="block cursor-pointer border border-[#caa870] bg-[#fff6e2] px-4 py-3 text-center text-sm font-black text-[#7a5a22] transition hover:bg-[#c79a57] hover:text-white"
-              >
-                Gost traži promjenu termina
-              </Link>
-            </div>
+            <Link
+              href={`/admin/rezervacije/${rezervacija.id}/promjena-termina`}
+              className="bo"
+              style={{
+                marginTop: 10,
+                display: "block",
+                textAlign: "center",
+                textDecoration: "none",
+              }}
+            >
+              Gost traži promjenu termina
+            </Link>
           </Card>
 
           <Card title="Termin">
@@ -1573,16 +1578,54 @@ export default async function RezervacijaDetaljPage({
             <Detail label="Odlazak" value={formatDate(rezervacija.datumDo)} />
             <Detail label="Noćenja" value={`${rezervacija.brojNocenja}`} />
             <Detail label="Broj osoba" value={`${rezervacija.brojOsoba}`} />
-          </Card>
+            <Detail
+              label="Datum rezerviranja"
+              value={formatDateTime(rezervacija.createdAt)}
+            />
 
+            <div style={{ marginTop: 10 }}>
+              <div className="lm" style={{ marginBottom: 4 }}>Dana do dolaska</div>
+              {(() => {
+                const today = startOfDay(new Date());
+                const arrival = startOfDay(new Date(rezervacija.datumOd));
+                const days = Math.round(
+                  (arrival.getTime() - today.getTime()) / 86400000
+                );
+                const label =
+                  days < 0
+                    ? `${Math.abs(days)} dana proteklo`
+                    : days === 0
+                      ? "Danas"
+                      : `${days} dana`;
+                return (
+                  <span className="go" style={{ fontSize: 14, padding: "6px 12px" }}>
+                    {label}
+                  </span>
+                );
+              })()}
+            </div>
+          </Card>
+        </section>
+
+        {/* Row 3: TTLOCK + CIJENA I STATUS */}
+        <section className="row" style={{ marginBottom: 12 }}>
           <Card title="TTLock pristup">
             {rezervacija.jedinica.ttlockBrave.length === 0 ? (
-              <div className="border border-red-300 bg-red-50 p-3 text-sm font-bold text-red-700">
+              <div
+                style={{
+                  border: "1px solid #fca5a5",
+                  background: "#fef2f2",
+                  padding: "8px 10px",
+                  fontSize: 12,
+                  fontWeight: 600,
+                  color: "#991b1b",
+                }}
+              >
                 Ova jedinica još nema povezane TTLock brave.
               </div>
             ) : (
               <>
-                <form action={spremiTtlockPristup} className="space-y-3">
+                <form action={spremiTtlockPristup}>
                   <input type="hidden" name="rezervacijaId" value={rezervacija.id} />
 
                   <Field label="Šifra gosta">
@@ -1590,46 +1633,60 @@ export default async function RezervacijaDetaljPage({
                       name="sifra"
                       maxLength={4}
                       defaultValue={ttlockSifra}
-                      className="w-full border border-[#d8c8aa] bg-white px-3 py-3 text-center text-3xl font-black tracking-[0.25em] text-[#2e2923] outline-none"
+                      style={{
+                        width: "100%",
+                        background: "#2f261d",
+                        color: "#c4a96b",
+                        border: "1px solid #2f261d",
+                        padding: 12,
+                        fontSize: 26,
+                        fontWeight: 700,
+                        textAlign: "center",
+                        letterSpacing: "0.25em",
+                        outline: "none",
+                        fontFamily: "inherit",
+                        boxSizing: "border-box",
+                      }}
                     />
                   </Field>
 
-                  <div className="grid gap-3 md:grid-cols-2">
+                  <div className="row" style={{ marginBottom: 8 }}>
                     <Field label={`Ulaz ${formatDate(rezervacija.datumOd)}`}>
                       <input
+                        className="in"
                         name="ulazVrijeme"
                         type="time"
                         defaultValue={formatTime(ttlockUlaz)}
-                        className="w-full border border-[#d8c8aa] bg-white px-3 py-2 text-[#2e2923] outline-none"
                       />
                     </Field>
 
                     <Field label={`Izlaz ${formatDate(rezervacija.datumDo)}`}>
                       <input
+                        className="in"
                         name="izlazVrijeme"
                         type="time"
                         defaultValue={formatTime(ttlockIzlaz)}
-                        className="w-full border border-[#d8c8aa] bg-white px-3 py-2 text-[#2e2923] outline-none"
                       />
                     </Field>
                   </div>
 
-                  <button className="cursor-pointer border border-[#caa870] bg-[#c79a57] px-4 py-3 text-sm font-black text-white transition hover:brightness-95">
+                  <button className="bg" style={{ width: "100%" }}>
                     Spremi šifru i vrijeme
                   </button>
                 </form>
 
-                <div className="mt-4 border border-[#e2d8c8] bg-[#fcfaf6] p-3">
-                  <div className="mb-2 text-xs font-black uppercase tracking-[0.14em] text-[#7a5a22]">
-                    Brave
-                  </div>
-
-                  <div className="flex flex-wrap gap-2">
+                <div
+                  style={{
+                    marginTop: 10,
+                    border: "1px solid #e8dcc4",
+                    background: "#fcfaf6",
+                    padding: 8,
+                  }}
+                >
+                  <div className="lm" style={{ marginBottom: 4 }}>Brave</div>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
                     {rezervacija.jedinica.ttlockBrave.map((veza) => (
-                      <span
-                        key={veza.id}
-                        className="border border-[#e2d8c8] bg-white px-3 py-2 text-xs font-black text-[#2e2923]"
-                      >
+                      <span key={veza.id} className="gy">
                         {veza.brava.naziv}
                       </span>
                     ))}
@@ -1638,22 +1695,43 @@ export default async function RezervacijaDetaljPage({
 
                 {rezervacija.ttlockSifre.length > 0 && (
                   <>
-                    <form action={posaljiTtlockNaBrave} className="mt-4">
+                    <form action={posaljiTtlockNaBrave} style={{ marginTop: 10 }}>
                       <input type="hidden" name="rezervacijaId" value={rezervacija.id} />
 
-                      <button className="w-full cursor-pointer border border-green-700 bg-green-700 px-4 py-3 text-sm font-black text-white hover:brightness-95">
+                      <button
+                        style={{
+                          width: "100%",
+                          background: "#15803d",
+                          color: "#fff",
+                          border: "1px solid #15803d",
+                          padding: "8px 14px",
+                          fontWeight: 600,
+                          cursor: "pointer",
+                          fontSize: 13,
+                        }}
+                      >
                         Pošalji šifru na TTLock brave
                       </button>
                     </form>
 
                     {rezervacija.ttlockSifre.some((x) => x.status === "POSLANO") && (
-                      <div className="mt-4 border-2 border-green-300 bg-green-50 p-4 text-sm font-black text-green-800">
+                      <div className="alert-ok">
                         ✅ Šifra je uspješno poslana na TTLock brave.
                       </div>
                     )}
 
                     {rezervacija.ttlockSifre.some((x) => x.status === "GRESKA") && (
-                      <div className="mt-4 border-2 border-red-300 bg-red-50 p-4 text-sm font-black text-red-800">
+                      <div
+                        style={{
+                          marginTop: 10,
+                          border: "1px solid #fca5a5",
+                          background: "#fef2f2",
+                          padding: "8px 10px",
+                          fontSize: 12,
+                          fontWeight: 600,
+                          color: "#991b1b",
+                        }}
+                      >
                         ❌ Došlo je do greške kod slanja TTLock šifre.
                       </div>
                     )}
@@ -1661,21 +1739,33 @@ export default async function RezervacijaDetaljPage({
                 )}
 
                 {rezervacija.ttlockSifre.length > 0 && (
-                  <div className="mt-4 space-y-2">
+                  <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 6 }}>
                     {rezervacija.ttlockSifre.map((s) => (
                       <div
                         key={s.id}
-                        className="border border-[#e2d8c8] bg-white p-3 text-xs"
+                        style={{
+                          border: "1px solid #e8dcc4",
+                          background: "#fff",
+                          padding: 8,
+                          fontSize: 12,
+                        }}
                       >
-                        <div className="font-black">{s.brava.naziv}</div>
-                        <div className="mt-1 text-[#6f665a]">
+                        <div style={{ fontWeight: 600, color: "#2f261d" }}>{s.brava.naziv}</div>
+                        <div style={{ marginTop: 2, color: "#6f665a" }}>
                           {formatDateTime(s.vrijediOd)} - {formatDateTime(s.vrijediDo)}
                         </div>
-                        <div className="mt-1 font-black text-[#9b6b12]">
+                        <div style={{ marginTop: 2, fontWeight: 600, color: "#9b6b12" }}>
                           Status: {s.status}
                         </div>
                         {s.greska && (
-                          <div className="mt-2 bg-red-50 p-2 text-red-700">
+                          <div
+                            style={{
+                              marginTop: 4,
+                              background: "#fef2f2",
+                              padding: 6,
+                              color: "#991b1b",
+                            }}
+                          >
                             {s.greska}
                           </div>
                         )}
@@ -1690,15 +1780,10 @@ export default async function RezervacijaDetaljPage({
           <Card title="Cijena i status">
             <Detail label="Status" value={rezervacija.status} />
             <Detail label="Izvor" value={rezervacija.izvor} />
-            <Detail
-              label="Osnovni iznos"
-              value={money(rezervacija.iznosOsnovni)}
-            />
+            <Detail label="Osnovni iznos" value={money(rezervacija.iznosOsnovni)} />
             <Detail
               label="Dogovoreni iznos"
-              value={money(
-                rezervacija.dogovoreniIznos || rezervacija.iznosUkupno
-              )}
+              value={money(rezervacija.dogovoreniIznos || rezervacija.iznosUkupno)}
             />
             <Detail
               label="Rok uplate"
@@ -1759,41 +1844,29 @@ export default async function RezervacijaDetaljPage({
           </section>
         )}
 
-        {rezervacija.napomena?.trim() && (
-          <section className="mb-6 border-2 border-red-500 bg-red-50 p-4 text-sm font-bold text-red-800 shadow-[0_14px_35px_rgba(0,0,0,0.08)]">
-            <div className="mb-1 text-xs font-black uppercase tracking-[0.18em] text-red-700">
-              ⚠ Napomena gosta
-            </div>
-
-            <div className="mt-2 whitespace-pre-wrap">
-              {rezervacija.napomena}
-            </div>
-          </section>
-        )}
-
-        <section className="mb-6 grid gap-4 xl:grid-cols-2">
+        <section className="row" style={{ marginBottom: 12 }}>
           <Card title="Evidentiraj uplatu">
-            <form action={evidentirajUplatu} className="space-y-3">
+            <form action={evidentirajUplatu}>
               <input type="hidden" name="rezervacijaId" value={rezervacija.id} />
 
-              <div className="grid gap-3 md:grid-cols-2">
+              <div className="row" style={{ marginBottom: 8 }}>
                 <Field label="Iznos">
                   <input
+                    className="in"
                     name="iznos"
                     type="number"
                     step="0.01"
                     min="0.01"
                     defaultValue={ostatak > 0 ? ostatak.toFixed(2) : ""}
-                    className="w-full border border-[#d8c8aa] bg-white px-3 py-2 text-[#2e2923] outline-none"
                     required
                   />
                 </Field>
 
                 <Field label="Tip uplate">
                   <select
+                    className="in"
                     name="tip"
                     defaultValue={placeno > 0 ? "OSTATAK" : "AKONTACIJA"}
-                    className="w-full border border-[#d8c8aa] bg-white px-3 py-2 text-[#2e2923] outline-none"
                   >
                     <option value="AKONTACIJA">Akontacija</option>
                     <option value="OSTATAK">Ostatak</option>
@@ -1803,44 +1876,53 @@ export default async function RezervacijaDetaljPage({
                 </Field>
               </div>
 
-              <Field label="Način plaćanja">
-                <select
-                  name="nacinPlacanja"
-                  defaultValue="TEKUCI_RACUN"
-                  className="w-full border border-[#d8c8aa] bg-white px-3 py-2 text-[#2e2923] outline-none"
-                >
-                  <option value="TEKUCI_RACUN">
-                    Tekući račun / uplata na račun
-                  </option>
-                  <option value="KARTICA">Kartica</option>
-                  <option value="GOTOVINA">Gotovina</option>
-                  <option value="BOOKING">Booking naplata</option>
-                  <option value="OSTALO">Ostalo</option>
-                </select>
-              </Field>
+              <div className="row" style={{ marginBottom: 8 }}>
+                <Field label="Način plaćanja">
+                  <select className="in" name="nacinPlacanja" defaultValue="TEKUCI_RACUN">
+                    <option value="TEKUCI_RACUN">Tekući račun</option>
+                    <option value="KARTICA">Kartica</option>
+                    <option value="GOTOVINA">Gotovina</option>
+                    <option value="BOOKING">Booking naplata</option>
+                    <option value="OSTALO">Ostalo</option>
+                  </select>
+                </Field>
 
-              <Field label="Napomena">
-                <textarea
-                  name="napomena"
-                  rows={3}
-                  className="w-full border border-[#d8c8aa] bg-white px-3 py-2 text-[#2e2923] outline-none"
-                  placeholder="Npr. uplata vidljiva na računu, dogovor s gostom..."
-                />
-              </Field>
+                <Field label="Napomena">
+                  <textarea
+                    className="in"
+                    name="napomena"
+                    rows={1}
+                    placeholder="Dogovor s gostom..."
+                  />
+                </Field>
+              </div>
 
-              <button className="cursor-pointer border border-[#22c55e] bg-[#dcfce7] px-4 py-3 text-sm font-black text-[#166534] transition hover:brightness-95">
+              <button
+                style={{
+                  width: "100%",
+                  background: "#dcfce7",
+                  color: "#166534",
+                  border: "1px solid #22c55e",
+                  padding: "8px 14px",
+                  fontWeight: 600,
+                  fontSize: 13,
+                  cursor: "pointer",
+                  marginTop: 4,
+                }}
+              >
                 Evidentiraj uplatu
               </button>
             </form>
           </Card>
 
           <Card title="Zahtjev za uplatu">
-            <form action={kreirajZahtjevZaUplatu} className="space-y-3">
+            <form action={kreirajZahtjevZaUplatu}>
               <input type="hidden" name="rezervacijaId" value={rezervacija.id} />
 
-              <div className="grid gap-3 md:grid-cols-2">
+              <div className="row" style={{ marginBottom: 8 }}>
                 <Field label="Iznos za uplatu">
                   <input
+                    className="in"
                     name="iznos"
                     type="number"
                     step="0.01"
@@ -1850,16 +1932,15 @@ export default async function RezervacijaDetaljPage({
                         ? ostatak.toFixed(2)
                         : Number(rezervacija.iznosPotvrde || 0).toFixed(2)
                     }
-                    className="w-full border border-[#d8c8aa] bg-white px-3 py-2 text-[#2e2923] outline-none"
                     required
                   />
                 </Field>
 
                 <Field label="Vrsta zahtjeva">
                   <select
+                    className="in"
                     name="tip"
                     defaultValue={placeno > 0 ? "OSTATAK" : "AKONTACIJA"}
-                    className="w-full border border-[#d8c8aa] bg-white px-3 py-2 text-[#2e2923] outline-none"
                   >
                     <option value="AKONTACIJA">Akontacija</option>
                     <option value="OSTATAK">Ostatak</option>
@@ -1868,67 +1949,77 @@ export default async function RezervacijaDetaljPage({
                 </Field>
               </div>
 
-              <Field label="Rok uplate">
-                <input
-                  name="rokUplate"
-                  type="date"
-                  className="w-full border border-[#d8c8aa] bg-white px-3 py-2 text-[#2e2923] outline-none"
-                />
-              </Field>
+              <div className="row" style={{ marginBottom: 8 }}>
+                <Field label="Rok uplate">
+                  <input className="in" name="rokUplate" type="date" />
+                </Field>
 
-              <Field label="Napomena za zahtjev">
-                <textarea
-                  name="napomena"
-                  rows={3}
-                  className="w-full border border-[#d8c8aa] bg-white px-3 py-2 text-[#2e2923] outline-none"
-                  placeholder="Npr. molimo uplatu akontacije za potvrdu rezervacije..."
-                />
-              </Field>
+                <Field label="Napomena za zahtjev">
+                  <textarea
+                    className="in"
+                    name="napomena"
+                    rows={1}
+                    placeholder="Molimo uplatu akontacije..."
+                  />
+                </Field>
+              </div>
 
-              <button className="cursor-pointer border border-[#caa870] bg-[#c79a57] px-4 py-3 text-sm font-black text-white transition hover:brightness-95">
+              <button className="bg" style={{ width: "100%", marginTop: 4 }}>
                 Kreiraj zahtjev za uplatu
               </button>
-
-              <p className="text-xs text-[#6f665a]">
-                Ovo zasad zapisuje zahtjev i email log. Stvarno slanje maila
-                spojit ćemo na mail servis.
-              </p>
             </form>
           </Card>
         </section>
 
-        <section className="mb-6 grid gap-4 xl:grid-cols-2">
+        <section className="row" style={{ marginBottom: 12 }}>
           <Card title="Plaćanja">
             {rezervacija.placanja.length === 0 ? (
               <Empty text="Nema evidentiranih plaćanja." />
             ) : (
-              <div className="space-y-2">
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                 {rezervacija.placanja.map((p) => (
                   <div
                     key={p.id}
-                    className="border border-[#e2d8c8] bg-[#fcfaf6] p-3"
+                    style={{
+                      borderLeft: "3px solid #2f5d1a",
+                      border: "1px solid #e8dcc4",
+                      borderLeftWidth: 3,
+                      borderLeftColor: "#2f5d1a",
+                      background: "#fcfaf6",
+                      padding: "8px 10px",
+                      fontSize: 12,
+                    }}
                   >
-                    <div className="flex flex-wrap justify-between gap-2">
+                    <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", gap: 6 }}>
                       <div>
-                        <div className="font-black text-[#2e2923]">
+                        <div style={{ fontWeight: 600, color: "#2f261d" }}>
                           {p.tip} · {p.status}
                         </div>
-                        <div className="text-xs text-[#6f665a]">
+                        <div style={{ fontSize: 11, color: "#6f665a" }}>
                           {formatDateTime(p.createdAt)}
                         </div>
                       </div>
 
-                      <div className="text-right font-black text-[#166534]">
+                      <div style={{ textAlign: "right", fontWeight: 600, color: "#2f5d1a", fontSize: 14 }}>
                         {money(p.iznos)}
                       </div>
                     </div>
 
-                    <div className="mt-2 text-xs text-[#6f665a]">
+                    <div style={{ marginTop: 4, fontSize: 11, color: "#6f665a" }}>
                       Način: {p.nacinPlacanja || p.provider || "-"}
                     </div>
 
                     {p.napomena && (
-                      <div className="mt-2 border border-[#ead7b6] bg-[#fff9ef] p-2 text-xs text-[#6f665a]">
+                      <div
+                        style={{
+                          marginTop: 4,
+                          border: "1px solid #ead7b6",
+                          background: "#fff9ef",
+                          padding: 6,
+                          fontSize: 11,
+                          color: "#6f665a",
+                        }}
+                      >
                         {p.napomena}
                       </div>
                     )}
@@ -1936,13 +2027,20 @@ export default async function RezervacijaDetaljPage({
                     {p.provider === "STRIPE" &&
                       p.status !== "PLACENO" &&
                       rezervacija.status === "CEKA_POTVRDU" && (
-                        <div className="mt-3 flex flex-wrap gap-2">
+                        <div style={{ marginTop: 6, display: "flex", flexWrap: "wrap", gap: 6 }}>
                           <form action="/api/admin/placanja/potvrdi-link" method="POST">
                             <input type="hidden" name="placanjeId" value={p.id} />
-
                             <button
                               type="submit"
-                              className="cursor-pointer border border-green-700 bg-green-700 px-4 py-2 text-xs font-black text-white hover:brightness-95"
+                              style={{
+                                background: "#15803d",
+                                color: "#fff",
+                                border: "1px solid #15803d",
+                                padding: "5px 10px",
+                                fontSize: 11,
+                                fontWeight: 600,
+                                cursor: "pointer",
+                              }}
                             >
                               ✅ Provjeri uplatu i potvrdi
                             </button>
@@ -1950,8 +2048,17 @@ export default async function RezervacijaDetaljPage({
 
                           <form action={odbijRezervaciju}>
                             <input type="hidden" name="rezervacijaId" value={rezervacija.id} />
-
-                            <button className="cursor-pointer border border-red-700 bg-red-700 px-4 py-2 text-xs font-black text-white hover:brightness-95">
+                            <button
+                              style={{
+                                background: "#b91c1c",
+                                color: "#fff",
+                                border: "1px solid #b91c1c",
+                                padding: "5px 10px",
+                                fontSize: 11,
+                                fontWeight: 600,
+                                cursor: "pointer",
+                              }}
+                            >
                               ❌ Odbij rezervaciju
                             </button>
                           </form>
@@ -1966,82 +2073,83 @@ export default async function RezervacijaDetaljPage({
           <Card title="Računi">
             <form
               action={generirajRacun}
-              className="mb-4 border border-[#e2d8c8] bg-[#fcfaf6] p-3"
+              style={{
+                marginBottom: 8,
+                border: "1px solid #e8dcc4",
+                background: "#fcfaf6",
+                padding: 8,
+                display: "grid",
+                gap: 6,
+                gridTemplateColumns: "1fr auto",
+              }}
             >
               <input type="hidden" name="rezervacijaId" value={rezervacija.id} />
-
-              <div className="grid gap-3 md:grid-cols-[1fr_auto]">
-                <input
-                  name="iznos"
-                  type="number"
-                  step="0.01"
-                  min="0.01"
-                  defaultValue={ukupno.toFixed(2)}
-                  className="w-full border border-[#d8c8aa] bg-white px-3 py-2 text-[#2e2923] outline-none"
-                  required
-                />
-
-                <button className="cursor-pointer border border-[#caa870] bg-[#c79a57] px-4 py-2 text-sm font-black text-white transition hover:brightness-95">
-                  Generiraj račun
-                </button>
-              </div>
+              <input
+                className="in"
+                name="iznos"
+                type="number"
+                step="0.01"
+                min="0.01"
+                defaultValue={ukupno.toFixed(2)}
+                required
+              />
+              <button className="bg">Generiraj račun</button>
             </form>
 
             {rezervacija.racuni.length === 0 ? (
               <Empty text="Nema generiranih računa." />
             ) : (
-              <div className="space-y-2">
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                 {rezervacija.racuni.map((racun) => (
                   <div
                     key={racun.id}
-                    className="border border-[#e2d8c8] bg-[#fcfaf6] p-3"
+                    style={{
+                      border: "1px solid #e8dcc4",
+                      borderLeftWidth: 3,
+                      borderLeftColor: "#c4a96b",
+                      background: "#fcfaf6",
+                      padding: "8px 10px",
+                      fontSize: 12,
+                    }}
                   >
-                    <div className="flex flex-wrap justify-between gap-2">
+                    <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", gap: 6 }}>
                       <div>
-                        <div className="font-black text-[#2e2923]">
+                        <div style={{ fontWeight: 600, color: "#2f261d" }}>
                           {racun.brojRacuna}
                         </div>
-                        <div className="text-xs text-[#6f665a]">
+                        <div style={{ fontSize: 11, color: "#6f665a" }}>
                           {formatDateTime(racun.createdAt)}
                         </div>
                       </div>
 
-                      <div className="text-right">
-                        <div className="font-black text-[#2e2923]">
+                      <div style={{ textAlign: "right" }}>
+                        <div style={{ fontWeight: 600, color: "#2f261d", fontSize: 14 }}>
                           {money(racun.iznos)}
                         </div>
-                        <div className="text-xs text-[#6f665a]">
+                        <div style={{ fontSize: 11, color: "#6f665a" }}>
                           {racun.poslanGostu ? "Poslan gostu" : "Nije poslan"}
                         </div>
                       </div>
                     </div>
 
-                    <div className="mt-3 flex flex-wrap gap-2">
+                    <div style={{ marginTop: 6, display: "flex", flexWrap: "wrap", gap: 6 }}>
                       {racun.pdfUrl ? (
                         <Link
                           href={racun.pdfUrl}
                           target="_blank"
-                          className="cursor-pointer border border-[#e2d8c8] bg-white px-3 py-2 text-xs font-black text-[#2e2923] hover:bg-[#f8f3ea]"
+                          className="bo"
+                          style={{ textDecoration: "none" }}
                         >
                           Otvori PDF
                         </Link>
                       ) : (
-                        <span className="border border-[#e2d8c8] bg-white px-3 py-2 text-xs font-black text-[#6f665a]">
-                          PDF još nije generiran
-                        </span>
+                        <span className="gy">PDF još nije generiran</span>
                       )}
 
                       <form action={oznaciRacunPoslan}>
-                        <input
-                          type="hidden"
-                          name="rezervacijaId"
-                          value={rezervacija.id}
-                        />
+                        <input type="hidden" name="rezervacijaId" value={rezervacija.id} />
                         <input type="hidden" name="racunId" value={racun.id} />
-
-                        <button className="cursor-pointer border border-[#caa870] bg-[#fff6e2] px-3 py-2 text-xs font-black text-[#7a5a22] hover:bg-[#c79a57] hover:text-white">
-                          Označi / pošalji račun na mail
-                        </button>
+                        <button className="bo">Označi / pošalji račun</button>
                       </form>
 
                       <form
@@ -2065,9 +2173,7 @@ export default async function RezervacijaDetaljPage({
                           redirect(`/admin/rezervacije/${rezervacija.id}`);
                         }}
                       >
-                        <button className="cursor-pointer border border-[#caa870] bg-white px-3 py-2 text-xs font-black text-[#7a5a22] hover:bg-[#fff6e2]">
-                          Ponovno pošalji račun
-                        </button>
+                        <button className="bo">Ponovno pošalji račun</button>
                       </form>
                     </div>
                   </div>
@@ -2077,39 +2183,40 @@ export default async function RezervacijaDetaljPage({
           </Card>
         </section>
 
-        <section className="mb-6 grid gap-4 xl:grid-cols-2">
+        {/* Row 6: EMAIL LOG + POVIJEST */}
+        <section className="row" style={{ marginBottom: 12 }}>
           <Card title="Email log">
             {rezervacija.emailovi.length === 0 ? (
               <Empty text="Nema zapisa o emailovima." />
             ) : (
-              <div className="space-y-2">
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                 {rezervacija.emailovi.map((e) => (
                   <div
                     key={e.id}
-                    className="border border-[#e2d8c8] bg-[#fcfaf6] p-3"
+                    style={{
+                      border: "1px solid #e8dcc4",
+                      background: "#fcfaf6",
+                      padding: "8px 10px",
+                      fontSize: 12,
+                    }}
                   >
-                    <div className="flex flex-wrap justify-between gap-2">
+                    <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", gap: 6 }}>
                       <div>
-                        <div className="font-black text-[#2e2923]">
-                          {e.subject}
-                        </div>
-                        <div className="text-xs text-[#6f665a]">
+                        <div style={{ fontWeight: 600, color: "#2f261d" }}>{e.subject}</div>
+                        <div style={{ fontSize: 11, color: "#6f665a" }}>
                           {e.to} · {e.tip}
                         </div>
                       </div>
-
-                      <div className="text-xs font-black text-[#9b6b12]">
-                        {e.status}
-                      </div>
+                      <span className={e.status === "POSLANO" ? "gr" : "rd"}>{e.status}</span>
                     </div>
 
                     {e.greska && (
-                      <div className="mt-2 bg-red-50 p-2 text-xs text-red-700">
+                      <div style={{ marginTop: 4, background: "#fef2f2", padding: 6, fontSize: 11, color: "#991b1b" }}>
                         {e.greska}
                       </div>
                     )}
 
-                    <div className="mt-2 text-xs text-[#9b7a4c]">
+                    <div style={{ marginTop: 4, fontSize: 10, color: "#9b7a4c" }}>
                       {formatDateTime(e.createdAt)}
                     </div>
                   </div>
@@ -2119,51 +2226,10 @@ export default async function RezervacijaDetaljPage({
           </Card>
 
           <Card title="Povijest promjena">
-            {rezervacija.status !== "OTKAZANO" ? (
-              <div className="mb-5 border-2 border-red-300 bg-red-50 p-4 text-red-800">
-                <div className="text-xs font-black uppercase tracking-[0.16em]">
-                  BRISANJE / ARHIVIRANJE  REZERVACIJE
-                </div>
-
-                <p className="mt-2 text-sm">
-                  Ova rezervacija će biti označena kao obrisana, termin će se osloboditi,
-                  a zapis ostaje u povijesti promjena.
-                </p>
-
-                <form
-                  action={obrisiAdminRezervaciju}
-                  className="mt-4 space-y-3"
-                >
-                  <input
-                    type="hidden"
-                    name="rezervacijaId"
-                    value={rezervacija.id}
-                  />
-
-                  <label className="block">
-                    <div className="mb-1 text-xs font-black uppercase tracking-[0.14em]">
-                      Za potvrdu upiši: OBRIŠI
-                    </div>
-
-                    <input
-                      name="potvrdaBrisanja"
-                      required
-                      placeholder="OBRIŠI"
-                      className="w-full border border-red-300 bg-white px-3 py-2 font-black text-red-900 outline-none"
-                    />
-                  </label>
-
-                  <button className="cursor-pointer border border-red-700 bg-red-700 px-4 py-3 text-sm font-black text-white hover:brightness-95">
-                    Obriši rezervaciju
-                  </button>
-                </form>
-              </div>
-            ) : null}
-
             {rezervacija.promjene.length === 0 ? (
               <Empty text="Nema promjena." />
             ) : (
-              <div className="space-y-2">
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                 {rezervacija.promjene.map((p) => {
                   const stari = safeJson(p.stariPodaci);
                   const novi = safeJson(p.noviPodaci);
@@ -2171,132 +2237,105 @@ export default async function RezervacijaDetaljPage({
                   return (
                     <details
                       key={p.id}
-                      className="border border-[#e2d8c8] bg-[#fcfaf6] p-3"
+                      style={{
+                        border: "1px solid #e8dcc4",
+                        background: "#fcfaf6",
+                        padding: "8px 10px",
+                        fontSize: 12,
+                      }}
                     >
-                      <summary className="cursor-pointer list-none">
-                        <div className="flex flex-wrap justify-between gap-2">
+                      <summary style={{ cursor: "pointer", listStyle: "none" }}>
+                        <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", gap: 6 }}>
                           <div>
-                            <div className="font-black text-[#2e2923]">
-                              {p.tip}
-                            </div>
-
-                            <div className="text-xs text-[#6f665a]">
-                              {p.opis || "-"}
-                            </div>
-
-                            <div className="mt-1 text-xs text-[#9b6b12]">
+                            <div style={{ fontWeight: 600, color: "#2f261d" }}>{p.tip}</div>
+                            <div style={{ fontSize: 11, color: "#6f665a" }}>{p.opis || "-"}</div>
+                            <div style={{ marginTop: 2, fontSize: 11, color: "#9b6b12" }}>
                               Tko: {p.korisnikIme || "Nepoznato"}
                             </div>
                           </div>
-
-                          <div className="text-right text-xs text-[#6f665a]">
+                          <div style={{ textAlign: "right", fontSize: 11, color: "#6f665a" }}>
                             {formatDateTime(p.createdAt)}
-                            <div className="mt-1 font-black text-[#9b6b12]">
-                              Klikni za detalje
-                            </div>
                           </div>
                         </div>
                       </summary>
 
-                      <div className="mt-4 border-t border-[#e2d8c8] pt-4">
+                      <div style={{ marginTop: 8, borderTop: "1px solid #e8dcc4", paddingTop: 8 }}>
                         {p.razlog && (
-                          <div className="mb-4 border border-[#ead7b6] bg-[#fff9ef] p-3 text-sm text-[#7a5a22]">
-                            <div className="text-xs font-black uppercase tracking-[0.14em]">
-                              Razlog promjene
-                            </div>
-                            <div className="mt-1">{p.razlog}</div>
+                          <div
+                            style={{
+                              marginBottom: 8,
+                              border: "1px solid #ead7b6",
+                              background: "#fff9ef",
+                              padding: 6,
+                              fontSize: 12,
+                              color: "#7a5a22",
+                            }}
+                          >
+                            <div className="lm">Razlog promjene</div>
+                            <div style={{ marginTop: 2 }}>{p.razlog}</div>
                           </div>
                         )}
 
-                        <div className="grid gap-3 md:grid-cols-2">
-                          <div className="border border-red-200 bg-red-50 p-3">
-                            <div className="mb-2 text-xs font-black uppercase tracking-[0.14em] text-red-700">
+                        <div className="row">
+                          <div style={{ border: "1px solid #fecaca", background: "#fef2f2", padding: 8 }}>
+                            <div className="lm" style={{ color: "#991b1b", marginBottom: 4 }}>
                               Prije promjene
                             </div>
 
                             {stari ? (
-                              <div className="space-y-2 text-sm">
-                                <ChangeRow
-                                  label="Dolazak"
-                                  value={formatJsonDate(stari.datumOd)}
-                                />
-                                <ChangeRow
-                                  label="Odlazak"
-                                  value={formatJsonDate(stari.datumDo)}
-                                />
-                                <ChangeRow
-                                  label="Noćenja"
-                                  value={stari.brojNocenja ?? "-"}
-                                />
+                              <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                                <ChangeRow label="Dolazak" value={formatJsonDate(stari.datumOd)} />
+                                <ChangeRow label="Odlazak" value={formatJsonDate(stari.datumDo)} />
+                                <ChangeRow label="Noćenja" value={stari.brojNocenja ?? "-"} />
                                 <ChangeRow
                                   label="Ukupno"
-                                  value={formatJsonMoney(
-                                    stari.ukupno || stari.iznosUkupno
-                                  )}
+                                  value={formatJsonMoney(stari.ukupno || stari.iznosUkupno)}
                                 />
                               </div>
                             ) : (
-                              <p className="text-sm text-[#6f665a]">
+                              <p style={{ fontSize: 11, color: "#6f665a" }}>
                                 Nema detaljnih starih podataka.
                               </p>
                             )}
                           </div>
 
-                          <div className="border border-green-200 bg-green-50 p-3">
-                            <div className="mb-2 text-xs font-black uppercase tracking-[0.14em] text-green-700">
+                          <div style={{ border: "1px solid #bbf7d0", background: "#f0fdf4", padding: 8 }}>
+                            <div className="lm" style={{ color: "#166534", marginBottom: 4 }}>
                               Nakon promjene
                             </div>
 
                             {novi ? (
-                              <div className="space-y-2 text-sm">
-                                <ChangeRow
-                                  label="Dolazak"
-                                  value={formatJsonDate(novi.datumOd)}
-                                />
-                                <ChangeRow
-                                  label="Odlazak"
-                                  value={formatJsonDate(novi.datumDo)}
-                                />
-                                <ChangeRow
-                                  label="Noćenja"
-                                  value={novi.brojNocenja ?? "-"}
-                                />
+                              <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                                <ChangeRow label="Dolazak" value={formatJsonDate(novi.datumOd)} />
+                                <ChangeRow label="Odlazak" value={formatJsonDate(novi.datumDo)} />
+                                <ChangeRow label="Noćenja" value={novi.brojNocenja ?? "-"} />
                                 <ChangeRow
                                   label="Osnovna cijena"
                                   value={formatJsonMoney(novi.iznosOsnovni)}
                                 />
                                 <ChangeRow
                                   label="Ukupno"
-                                  value={formatJsonMoney(
-                                    novi.ukupno || novi.iznosUkupno
-                                  )}
+                                  value={formatJsonMoney(novi.ukupno || novi.iznosUkupno)}
                                 />
                                 <ChangeRow
                                   label="Plaćeno"
-                                  value={formatJsonMoney(
-                                    novi.placeno || novi.iznosPlaceno
-                                  )}
+                                  value={formatJsonMoney(novi.placeno || novi.iznosPlaceno)}
                                 />
                                 <ChangeRow
                                   label="Ostatak"
-                                  value={formatJsonMoney(
-                                    novi.ostatak || novi.iznosOstatka
-                                  )}
+                                  value={formatJsonMoney(novi.ostatak || novi.iznosOstatka)}
                                 />
-                                <ChangeRow
-                                  label="Razlika"
-                                  value={formatJsonMoney(novi.razlika)}
-                                />
+                                <ChangeRow label="Razlika" value={formatJsonMoney(novi.razlika)} />
                               </div>
                             ) : (
-                              <p className="text-sm text-[#6f665a]">
+                              <p style={{ fontSize: 11, color: "#6f665a" }}>
                                 Nema detaljnih novih podataka.
                               </p>
                             )}
                           </div>
                         </div>
 
-                        <div className="mt-3 text-xs text-[#9b7a4c]">
+                        <div style={{ marginTop: 6, fontSize: 10, color: "#9b7a4c" }}>
                           ID promjene: {p.id}
                         </div>
                       </div>
@@ -2307,6 +2346,106 @@ export default async function RezervacijaDetaljPage({
             )}
           </Card>
         </section>
+
+        {/* Footer: Opasne akcije */}
+        {rezervacija.status !== "OTKAZANO" && (
+          <section
+            className="cm"
+            style={{
+              marginBottom: 20,
+              padding: "10px 14px",
+              borderLeft: "3px solid #b91c1c",
+              borderLeftWidth: 3,
+              borderLeftColor: "#b91c1c",
+            }}
+          >
+            <details>
+              <summary
+                style={{
+                  cursor: "pointer",
+                  listStyle: "none",
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  gap: 10,
+                }}
+              >
+                <span className="lm" style={{ color: "#991b1b" }}>Opasne akcije</span>
+                <span
+                  style={{
+                    background: "transparent",
+                    color: "#b91c1c",
+                    border: "1px solid #fca5a5",
+                    padding: "6px 12px",
+                    fontWeight: 600,
+                    fontSize: 12,
+                  }}
+                >
+                  Obriši / arhiviraj rezervaciju…
+                </span>
+              </summary>
+
+              <div
+                style={{
+                  marginTop: 10,
+                  border: "1px solid #fca5a5",
+                  background: "#fef2f2",
+                  padding: 12,
+                  color: "#991b1b",
+                }}
+              >
+                <div className="lm" style={{ color: "#991b1b" }}>
+                  BRISANJE / ARHIVIRANJE REZERVACIJE
+                </div>
+
+                <p style={{ marginTop: 4, fontSize: 12 }}>
+                  Ova rezervacija će biti označena kao obrisana, termin će se
+                  osloboditi, a zapis ostaje u povijesti promjena.
+                </p>
+
+                <form action={obrisiAdminRezervaciju} style={{ marginTop: 8 }}>
+                  <input type="hidden" name="rezervacijaId" value={rezervacija.id} />
+
+                  <label style={{ display: "block", marginBottom: 8 }}>
+                    <div className="lm" style={{ color: "#991b1b", marginBottom: 4 }}>
+                      Za potvrdu upiši: OBRIŠI
+                    </div>
+                    <input
+                      name="potvrdaBrisanja"
+                      required
+                      placeholder="OBRIŠI"
+                      style={{
+                        width: "100%",
+                        border: "1px solid #fca5a5",
+                        background: "#fff",
+                        padding: "5px 7px",
+                        fontWeight: 600,
+                        color: "#991b1b",
+                        outline: "none",
+                        fontSize: 13,
+                        boxSizing: "border-box",
+                      }}
+                    />
+                  </label>
+
+                  <button
+                    style={{
+                      background: "#b91c1c",
+                      color: "#fff",
+                      border: "1px solid #b91c1c",
+                      padding: "8px 14px",
+                      fontWeight: 600,
+                      fontSize: 13,
+                      cursor: "pointer",
+                    }}
+                  >
+                    Obriši rezervaciju
+                  </button>
+                </form>
+              </div>
+            </details>
+          </section>
+        )}
       </div>
     </main>
   );
