@@ -207,7 +207,22 @@ async function izracunajCijenuTermina({
       },
     });
 
-    ukupno += Number(cijena?.cijenaNocenja || 0);
+    const fallback = cijena
+      ? null
+      : await prisma.cjenik.findFirst({
+          where: {
+            jedinicaId,
+            aktivno: true,
+            datumOd: {
+              lte: dan,
+            },
+          },
+          orderBy: {
+            datumOd: "desc",
+          },
+        });
+
+    ukupno += Number((cijena ?? fallback)?.cijenaNocenja || 0);
     dan = addDays(dan, 1);
   }
 

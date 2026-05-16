@@ -984,7 +984,8 @@ export default async function RezervacijaDetaljPage({
 
     const ime = String(formData.get("ime") || "").trim();
     const prezime = String(formData.get("prezime") || "").trim();
-    const email = String(formData.get("email") || "").trim();
+    const emailRaw = String(formData.get("email") || "").trim();
+    const email = emailRaw === "" ? null : emailRaw;
     const telefon = String(formData.get("telefon") || "").trim();
     const adresa = String(formData.get("adresa") || "").trim();
     const grad = String(formData.get("grad") || "").trim();
@@ -996,27 +997,30 @@ export default async function RezervacijaDetaljPage({
       throw new Error("Gost nije pronađen.");
     }
 
-    await prisma.gost.update({
-      where: { id: gostId },
-      data: {
-        ime,
-        prezime,
-        email,
-        telefon,
-        adresa,
-        grad,
-        drzava,
-        napomena,
-        oznake,
-      },
-    });
+    await prisma.$transaction(async (tx) => {
+      let prebacenoSGosta:
+        | { id: string; ime: string; prezime: string | null }
+        | null = null;
 
-    await prisma.rezervacijaPromjena.create({
-      data: {
-        rezervacijaId,
-        tip: "GOST_NAPOMENA",
-        opis: "Ažurirani podaci gosta.",
-        noviPodaci: JSON.stringify({
+      if (email) {
+        const postojeci = await tx.gost.findUnique({
+          where: { email },
+          select: { id: true, ime: true, prezime: true },
+        });
+
+        if (postojeci && postojeci.id !== gostId) {
+          prebacenoSGosta = postojeci;
+
+          await tx.gost.update({
+            where: { id: postojeci.id },
+            data: { email: null },
+          });
+        }
+      }
+
+      await tx.gost.update({
+        where: { id: gostId },
+        data: {
           ime,
           prezime,
           email,
@@ -1024,11 +1028,41 @@ export default async function RezervacijaDetaljPage({
           adresa,
           grad,
           drzava,
-          oznake,
           napomena,
-        }),
-        korisnikIme: "Admin",
-      },
+          oznake,
+        },
+      });
+
+      await tx.rezervacijaPromjena.create({
+        data: {
+          rezervacijaId,
+          tip: "GOST_NAPOMENA",
+          opis: prebacenoSGosta
+            ? `Ažurirani podaci gosta. Email prebačen s gosta ${prebacenoSGosta.ime}${prebacenoSGosta.prezime ? ` ${prebacenoSGosta.prezime}` : ""} (ID: ${prebacenoSGosta.id}).`
+            : "Ažurirani podaci gosta.",
+          noviPodaci: JSON.stringify({
+            ime,
+            prezime,
+            email,
+            telefon,
+            adresa,
+            grad,
+            drzava,
+            oznake,
+            napomena,
+            ...(prebacenoSGosta
+              ? {
+                  emailPrebacenSGosta: {
+                    id: prebacenoSGosta.id,
+                    ime: prebacenoSGosta.ime,
+                    prezime: prebacenoSGosta.prezime,
+                  },
+                }
+              : {}),
+          }),
+          korisnikIme: "Admin",
+        },
+      });
     });
 
     revalidatePath(`/admin/rezervacije/${rezervacijaId}`);
