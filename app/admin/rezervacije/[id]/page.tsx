@@ -1259,114 +1259,136 @@ export default async function RezervacijaDetaljPage({
       className="min-h-screen px-4 py-8 md:px-8"
       style={{
         fontFamily: "Calibri, Segoe UI, Arial, sans-serif",
-        background:
-          "linear-gradient(180deg, #f6f1e8 0%, #efe6d8 48%, #eadfce 100%)",
+        background: "#f4efe6",
       }}
     >
-      <div className="mx-auto max-w-7xl text-[#2e2923]">
-        <div className="mb-6 border border-white/70 bg-white p-6 shadow-[0_18px_45px_rgba(0,0,0,0.08)]">
-          <div className="flex flex-wrap items-start justify-between gap-4">
+      <style>{`
+        .cm { background: #fff; border: 1px solid #d4c4a8; padding: 12px 14px; }
+        .hm { font-size: 14px; font-weight: 500; border-bottom: 1px solid #e8dcc4; padding-bottom: 8px; margin-bottom: 10px; color: #2f261d; }
+        .lm { color: #8b7355; font-size: 10px; font-weight: 500; letter-spacing: 0.8px; text-transform: uppercase; }
+        .vm { color: #2f261d; font-size: 13px; }
+        .bg { background: #c4a96b; color: #fff; border: 1px solid #c4a96b; padding: 8px 14px; font-weight: 600; cursor: pointer; font-size: 13px; display: inline-block; text-decoration: none; }
+        .bg:hover { filter: brightness(0.95); }
+        .bo { background: transparent; color: #c4a96b; border: 1px solid #c4a96b; padding: 6px 12px; font-weight: 600; cursor: pointer; font-size: 12px; display: inline-block; }
+        .bo:hover { background: #f0e4c8; }
+        .gr { background: #d6e9c6; color: #2f5d1a; padding: 4px 10px; font-size: 11px; font-weight: 600; border: 1px solid #b4d391; display: inline-block; letter-spacing: 0.5px; }
+        .go { background: #f0e4c8; color: #6b5524; padding: 4px 10px; font-size: 11px; font-weight: 600; border: 1px solid #d4c4a8; display: inline-block; letter-spacing: 0.5px; }
+        .gy { background: #e8dcc4; color: #5c4e3a; padding: 4px 10px; font-size: 11px; font-weight: 600; border: 1px solid #d4c4a8; display: inline-block; letter-spacing: 0.5px; }
+        .rd { background: #fee2e2; color: #991b1b; padding: 4px 10px; font-size: 11px; font-weight: 600; border: 1px solid #fca5a5; display: inline-block; letter-spacing: 0.5px; }
+        .in { width: 100%; padding: 5px 7px; border: 1px solid #c4a96b; background: #fff; font-size: 13px; color: #2f261d; outline: none; box-sizing: border-box; font-family: inherit; }
+        .in:focus { border-color: #8b7355; }
+        .row { display: grid; gap: 10px; grid-template-columns: 1fr 1fr; }
+        .row2 { display: grid; gap: 10px; grid-template-columns: 1.4fr 1fr; }
+        .metrics { display: grid; gap: 10px; grid-template-columns: repeat(4, 1fr); }
+        .hero-grid { display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; flex-wrap: wrap; }
+        .hero-badges { display: flex; flex-direction: column; gap: 6px; align-items: flex-end; }
+        .alert-warn { margin-top: 12px; border: 1px solid #ead7b6; background: #fff9ef; padding: 10px 12px; font-size: 12px; color: #7a5a22; }
+        .alert-info { margin-top: 10px; border: 1px solid #bfdbfe; background: #eff6ff; padding: 10px 12px; font-size: 12px; color: #1e40af; }
+        .alert-ok { margin-top: 10px; border: 1px solid #bbf7d0; background: #f0fdf4; padding: 10px 12px; font-size: 12px; color: #166534; }
+        .alert-amber { margin-top: 10px; border: 1px solid #fde68a; background: #fffbeb; padding: 10px 12px; font-size: 12px; color: #92400e; }
+        @media (max-width: 900px) {
+          .row, .row2 { grid-template-columns: 1fr; }
+          .metrics { grid-template-columns: repeat(2, 1fr); }
+        }
+      `}</style>
+      <div className="mx-auto max-w-7xl text-[#2f261d]">
+        <div className="cm" style={{ marginBottom: 12, padding: "16px 18px" }}>
+          <div className="hero-grid">
             <div>
               <Link
                 href="/admin/rezervacije"
-                className="cursor-pointer text-sm font-black text-[#9b6b12] hover:text-[#2e2923]"
+                style={{
+                  color: "#8b6914",
+                  fontSize: 12,
+                  fontWeight: 600,
+                  textDecoration: "none",
+                }}
               >
                 ← Sve rezervacije
               </Link>
 
-              <h1 className="mt-4 text-4xl font-black">
+              <h1
+                style={{
+                  fontSize: 22,
+                  fontWeight: 600,
+                  marginTop: 10,
+                  color: "#2f261d",
+                }}
+              >
                 Admin detalj rezervacije
               </h1>
 
-              <p className="mt-2 text-[#6f665a]">
+              <p style={{ marginTop: 6, fontSize: 13, color: "#6f665a" }}>
                 {rezervacija.jedinica.objekt.naziv} /{" "}
                 {rezervacija.jedinica.naziv}
               </p>
 
-              <p className="mt-1 text-xs text-[#9b7a4c]">
+              <p
+                style={{
+                  marginTop: 3,
+                  fontSize: 10,
+                  color: "#9b7a4c",
+                  letterSpacing: 0.5,
+                }}
+              >
                 ID: {rezervacija.id}
               </p>
             </div>
 
-            <div className="text-right">
-              <div
-                className="inline-block border px-4 py-2 text-sm font-black"
-                style={{
-                  backgroundColor:
-                    rezervacija.status === "OTKAZANO"
-                      ? "#fee2e2"
-                      : "#fff6e2",
-                  borderColor:
-                    rezervacija.status === "OTKAZANO"
-                      ? UI_COLORS.zauzetoBorder
-                      : UI_COLORS.gold,
-                  color:
-                    rezervacija.status === "OTKAZANO"
-                      ? UI_COLORS.zauzetoBorder
-                      : "#7a5a22",
-                }}
+            <div className="hero-badges">
+              <span
+                className={
+                  rezervacija.status === "OTKAZANO"
+                    ? "rd"
+                    : rezervacija.status === "PLACENO" ||
+                        rezervacija.status === "POTVRDENO" ||
+                        rezervacija.status === "CEKA_OSTATAK"
+                      ? "gr"
+                      : "go"
+                }
               >
                 {rezervacija.status}
-              </div>
-
-              <div className="mt-2 text-xs font-bold text-[#6f665a]">
-                Izvor: {rezervacija.izvor}
-              </div>
+              </span>
+              <span className="go">{rezervacija.izvor}</span>
             </div>
           </div>
 
           {(rezervacija.izvor === "BOOKING" || rezervacija.izvor === "WEB") && (
-            <div className="mt-5 border border-[#ead7b6] bg-[#fff9ef] p-4 text-sm font-bold text-[#7a5a22]">
-              UPOZORENJE: ova rezervacija je kreirana putem{" "}
+            <div className="alert-warn">
+              <strong>UPOZORENJE:</strong> ova rezervacija je kreirana putem{" "}
               {rezervacija.izvor}. Kod promjene termina, cijene, otkazivanja ili
               povrata treba dodatno provjeriti uplatu i vanjski sustav.
             </div>
           )}
 
           {rezervacija.status === "CEKA_AKONTACIJU" && (
-            <div className="mt-5 border-2 border-amber-300 bg-amber-50 p-5 text-amber-800">
-              <h2 className="text-2xl font-black">
-                ⏳ Čeka uplatu akontacije
-              </h2>
-
-              <p className="mt-2 text-sm font-bold">
-                Gostu je poslan link za plaćanje. Rezervacija još nije potvrđena.
-              </p>
+            <div className="alert-amber">
+              <strong>⏳ Čeka uplatu akontacije.</strong> Gostu je poslan link
+              za plaćanje. Rezervacija još nije potvrđena.
             </div>
           )}
 
           {rezervacija.status === "CEKA_POTVRDU" && (
-            <div className="mt-5 border-2 border-blue-300 bg-blue-50 p-5 text-blue-800">
-              <h2 className="text-2xl font-black">
-                🔎 Uplata zaprimljena — čeka provjeru
-              </h2>
-
-              <p className="mt-2 text-sm font-bold">
-                Potrebno je provjeriti uplatu i ručno potvrditi rezervaciju.
-              </p>
+            <div className="alert-info">
+              <strong>🔎 Uplata zaprimljena — čeka provjeru.</strong> Potrebno
+              je provjeriti uplatu i ručno potvrditi rezervaciju.
             </div>
           )}
 
-          {["POTVRDENO", "PLACENO", "CEKA_OSTATAK"].includes(rezervacija.status) && (
-            <div className="mt-5 border-2 border-green-300 bg-green-50 p-5 text-green-800">
-              <h2 className="text-2xl font-black">
-                ✅ Rezervacija potvrđena
-              </h2>
-
-              <p className="mt-2 text-sm font-bold">
-                Rezervacija je potvrđena.
-              </p>
+          {["POTVRDENO", "PLACENO", "CEKA_OSTATAK"].includes(
+            rezervacija.status
+          ) && (
+            <div className="alert-ok">
+              <strong>✅ Rezervacija potvrđena.</strong>
             </div>
           )}
         </div>
 
-
-
-        <section className="mb-6 grid gap-4 lg:grid-cols-4">
-          <Stat title="Ukupno" value={money(ukupno)} color="text-[#2e2923]" />
-          <Stat title="Plaćeno" value={money(placeno)} color="text-[#2e2923]" />
-          <Stat title="Ostatak" value={money(ostatak)} color="text-[#9b6b12]" />
-          <Stat title="Popust" value={money(popust)} color="text-[#2e2923]" />
+        <section className="metrics" style={{ marginBottom: 12 }}>
+          <Stat title="Ukupno" value={money(ukupno)} color="#2f261d" />
+          <Stat title="Plaćeno" value={money(placeno)} color="#2f5d1a" />
+          <Stat title="Ostatak" value={money(ostatak)} color="#9b6b12" />
+          <Stat title="Popust" value={money(popust)} color="#2f261d" />
         </section>
 
         <section className="mb-6 grid gap-4 lg:grid-cols-4">
@@ -2300,11 +2322,11 @@ function Stat({
   color: string;
 }) {
   return (
-    <div className="border border-white/70 bg-white p-5 shadow-[0_14px_35px_rgba(0,0,0,0.08)]">
-      <div className="text-xs font-black uppercase tracking-[0.18em] text-[#9b7a4c]">
-        {title}
+    <div className="cm" style={{ padding: "8px 10px" }}>
+      <div className="lm">{title}</div>
+      <div style={{ fontSize: 16, fontWeight: 600, marginTop: 4, color }}>
+        {value}
       </div>
-      <div className={`mt-2 text-3xl font-black ${color}`}>{value}</div>
     </div>
   );
 }
@@ -2317,8 +2339,8 @@ function Card({
   children: React.ReactNode;
 }) {
   return (
-    <section className="border border-white/70 bg-white p-5 shadow-[0_14px_35px_rgba(0,0,0,0.08)]">
-      <h2 className="mb-4 text-xl font-black text-[#2e2923]">{title}</h2>
+    <section className="cm">
+      <h2 className="hm">{title}</h2>
       {children}
     </section>
   );
@@ -2326,11 +2348,9 @@ function Card({
 
 function Detail({ label, value }: { label: string; value: string }) {
   return (
-    <div className="mb-3 border border-[#e2d8c8] bg-[#fcfaf6] p-3">
-      <div className="text-[10px] font-black uppercase tracking-[0.15em] text-[#9b7a4c]">
-        {label}
-      </div>
-      <div className="mt-1 text-sm font-black text-[#2e2923]">
+    <div style={{ marginBottom: 8 }}>
+      <div className="lm">{label}</div>
+      <div className="vm" style={{ fontWeight: 500, marginTop: 2 }}>
         {value || "-"}
       </div>
     </div>
@@ -2345,8 +2365,8 @@ function Field({
   children: React.ReactNode;
 }) {
   return (
-    <label className="block">
-      <div className="mb-1 text-xs font-black uppercase tracking-[0.14em] text-[#7a5a22]">
+    <label style={{ display: "block", marginBottom: 8 }}>
+      <div className="lm" style={{ marginBottom: 4 }}>
         {label}
       </div>
       {children}
