@@ -7,6 +7,7 @@ import { Resend } from "resend";
 export const dynamic = "force-dynamic";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
+const BCC_EMAIL = process.env.MAIL_BCC || "goran@malinska-stay.hr";
 
 type SearchParams = Promise<{
   placanjeId?: string;
@@ -229,6 +230,7 @@ async function obradiPlacanjeAkoTreba(placanjeId: string, sessionId?: string) {
         await resend.emails.send({
           from: getMailFrom(),
           to: adminEmails,
+          bcc: [BCC_EMAIL],
           subject: `Nova rezervacija čeka potvrdu - ${r.jedinica.objekt.naziv} / ${r.jedinica.naziv}`,
           html: mailWrapper({
             title: "Nova rezervacija čeka potvrdu",
@@ -268,6 +270,7 @@ async function obradiPlacanjeAkoTreba(placanjeId: string, sessionId?: string) {
         await resend.emails.send({
           from: getMailFrom(),
           to: r.gost.email,
+          bcc: [BCC_EMAIL],
           subject: "Rezervacija je zaprimljena - Malinska Stay",
           html: mailWrapper({
             title: "Rezervacija je zaprimljena",
@@ -481,6 +484,7 @@ async function obradiPlacanjeAkoTreba(placanjeId: string, sessionId?: string) {
     await resend.emails.send({
       from: getMailFrom(),
       to: gost.email,
+      bcc: [BCC_EMAIL],
       subject,
       html: mailWrapper({
         title:

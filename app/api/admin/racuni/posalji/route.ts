@@ -5,6 +5,7 @@ import path from "path";
 import { Resend } from "resend";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
+const BCC_EMAIL = process.env.MAIL_BCC || "goran@malinska-stay.hr";
 
 export async function POST(req: Request) {
   try {
@@ -54,6 +55,7 @@ export async function POST(req: Request) {
   from: process.env.MAIL_FROM || "Malinska Stay <rezervacije@malinska-stay.hr>",
   replyTo: "rezervacije@malinska-stay.hr",
   to: email,
+  bcc: [BCC_EMAIL],
   subject: `Račun ${racun.brojRacuna}`,
   html: `
     <p>Poštovani,</p>

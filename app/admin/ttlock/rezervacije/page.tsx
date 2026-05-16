@@ -5,6 +5,7 @@ import { Resend } from "resend";
 export const dynamic = "force-dynamic";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
+const BCC_EMAIL = process.env.MAIL_BCC || "goran@malinska-stay.hr";
 
 function generirajSifruIzTelefona(telefon?: string | null) {
     const brojevi = String(telefon || "").replace(/\D/g, "");
@@ -208,6 +209,7 @@ async function posaljiSifruGostu(formData: FormData) {
     await resend.emails.send({
         from: process.env.MAIL_FROM || "Malinska Stay <rezervacije@malinska-stay.hr>",
         to: rezervacija.gost.email,
+        bcc: [BCC_EMAIL],
         subject: `Vaša ulazna šifra - ${rezervacija.jedinica.objekt.naziv}`,
         html: `
             <div style="font-family:Arial,sans-serif;line-height:1.6;color:#2f261d">

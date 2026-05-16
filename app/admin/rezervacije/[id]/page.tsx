@@ -13,6 +13,7 @@ type PageParams = Promise<{
 }>;
 
 const resend = new Resend(process.env.RESEND_API_KEY);
+const BCC_EMAIL = process.env.MAIL_BCC || "goran@malinska-stay.hr";
 
 function getMailFrom() {
   return process.env.MAIL_FROM || "Malinska Stay <rezervacije@malinska-stay.hr>";
@@ -435,6 +436,7 @@ export default async function RezervacijaDetaljPage({
       await resend.emails.send({
         from: getMailFrom(),
         to: r.gost.email,
+        bcc: [BCC_EMAIL],
         subject: "Rezervacija nije potvrđena",
         html: `
   <div style="font-family: Arial, sans-serif; background:#f4efe6; padding:24px;">
@@ -648,6 +650,7 @@ export default async function RezervacijaDetaljPage({
         await resend.emails.send({
           from: getMailFrom(),
           to: r.gost.email,
+          bcc: [BCC_EMAIL],
           subject,
           html: `
           <div style="font-family:Arial,sans-serif;background:#f4efe6;padding:24px;">

@@ -4,6 +4,7 @@ import { generateRacunPdf } from "@/lib/generateRacunPdf";
 import { Resend } from "resend";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
+const BCC_EMAIL = process.env.MAIL_BCC || "goran@malinska-stay.hr";
 
 function sanitizePrefix(value?: string | null) {
   const clean = String(value || "RAC")
@@ -414,6 +415,7 @@ export async function POST(req: Request) {
             from: mailFrom(),
             to: email,
             cc: ccEmails,
+            bcc: [BCC_EMAIL],
             subject,
             html: mailWrapper({
               title: naslov,

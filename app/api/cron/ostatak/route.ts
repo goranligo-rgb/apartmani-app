@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { Resend } from "resend";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
+const BCC_EMAIL = process.env.MAIL_BCC || "goran@malinska-stay.hr";
 
 function getMailFrom() {
   return process.env.MAIL_FROM || "Malinska Stay <rezervacije@malinska-stay.hr>";
@@ -144,6 +145,7 @@ export async function GET() {
       await resend.emails.send({
         from: getMailFrom(),
         to: r.gost.email,
+        bcc: [BCC_EMAIL],
         subject: "Molimo uplatu ostatka rezervacije",
         html: mailWrapper({
           title: "Podsjetnik za uplatu ostatka",

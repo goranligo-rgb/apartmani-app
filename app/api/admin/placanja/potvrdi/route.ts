@@ -6,6 +6,7 @@ import { Resend } from "resend";
 import { revalidatePath } from "next/cache";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
+const BCC_EMAIL = process.env.MAIL_BCC || "goran@malinska-stay.hr";
 
 function sanitizePrefix(value?: string | null) {
     const clean = String(value || "RAC")
@@ -312,6 +313,7 @@ export async function GET(req: Request) {
                     from: "Malinska-stay <rezervacije@malinska-stay.hr>",
                     to: email,
                     cc: ccEmails,
+                    bcc: [BCC_EMAIL],
                     subject:
                         noviStatus === "PLACENO"
                             ? "Rezervacija i plaćanje potvrđeni"
