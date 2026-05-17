@@ -140,6 +140,21 @@ function martyBazenZaDan(postavke: any, datum: Date) {
   ][day];
 }
 
+// Eksterni kanali — gost je platio platformi (Booking/Airbnb) ili je rezervacija
+// upisana TEK kad je bankovna uplata već vidljiva (TEKUCI_RACUN).
+const EKSTERNI_KANALI = ["BOOKING", "AIRBNB", "TEKUCI_RACUN"];
+
+function trebaUpozorenjeZaUplatu(r: {
+  izvor: string;
+  iznosPlaceno: number | null;
+  placenoKarticom: boolean;
+}): boolean {
+  if (EKSTERNI_KANALI.includes(r.izvor)) return false;
+  if ((r.iznosPlaceno || 0) > 0) return false;
+  if (r.placenoKarticom === true) return false;
+  return true;
+}
+
 type PlanItem = {
   id: string;
   datum: Date;
@@ -151,6 +166,7 @@ type PlanItem = {
   opis: string;
   sljedeciUlazak: string;
   brziUlazak: boolean;
+  nemaUplate: boolean;
 };
 
 export default async function CiscenjeAdminPage({
@@ -275,6 +291,7 @@ export default async function CiscenjeAdminPage({
         : "Završno čišćenje nakon odlaska gosta.",
       sljedeciUlazak,
       brziUlazak,
+      nemaUplate: trebaUpozorenjeZaUplatu(r),
     });
   }
 
@@ -304,6 +321,7 @@ export default async function CiscenjeAdminPage({
         "Gost ostaje dulje od 7 noći — očistiti apartman/kuću, promijeniti posteljinu i ostaviti nove ručnike.",
       sljedeciUlazak: "Gost ostaje u smještaju",
       brziUlazak: false,
+      nemaUplate: trebaUpozorenjeZaUplatu(r),
     });
   }
 
@@ -336,6 +354,7 @@ export default async function CiscenjeAdminPage({
           opis: "Čišćenje bazena i okoliša.",
           sljedeciUlazak: "-",
           brziUlazak: false,
+          nemaUplate: false,
         });
       }
 
@@ -654,6 +673,12 @@ export default async function CiscenjeAdminPage({
                         <strong>{z.brojGostiju}</strong>
                       </div>
 
+                      {z.nemaUplate && (
+                        <div style={warningBadgeStyle}>
+                          ⚠ Provjeri – akontacija nije uplaćena
+                        </div>
+                      )}
+
                       <div style={taskOpisStyle}>{z.opis}</div>
 
                       <div style={nextGuestStyle}>
@@ -893,6 +918,17 @@ const quickBadgeStyle: React.CSSProperties = {
   padding: "5px 8px",
   background: "#b42318",
   color: "white",
+  fontWeight: 800,
+  fontSize: 12,
+};
+
+const warningBadgeStyle: React.CSSProperties = {
+  display: "inline-block",
+  marginTop: 8,
+  padding: "5px 8px",
+  background: "#fff4d6",
+  color: "#7a4a0a",
+  border: "1px solid #d99c3a",
   fontWeight: 800,
   fontSize: 12,
 };
