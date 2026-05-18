@@ -918,45 +918,92 @@ export default async function NovaAdminRezervacijaPage({
     }
 
     if (nacinKreiranja === "UPLATA_SJELA") {
+      // [DEBUG] Diagnostic logging dok ne lokaliziramo zašto Cornelia rez
+      // (68762a5c) ima 0 placanja/racuna/promjena nakon kreiranja.
+      // Ukloniti nakon root cause-a.
+      console.log("[UPLATA_SJELA] entered", {
+        rezId: rezervacija.id,
+        dogovoreniIznos,
+        gostIme: ime,
+        gostPrezime: prezime,
+      });
+
       // Cijeli dogovoreni iznos je sjeo (gost platio puno odjednom preko
       // transakcijskog računa). dogovoreniIznos = rucnaCijena ako je upisana,
       // inače cijena iz cjenika. Validacija > 0 već je ranije (linija 641-643).
       const iznosZaEvidenciju = dogovoreniIznos;
 
-      const placanje = await prisma.placanje.create({
-        data: {
-          rezervacijaId: rezervacija.id,
-          tip: "CIJELI_IZNOS",
-          status: "CEKA_PLACANJE",
-          iznos: iznosZaEvidenciju,
-          valuta: "EUR",
-          nacinPlacanja: "TEKUCI_RACUN",
-          napomena:
-            "Admin označio da je uplata sjela prilikom kreiranja rezervacije.",
-        },
-      });
+      let placanje;
+      try {
+        placanje = await prisma.placanje.create({
+          data: {
+            rezervacijaId: rezervacija.id,
+            tip: "CIJELI_IZNOS",
+            status: "CEKA_PLACANJE",
+            iznos: iznosZaEvidenciju,
+            valuta: "EUR",
+            nacinPlacanja: "TEKUCI_RACUN",
+            napomena:
+              "Admin označio da je uplata sjela prilikom kreiranja rezervacije.",
+          },
+        });
+        console.log("[UPLATA_SJELA] placanje.create success", {
+          placanjeId: placanje.id,
+          iznos: placanje.iznos,
+        });
+      } catch (e) {
+        console.error("[UPLATA_SJELA] placanje.create FAIL", {
+          rezId: rezervacija.id,
+          error: String(e),
+          stack: e instanceof Error ? e.stack : undefined,
+        });
+        throw e;
+      }
 
       // Automatska potvrda plaćanja — isto kao klik na "Potvrdi plaćanje" u
       // [id] view-u. Mijenja Placanje → PLACENO, Rezervaciju → PLACENO, kreira
       // Racun + PDF, šalje mail s atačovanim PDF-om.
       const baseUrl = await getAppUrl();
-      const potvrda = await fetch(`${baseUrl}/api/admin/placanja/potvrdi-link`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ placanjeId: placanje.id }),
-      });
+      console.log("[UPLATA_SJELA] baseUrl", baseUrl);
+
+      let potvrda;
+      try {
+        potvrda = await fetch(`${baseUrl}/api/admin/placanja/potvrdi-link`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ placanjeId: placanje.id }),
+        });
+        console.log("[UPLATA_SJELA] fetch done", {
+          status: potvrda.status,
+          ok: potvrda.ok,
+        });
+      } catch (e) {
+        console.error("[UPLATA_SJELA] fetch THREW", {
+          baseUrl,
+          placanjeId: placanje.id,
+          error: String(e),
+          stack: e instanceof Error ? e.stack : undefined,
+        });
+        throw e;
+      }
 
       if (!potvrda.ok) {
-        console.error("[UPLATA_SJELA] potvrdi-link fail:", {
+        const body = await potvrda.text().catch(() => "(no body)");
+        console.error("[UPLATA_SJELA] potvrdi-link non-OK", {
           placanjeId: placanje.id,
           rezervacijaId: rezervacija.id,
           status: potvrda.status,
+          body: body.slice(0, 500),
         });
         throw new Error(
           "Rezervacija je kreirana, ali automatska potvrda plaćanja je pala. " +
             "Otvori rezervaciju i ručno klikni 'Potvrdi plaćanje'.",
         );
       }
+
+      console.log("[UPLATA_SJELA] success — falling through to audit log", {
+        rezId: rezervacija.id,
+      });
 
       // Nema redirect — pustimo da flow nastavi na rezervacijaPromjena.create
       // (audit log) i finalni redirect na kraju action-a.
