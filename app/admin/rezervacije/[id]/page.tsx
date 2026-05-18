@@ -840,76 +840,6 @@ export default async function RezervacijaDetaljPage({
     redirect(`/admin/rezervacije/${rezervacijaId}`);
   }
 
-  async function oznaciRacunPoslan(formData: FormData) {
-    "use server";
-
-    const rezervacijaId = String(formData.get("rezervacijaId") || "");
-    const racunId = String(formData.get("racunId") || "");
-
-    const r = await prisma.rezervacija.findUnique({
-      where: { id: rezervacijaId },
-      include: {
-        gost: true,
-        racuni: true,
-      },
-    });
-
-    if (!r) throw new Error("Rezervacija nije pronađena.");
-
-    const racun = r.racuni.find((x) => x.id === racunId);
-    if (!racun) throw new Error("Račun nije pronađen.");
-
-    if (!r.gost?.email) {
-      await prisma.emailLog.create({
-        data: {
-          rezervacijaId,
-          to: "bez-emaila",
-          subject: `Račun ${racun.brojRacuna}`,
-          tip: "RACUN",
-          status: "GRESKA",
-          greska: "Gost nema upisanu email adresu.",
-        },
-      });
-
-      revalidatePath(`/admin/rezervacije/${rezervacijaId}`);
-      redirect(`/admin/rezervacije/${rezervacijaId}`);
-    }
-
-    await prisma.racun.update({
-      where: { id: racunId },
-      data: {
-        poslanGostu: true,
-      },
-    });
-
-    await prisma.emailLog.create({
-      data: {
-        rezervacijaId,
-        to: r.gost.email,
-        subject: `Račun ${racun.brojRacuna}`,
-        tip: "RACUN",
-        status: "POSLANO",
-      },
-    });
-
-    await prisma.rezervacijaPromjena.create({
-      data: {
-        rezervacijaId,
-        tip: "RACUN_MAIL",
-        opis: `Račun ${racun.brojRacuna} označen kao poslan gostu na mail.`,
-        noviPodaci: JSON.stringify({
-          racunId,
-          brojRacuna: racun.brojRacuna,
-          email: r.gost.email,
-        }),
-        korisnikIme: "Admin",
-      },
-    });
-
-    revalidatePath(`/admin/rezervacije/${rezervacijaId}`);
-    redirect(`/admin/rezervacije/${rezervacijaId}`);
-  }
-
   async function potvrdiStorno(formData: FormData) {
     "use server";
 
@@ -2146,17 +2076,11 @@ export default async function RezervacijaDetaljPage({
                         <span className="gy">PDF još nije generiran</span>
                       )}
 
-                      <form action={oznaciRacunPoslan}>
-                        <input type="hidden" name="rezervacijaId" value={rezervacija.id} />
-                        <input type="hidden" name="racunId" value={racun.id} />
-                        <button className="bo">Označi / pošalji račun</button>
-                      </form>
-
                       <form
                         action={async () => {
                           "use server";
 
-                          await fetch(
+                          const response = await fetch(
                             `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/api/admin/racuni/posalji`,
                             {
                               method: "POST",
@@ -2168,6 +2092,13 @@ export default async function RezervacijaDetaljPage({
                               }),
                             }
                           );
+
+                          if (!response.ok) {
+                            const errorBody = await response.text().catch(() => "");
+                            throw new Error(
+                              `Slanje računa nije uspjelo: ${response.status} ${errorBody.slice(0, 200)}`,
+                            );
+                          }
 
                           revalidatePath(`/admin/rezervacije/${rezervacija.id}`);
                           redirect(`/admin/rezervacije/${rezervacija.id}`);

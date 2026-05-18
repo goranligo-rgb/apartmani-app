@@ -270,9 +270,15 @@ export async function POST(req: Request) {
       });
 
       if (pdfUrl) {
-        const cleanPdfUrl = pdfUrl.startsWith("/") ? pdfUrl.slice(1) : pdfUrl;
-        const filePath = path.join(process.cwd(), "public", cleanPdfUrl);
-        const fileBuffer = fs.readFileSync(filePath);
+        // PDF dohvaća se s Supabase Storage URL-a (ne s local file system-a).
+        // Stari `fs.readFileSync(path.join(cwd, "public", pdfUrl))` pattern
+        // nije radio na Vercel-u jer PDF-ovi nisu static asseti.
+        const pdfResponse = await fetch(pdfUrl);
+        if (!pdfResponse.ok) {
+          throw new Error(`PDF račun nije dostupan: ${pdfResponse.status}`);
+        }
+        const arrayBuffer = await pdfResponse.arrayBuffer();
+        const fileBuffer = Buffer.from(arrayBuffer);
 
         const email = placanje.rezervacija.gost?.email || "goran.ligo@gmail.com";
         const ccEmails = getCcEmails(objekt);
