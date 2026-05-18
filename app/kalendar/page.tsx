@@ -129,49 +129,60 @@ export default async function KalendarPage(props: {
     sortOrder: s.sortOrder,
   }));
 
-  const jedinice = jediniceRaw.map((j) => ({
-    id: j.id,
-    naziv: j.naziv,
-    objektNaziv: j.objekt.naziv,
-    osnovniKapacitet: j.osnovniKapacitet,
-    dodatniKapacitet: j.dodatniKapacitet,
-    brojSpavacihSoba: j.brojSpavacihSoba,
-    brojKupaona: j.brojKupaona,
+  const jedinice = jediniceRaw.map((j) => {
+    // Dedup vanjske blokade koje već imaju Shadow Rezervaciju za istu jedinicu —
+    // inače UI prikazuje isti termin dvaput (gola 0€ blokada iz iCal sync-a +
+    // obogaćena rezervacija iz Excel commit-a).
+    const shadowedBlokadaIds = new Set(
+      j.rezervacije.map((r) => r.blokadaId).filter((id): id is string => !!id),
+    );
 
-    cjenici: j.cjenici.map((c) => ({
-      id: c.id,
-      datumOd: toLocalIso(c.datumOd),
-      datumDo: toLocalIso(c.datumDo),
-      cijenaNocenja: c.cijenaNocenja,
-      minimalniBoravak: c.minimalniBoravak,
-    })),
+    return {
+      id: j.id,
+      naziv: j.naziv,
+      objektNaziv: j.objekt.naziv,
+      osnovniKapacitet: j.osnovniKapacitet,
+      dodatniKapacitet: j.dodatniKapacitet,
+      brojSpavacihSoba: j.brojSpavacihSoba,
+      brojKupaona: j.brojKupaona,
 
-    rezervacije: j.rezervacije.map((r) => ({
-      id: r.id,
-      status: r.status,
-      datumOd: toLocalIso(r.datumOd),
-      datumDo: toLocalIso(r.datumDo),
-      gostIme: r.gost?.ime ?? "",
-      gostPrezime: r.gost?.prezime ?? "",
-    })),
-
-    blokade: [
-      ...j.blokade.map((b) => ({
-        id: b.id,
-        datumOd: toLocalIso(b.datumOd),
-        datumDo: toLocalIso(b.datumDo),
-        razlog: b.razlog,
-        izvor: b.izvor,
+      cjenici: j.cjenici.map((c) => ({
+        id: c.id,
+        datumOd: toLocalIso(c.datumOd),
+        datumDo: toLocalIso(c.datumDo),
+        cijenaNocenja: c.cijenaNocenja,
+        minimalniBoravak: c.minimalniBoravak,
       })),
-      ...j.blokadeVanjskogKalendara.map((b) => ({
-        id: b.id,
-        datumOd: toLocalIso(b.datumOd),
-        datumDo: toLocalIso(b.datumDo),
-        razlog: b.naslov || "Booking.com",
-        izvor: b.izvor || "BOOKING",
+
+      rezervacije: j.rezervacije.map((r) => ({
+        id: r.id,
+        status: r.status,
+        datumOd: toLocalIso(r.datumOd),
+        datumDo: toLocalIso(r.datumDo),
+        gostIme: r.gost?.ime ?? "",
+        gostPrezime: r.gost?.prezime ?? "",
       })),
-    ],
-  }));
+
+      blokade: [
+        ...j.blokade.map((b) => ({
+          id: b.id,
+          datumOd: toLocalIso(b.datumOd),
+          datumDo: toLocalIso(b.datumDo),
+          razlog: b.razlog,
+          izvor: b.izvor,
+        })),
+        ...j.blokadeVanjskogKalendara
+          .filter((b) => !shadowedBlokadaIds.has(b.id))
+          .map((b) => ({
+            id: b.id,
+            datumOd: toLocalIso(b.datumOd),
+            datumDo: toLocalIso(b.datumDo),
+            razlog: b.naslov || "Booking.com",
+            izvor: b.izvor || "BOOKING",
+          })),
+      ],
+    };
+  });
 
   return (
     <CalendarClient

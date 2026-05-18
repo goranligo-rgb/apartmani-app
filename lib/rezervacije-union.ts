@@ -119,6 +119,14 @@ export async function getRezervacijeIBlokade(
     fetchBlokade(blokWhere),
   ]);
 
+  // Dedup: ako blokada ima Shadow Rezervaciju (Rezervacija.blokadaId = b.id),
+  // prikazujemo SAMO rezervaciju (s gostom + €), ne i golu blokadu. Bez ovog
+  // filtera kalendar/lista prikazuju isti termin dvaput — jednom kao 0€ blokada
+  // (iz iCal sync-a) i jednom kao obogaćena rezervacija (iz Excel commit-a).
+  const blokadaIdsWithShadowRez = new Set(
+    rezervacije.map((r) => r.blokadaId).filter((id): id is string => !!id),
+  );
+
   const cards: RezervacijaCard[] = [];
 
   for (const r of rezervacije) {
@@ -153,6 +161,7 @@ export async function getRezervacijeIBlokade(
   }
 
   for (const b of blokade) {
+    if (blokadaIdsWithShadowRez.has(b.id)) continue; // Shadow Rezervacija preuzima prikaz
     cards.push({
       source: "BLOKADA",
       id: b.id,
