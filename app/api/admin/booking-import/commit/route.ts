@@ -10,6 +10,7 @@ import {
   OBJEKT_KEY_TO_NAZIV,
   type ObjektKey,
 } from "@/lib/booking-unit-mapping";
+import { startOfTodayInZagreb } from "@/lib/dates";
 
 export const dynamic = "force-dynamic";
 
@@ -277,9 +278,57 @@ export async function POST(req: Request) {
     }
   }
 
+  // FULL REPLACE: prikupimo postojeće BOOKING rezervacije za ovaj objekt
+  // od današnjeg datuma (Europe/Zagreb) pa nadalje. Brišemo ih PRIJE kreiranja
+  // novih iz Excel-a, da Excel postane jedini izvor istine za buduće rezervacije.
+  // Prošli datumi (datumOd < today) ostaju netaknuti i upsert-aju se po UID-u.
+  const today = startOfTodayInZagreb();
+  const obrisaneRez: Array<{
+    id: string;
+    datumOd: string;
+    datumDo: string;
+    gostIme: string;
+    iznos: number | null;
+  }> = [];
+  let brojObrisano = 0;
+
   try {
     await prisma.$transaction(
       async (tx) => {
+        // 0. FULL REPLACE: find + delete postojeće BOOKING rezervacije za ovaj objekt
+        //    s datumOd >= today (Europe/Zagreb). Cascade auto-briše Placanja/Racuni/
+        //    Emailove/Promjene (sve su 0 za BOOKING flow). Ne dira Blokade ni Goste.
+        const postojece = await tx.rezervacija.findMany({
+          where: {
+            izvor: "BOOKING",
+            jedinica: { objektId: objekt.id },
+            datumOd: { gte: today },
+          },
+          include: {
+            gost: { select: { ime: true, prezime: true } },
+          },
+        });
+
+        for (const r of postojece) {
+          const gostIme = r.gost
+            ? `${r.gost.ime ?? ""} ${r.gost.prezime ?? ""}`.trim() || "(bez imena)"
+            : "(bez gosta)";
+          obrisaneRez.push({
+            id: r.id,
+            datumOd: ymdKey(r.datumOd),
+            datumDo: ymdKey(r.datumDo),
+            gostIme,
+            iznos: r.iznosUkupno,
+          });
+        }
+
+        if (postojece.length > 0) {
+          const res = await tx.rezervacija.deleteMany({
+            where: { id: { in: postojece.map((r) => r.id) } },
+          });
+          brojObrisano = res.count;
+        }
+
         // 1. UPDATE blokada (Excel obogaćivanje)
         for (const u of blokadaUpdates) {
           await tx.blokadaVanjskogKalendara.update({
@@ -385,7 +434,8 @@ export async function POST(req: Request) {
           });
         }
 
-        // 3. Audit log
+        // 3. Audit log — uključuje brojObrisano + listu obrisanih rezervacija
+        //    iz FULL REPLACE koraka 0.
         await tx.bookingExcelImport.create({
           data: {
             objektKey,
@@ -395,7 +445,9 @@ export async function POST(req: Request) {
             brojObogaceno: updated,
             brojPreskoceno: skipped,
             brojGresaka: errors.length,
+            brojObrisano,
             greske: errors.length > 0 ? JSON.stringify(errors) : null,
+            obrisaneRezIds: obrisaneRez.length > 0 ? JSON.stringify(obrisaneRez) : null,
             korisnikIme: null,
           },
         });
@@ -415,7 +467,7 @@ export async function POST(req: Request) {
 
   return NextResponse.json({
     ok: true,
-    summary: { updated, skipped, errors: errors.length },
+    summary: { updated, skipped, errors: errors.length, obrisano: brojObrisano },
     errors: errors.slice(0, 50),
   });
 }

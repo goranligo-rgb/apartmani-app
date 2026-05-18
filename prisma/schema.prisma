@@ -474,8 +474,10 @@ model BookingExcelImport {
   brojObogaceno    Int @default(0)
   brojPreskoceno   Int @default(0)
   brojGresaka      Int @default(0)
+  brojObrisano     Int @default(0)
 
-  greske String? // JSON array kao string, npr: ["Red 5: jedinica ne postoji", ...]
+  greske         String? // JSON array kao string, npr: ["Red 5: jedinica ne postoji", ...]
+  obrisaneRezIds String? // JSON array obrisanih rezervacija pri FULL REPLACE uploadu
 
   korisnikIme String?
 

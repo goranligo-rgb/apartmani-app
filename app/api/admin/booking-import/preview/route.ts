@@ -6,6 +6,7 @@ import {
   OBJEKT_KEY_TO_NAZIV,
   type ObjektKey,
 } from "@/lib/booking-unit-mapping";
+import { startOfTodayInZagreb } from "@/lib/dates";
 
 export const dynamic = "force-dynamic";
 
@@ -95,6 +96,29 @@ export async function POST(req: Request) {
   for (const j of objekt.jedinice) {
     jedinicaByNaziv.set(j.naziv, { id: j.id, naziv: j.naziv });
   }
+
+  // FULL REPLACE preview: koja postojeća BOOKING rezervacija će biti obrisana
+  // pri commit-u (datumOd >= today u Europe/Zagreb). Vraćamo listu za UI banner.
+  const today = startOfTodayInZagreb();
+  const postojeceZaBrisanje = await prisma.rezervacija.findMany({
+    where: {
+      izvor: "BOOKING",
+      jedinica: { objektId: objekt.id },
+      datumOd: { gte: today },
+    },
+    include: { gost: { select: { ime: true, prezime: true } } },
+    orderBy: { datumOd: "asc" },
+  });
+
+  const obrisaneRezPreview = postojeceZaBrisanje.map((r) => ({
+    id: r.id,
+    datumOd: ymdKey(r.datumOd),
+    datumDo: ymdKey(r.datumDo),
+    gostIme: r.gost
+      ? `${r.gost.ime ?? ""} ${r.gost.prezime ?? ""}`.trim() || "(bez imena)"
+      : "(bez gosta)",
+    iznos: r.iznosUkupno,
+  }));
 
   // Dohvati sve blokade za jedinice ovog objekta (1 query)
   const jedinicaIds = objekt.jedinice.map((j) => j.id);
@@ -268,5 +292,7 @@ export async function POST(req: Request) {
     },
     summary,
     rows: outRows,
+    obrisaneRezPreview, // FULL REPLACE: postojeće rezervacije koje će biti obrisane
+    brojPostojecihZaBrisanje: obrisaneRezPreview.length,
   });
 }

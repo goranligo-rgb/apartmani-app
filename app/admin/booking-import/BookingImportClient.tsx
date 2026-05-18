@@ -45,6 +45,14 @@ type PreviewRow = {
   greska?: string;
 };
 
+type ObrisaneRezPreview = {
+  id: string;
+  datumOd: string;
+  datumDo: string;
+  gostIme: string;
+  iznos: number | null;
+};
+
 type PreviewResponse = {
   ok: true;
   objekt: { naziv: string; brojJedinica: number };
@@ -57,6 +65,8 @@ type PreviewResponse = {
     greska: number;
   };
   rows: PreviewRow[];
+  obrisaneRezPreview: ObrisaneRezPreview[];
+  brojPostojecihZaBrisanje: number;
 };
 
 type CommitResponse = {
@@ -65,6 +75,7 @@ type CommitResponse = {
     updated: number;
     skipped: number;
     errors: number;
+    obrisano: number;
   };
   errors: string[];
 };
@@ -208,12 +219,11 @@ export default function BookingImportClient({
 
   async function pokreniImport() {
     if (!objektKey || !file || !preview) return;
-    if (
-      !confirm(
-        `Importirat ćeš ${counters.azurirati} blokada. Otkazane rezervacije se preskaču (iCal sync ih briše zasebno). Nastavi?`
-      )
-    )
-      return;
+    const confirmMsg =
+      preview.brojPostojecihZaBrisanje > 0
+        ? `FULL REPLACE: obrisat će se ${preview.brojPostojecihZaBrisanje} postojećih BOOKING rezervacija (datumOd >= danas), pa kreirati ${counters.azurirati} novih iz Excel-a. Nastavi?`
+        : `Importirat ćeš ${counters.azurirati} blokada. Nastavi?`;
+    if (!confirm(confirmMsg)) return;
 
     setLoading("commit");
     setError(null);
@@ -327,7 +337,8 @@ export default function BookingImportClient({
             Import gotov
           </p>
           <p className="mt-1 text-lg font-black">
-            Uspješno ažurirano: {commitResult.summary.updated} blokada · preskočeno:{" "}
+            Obrisano: {commitResult.summary.obrisano} · ažurirano:{" "}
+            {commitResult.summary.updated} blokada · preskočeno:{" "}
             {commitResult.summary.skipped}
           </p>
           {commitResult.errors.length > 0 && (
@@ -342,6 +353,43 @@ export default function BookingImportClient({
               </ul>
             </details>
           )}
+        </div>
+      )}
+
+      {/* FULL REPLACE WARNING BANNER */}
+      {preview && preview.brojPostojecihZaBrisanje > 0 && (
+        <div className="border-2 border-amber-400 bg-amber-50 p-5 text-amber-900">
+          <p className="text-xs font-black uppercase tracking-[0.18em]">
+            ⚠ Pažnja — FULL REPLACE
+          </p>
+          <p className="mt-2 text-base font-bold">
+            Ovaj upload će <strong className="text-rose-800">OBRISATI {preview.brojPostojecihZaBrisanje}</strong>{" "}
+            postojećih BOOKING rezervacija za <strong>{preview.objekt.naziv}</strong> (datumOd ≥ danas),
+            pa <strong className="text-emerald-800">KREIRATI {counters.azurirati}</strong> novih iz Excel-a.
+          </p>
+          <p className="mt-1 text-xs text-amber-800">
+            Blokade ostaju netaknute (iCal sync vlasnik). Prošle rezervacije (datumOd &lt; danas) se ne diraju.
+          </p>
+          <details className="mt-3 text-sm">
+            <summary className="cursor-pointer font-bold">
+              Lista rezervacija koje će biti obrisane ({preview.brojPostojecihZaBrisanje})
+            </summary>
+            <ul className="mt-2 max-h-[300px] overflow-y-auto border border-amber-200 bg-white p-2 font-mono text-xs">
+              {preview.obrisaneRezPreview.map((r) => (
+                <li key={r.id} className="border-b border-amber-100 py-1 last:border-b-0">
+                  <span className="text-[#6f665a]">{r.id.slice(0, 8)}…</span>
+                  {" | "}
+                  <strong className="text-[#2e2923]">{r.gostIme}</strong>
+                  {" | "}
+                  {r.datumOd} → {r.datumDo}
+                  {" | "}
+                  <span className="text-[#9b7a4c]">
+                    {r.iznos !== null ? `${r.iznos.toFixed(2)} €` : "—"}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </details>
         </div>
       )}
 
