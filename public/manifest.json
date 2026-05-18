@@ -2,7 +2,7 @@
   "name": "Malinska Stay",
   "short_name": "Malinska Stay",
   "description": "Apartmani Malinska Stay - rezervacije i administracija",
-  "start_url": "/",
+  "start_url": "/admin",
   "display": "standalone",
   "background_color": "#f6f1e8",
   "theme_color": "#c79a57",
