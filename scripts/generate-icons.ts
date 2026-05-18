@@ -16,17 +16,24 @@ import * as path from "node:path";
 
 const SRC = path.resolve("public/icon/icon.jpeg");
 
+// ensureAlpha() forsira RGBA (4 kanala) jer Turbopack image processor odbija RGB
+// PNG-ove unutar ICO-a — "The PNG is not in RGBA format!". Izvor je JPEG (3 kanala),
+// pa moramo eksplicitno dodati alpha kanal prije .png() encode-a.
 async function genPng(size: number, outPath: string): Promise<void> {
-  await sharp(SRC).resize(size, size, { fit: "cover" }).png().toFile(outPath);
+  await sharp(SRC).resize(size, size, { fit: "cover" }).ensureAlpha().png().toFile(outPath);
   const meta = await sharp(outPath).metadata();
-  console.log(`  ${outPath} → ${meta.width}×${meta.height} px (${meta.size} B)`);
+  console.log(
+    `  ${outPath} → ${meta.width}×${meta.height} px, channels=${meta.channels} (${meta.size} B)`,
+  );
 }
 
 // Sharp nema native ICO output. ICO je jednostavan binarni container:
 //   ICONDIR (6 B) + N × ICONDIRENTRY (16 B) + N × PNG payload
 async function genIco(outPath: string, sizes: number[]): Promise<void> {
   const buffers = await Promise.all(
-    sizes.map((s) => sharp(SRC).resize(s, s, { fit: "cover" }).png().toBuffer()),
+    sizes.map((s) =>
+      sharp(SRC).resize(s, s, { fit: "cover" }).ensureAlpha().png().toBuffer(),
+    ),
   );
 
   const header = Buffer.alloc(6);
