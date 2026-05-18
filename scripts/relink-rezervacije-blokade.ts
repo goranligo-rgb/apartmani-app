@@ -78,17 +78,22 @@ async function main() {
   }
 
   console.log("Pokrećem transakciju...");
-  const updated = await prisma.$transaction(async (tx) => {
-    let count = 0;
-    for (const u of toUpdate) {
-      await tx.rezervacija.update({
-        where: { id: u.rezId },
-        data: { blokadaId: u.newBlokadaId },
-      });
-      count++;
-    }
-    return count;
-  });
+  // Veći timeout (60s) jer može biti preko 50 sequential update-ova preko
+  // network-a do Supabase-a; default 5s je premalo (P2028 timeout error).
+  const updated = await prisma.$transaction(
+    async (tx) => {
+      let count = 0;
+      for (const u of toUpdate) {
+        await tx.rezervacija.update({
+          where: { id: u.rezId },
+          data: { blokadaId: u.newBlokadaId },
+        });
+        count++;
+      }
+      return count;
+    },
+    { timeout: 60000 },
+  );
 
   console.log(`Ažurirano: ${updated} rezervacija.`);
   await prisma.$disconnect();
