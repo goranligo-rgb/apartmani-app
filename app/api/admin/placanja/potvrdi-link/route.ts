@@ -113,6 +113,11 @@ export async function GET() {
     );
 }
 
+// TODO(security): Endpoint je trenutno javno dostupan. Treba dodati
+// adminSessionOk() check + forward admin cookie u call site-ovima
+// (evidentirajUplatu u [id]/page.tsx i UPLATA_SJELA grana u
+// nova/page.tsx). Tracking: nije production-blocker jer placanjeId
+// je UUID, ali treba riješiti prije javnih demo-a.
 export async function POST(req: Request) {
     try {
         let placanjeId = "";

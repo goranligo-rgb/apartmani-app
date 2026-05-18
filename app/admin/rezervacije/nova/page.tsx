@@ -564,7 +564,6 @@ export default async function NovaAdminRezervacijaPage({
     const razlogPopusta = String(formData.get("razlogPopusta") || "").trim();
     const napomena = String(formData.get("napomena") || "").trim();
     const nacinKreiranja = String(formData.get("nacinKreiranja") || "");
-    const uplataSjelaIznos = parseMoney(formData.get("uplataSjelaIznos"));
 
     if (!jedinicaId || !datumOdRaw || !datumDoRaw || !ime) {
       throw new Error("Nedostaju obavezni podaci za rezervaciju.");
@@ -919,19 +918,15 @@ export default async function NovaAdminRezervacijaPage({
     }
 
     if (nacinKreiranja === "UPLATA_SJELA") {
-      const iznosZaEvidenciju = Math.min(uplataSjelaIznos, dogovoreniIznos);
-
-      if (iznosZaEvidenciju <= 0) {
-        throw new Error("Za uplatu koja je već sjela moraš upisati iznos.");
-      }
+      // Cijeli dogovoreni iznos je sjeo (gost platio puno odjednom preko
+      // transakcijskog računa). dogovoreniIznos = rucnaCijena ako je upisana,
+      // inače cijena iz cjenika. Validacija > 0 već je ranije (linija 641-643).
+      const iznosZaEvidenciju = dogovoreniIznos;
 
       const placanje = await prisma.placanje.create({
         data: {
           rezervacijaId: rezervacija.id,
-          tip:
-            iznosZaEvidenciju >= dogovoreniIznos
-              ? "CIJELI_IZNOS"
-              : "AKONTACIJA",
+          tip: "CIJELI_IZNOS",
           status: "CEKA_PLACANJE",
           iznos: iznosZaEvidenciju,
           valuta: "EUR",
@@ -941,7 +936,30 @@ export default async function NovaAdminRezervacijaPage({
         },
       });
 
-      redirect(`/admin/rezervacije/${rezervacija.id}?placanjeId=${placanje.id}`);
+      // Automatska potvrda plaćanja — isto kao klik na "Potvrdi plaćanje" u
+      // [id] view-u. Mijenja Placanje → PLACENO, Rezervaciju → PLACENO, kreira
+      // Racun + PDF, šalje mail s atačovanim PDF-om.
+      const baseUrl = await getAppUrl();
+      const potvrda = await fetch(`${baseUrl}/api/admin/placanja/potvrdi-link`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ placanjeId: placanje.id }),
+      });
+
+      if (!potvrda.ok) {
+        console.error("[UPLATA_SJELA] potvrdi-link fail:", {
+          placanjeId: placanje.id,
+          rezervacijaId: rezervacija.id,
+          status: potvrda.status,
+        });
+        throw new Error(
+          "Rezervacija je kreirana, ali automatska potvrda plaćanja je pala. " +
+            "Otvori rezervaciju i ručno klikni 'Potvrdi plaćanje'.",
+        );
+      }
+
+      // Nema redirect — pustimo da flow nastavi na rezervacijaPromjena.create
+      // (audit log) i finalni redirect na kraju action-a.
     }
 
     await prisma.rezervacijaPromjena.create({
@@ -1341,17 +1359,6 @@ export default async function NovaAdminRezervacijaPage({
                         defaultValue={postavke.danaPrijeDolaskaMoraBitiPlaceno}
                         className="w-full border border-[#d8c8aa] bg-white px-3 py-2 text-[#2e2923] outline-none"
                         required
-                      />
-                    </Field>
-
-                    <Field label="Ako je uplata već sjela, upiši iznos">
-                      <input
-                        name="uplataSjelaIznos"
-                        type="number"
-                        min={0}
-                        step="0.01"
-                        placeholder="npr. 300"
-                        className="w-full border border-[#d8c8aa] bg-white px-3 py-2 text-[#2e2923] outline-none"
                       />
                     </Field>
 
