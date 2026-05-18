@@ -454,6 +454,7 @@ model BlokadaVanjskogKalendara {
   vanjskiKalendar VanjskiKalendar @relation(fields: [vanjskiKalendarId], references: [id], onDelete: Cascade)
   jedinica        Jedinica        @relation(fields: [jedinicaId], references: [id], onDelete: Cascade)
 
+  @@unique([vanjskiKalendarId, uid])
   @@index([vanjskiKalendarId])
   @@index([jedinicaId])
   @@index([datumOd])

@@ -53,15 +53,38 @@ async function syncJedanKalendar(kal: any) {
   const text = await res.text();
   const events = parseICal(text);
 
-  await prisma.blokadaVanjskogKalendara.deleteMany({
-    where: {
-      vanjskiKalendarId: kal.id,
-    },
+  // Idempotent sync: upsert po (vanjskiKalendarId, uid) composite key umjesto
+  // delete+create. Stari pattern je regenerirao UUID-eve na svakom sync-u i
+  // rušio Rezervacija.blokadaId FK-ove. Sad postojeće blokade zadržavaju svoj
+  // UUID, samo se ažuriraju datumi/naslov ako su se promijenili.
+
+  const currentRows = await prisma.blokadaVanjskogKalendara.findMany({
+    where: { vanjskiKalendarId: kal.id },
+    select: { id: true, uid: true },
   });
 
   for (const e of events) {
-    await prisma.blokadaVanjskogKalendara.create({
-      data: {
+    if (!e.uid) {
+      // Bez UID-a ne možemo idempotent dedup. iCalendar spec zahtjeva UID;
+      // ako ga nema, vjerojatno je malformed feed — logiramo i preskačemo.
+      console.warn("iCal event bez UID-a, preskačem:", e.naslov);
+      continue;
+    }
+
+    await prisma.blokadaVanjskogKalendara.upsert({
+      where: {
+        vanjskiKalendarId_uid: {
+          vanjskiKalendarId: kal.id,
+          uid: e.uid,
+        },
+      },
+      update: {
+        jedinicaId: kal.jedinicaId,
+        naslov: e.naslov,
+        datumOd: e.datumOd,
+        datumDo: e.datumDo,
+      },
+      create: {
         vanjskiKalendarId: kal.id,
         jedinicaId: kal.jedinicaId,
         uid: e.uid,
@@ -70,6 +93,21 @@ async function syncJedanKalendar(kal: any) {
         datumDo: e.datumDo,
       },
     });
+  }
+
+  // Delete-missing: blokade u DB čiji UID nije više u trenutnom feed-u
+  // (npr. gost je otkazao ili promijenio rezervaciju i Booking je uklonio
+  // event iz feed-a). NULL-uid blokade ostaju netaknute.
+  const feedUids = new Set(events.map((e) => e.uid).filter((u): u is string => !!u));
+  const toDelete = currentRows
+    .filter((r) => r.uid && !feedUids.has(r.uid))
+    .map((r) => r.id);
+
+  if (toDelete.length > 0) {
+    await prisma.blokadaVanjskogKalendara.deleteMany({
+      where: { id: { in: toDelete } },
+    });
+    console.log(`iCal sync: obrisano ${toDelete.length} blokada koje su nestale iz feed-a (kalendar ${kal.id.slice(0, 8)})`);
   }
 
   await prisma.vanjskiKalendar.update({
