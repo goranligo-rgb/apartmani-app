@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { stripe } from "@/lib/stripe";
 import { Resend } from "resend";
+import { isRezervacijaOverlap } from "@/lib/dates";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -334,7 +335,9 @@ export async function POST(req: Request) {
       );
     }
 
-    const postojiPreklapanje = await prisma.rezervacija.findFirst({
+    // Same-day turnover (a.datumDo == b.datumOd) dopušten kroz
+    // isRezervacijaOverlap helper - rješava midnight/noon mix.
+    const kandidatiRez = await prisma.rezervacija.findMany({
       where: {
         jedinicaId,
         status: {
@@ -349,6 +352,9 @@ export async function POST(req: Request) {
         },
       },
     });
+    const postojiPreklapanje = kandidatiRez.find((k) =>
+      isRezervacijaOverlap(k, { datumOd, datumDo }),
+    );
 
     if (postojiPreklapanje) {
       return NextResponse.json(
@@ -357,7 +363,8 @@ export async function POST(req: Request) {
       );
     }
 
-    const postojiRucnaBlokada = await prisma.blokadaJedinice.findFirst({
+    // Same-day turnover dopušten kroz isRezervacijaOverlap helper.
+    const kandidatiManual = await prisma.blokadaJedinice.findMany({
       where: {
         jedinicaId,
         aktivna: true,
@@ -369,6 +376,9 @@ export async function POST(req: Request) {
         },
       },
     });
+    const postojiRucnaBlokada = kandidatiManual.find((k) =>
+      isRezervacijaOverlap(k, { datumOd, datumDo }),
+    );
 
     if (postojiRucnaBlokada) {
       return NextResponse.json(
@@ -377,18 +387,21 @@ export async function POST(req: Request) {
       );
     }
 
-    const postojiBookingBlokada =
-      await prisma.blokadaVanjskogKalendara.findFirst({
-        where: {
-          jedinicaId,
-          datumOd: {
-            lt: datumDo,
-          },
-          datumDo: {
-            gt: datumOd,
-          },
+    // Same-day turnover dopušten kroz isRezervacijaOverlap helper.
+    const kandidatiBooking = await prisma.blokadaVanjskogKalendara.findMany({
+      where: {
+        jedinicaId,
+        datumOd: {
+          lt: datumDo,
         },
-      });
+        datumDo: {
+          gt: datumOd,
+        },
+      },
+    });
+    const postojiBookingBlokada = kandidatiBooking.find((k) =>
+      isRezervacijaOverlap(k, { datumOd, datumDo }),
+    );
 
     if (postojiBookingBlokada) {
       return NextResponse.json(

@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
+import { isRezervacijaOverlap } from "@/lib/dates";
 
 function addDays(date: Date, days: number) {
   const d = new Date(date);
@@ -35,7 +36,9 @@ export async function POST(req: Request) {
 
   const doDatuma = addDays(doZakljucno, 1);
 
-  const postojiRez = await prisma.rezervacija.findFirst({
+  // Same-day turnover (a.datumDo == b.datumOd) dopušten kroz
+  // isRezervacijaOverlap helper - rješava midnight/noon mix.
+  const kandidatiRez = await prisma.rezervacija.findMany({
     where: {
       jedinicaId,
       status: { not: "OTKAZANO" },
@@ -43,6 +46,9 @@ export async function POST(req: Request) {
       datumDo: { gt: od },
     },
   });
+  const postojiRez = kandidatiRez.find((k) =>
+    isRezervacijaOverlap(k, { datumOd: od, datumDo: doDatuma }),
+  );
 
   if (postojiRez) {
     return NextResponse.json(
@@ -54,7 +60,8 @@ export async function POST(req: Request) {
     );
   }
 
-  const postojeceBlokade = await prisma.blokadaJedinice.findMany({
+  // Same-day turnover dopušten kroz isRezervacijaOverlap helper.
+  const kandidatiBlokade = await prisma.blokadaJedinice.findMany({
     where: {
       jedinicaId,
       aktivna: true,
@@ -62,6 +69,9 @@ export async function POST(req: Request) {
       datumDo: { gt: od },
     },
   });
+  const postojeceBlokade = kandidatiBlokade.filter((b) =>
+    isRezervacijaOverlap(b, { datumOd: od, datumDo: doDatuma }),
+  );
 
   if (postojeceBlokade.length > 0) {
     await prisma.blokadaJedinice.updateMany({

@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { isRezervacijaOverlap } from "@/lib/dates";
 
 function parseDateOnly(value: string) {
   const [y, m, d] = value.split("-").map(Number);
@@ -67,7 +68,14 @@ export async function pronadiSlobodneJedinice(
   });
 
   const slobodne = jedinice
-    .filter((j) => j.rezervacije.length === 0)
+    // Same-day turnover (a.datumDo == b.datumOd) dopušten kroz
+    // isRezervacijaOverlap helper - rješava midnight/noon mix.
+    .filter((j) => {
+      const stvarniOverlap = j.rezervacije.find((r) =>
+        isRezervacijaOverlap(r, { datumOd, datumDo }),
+      );
+      return !stvarniOverlap;
+    })
     .map((j) => {
       let ukupno = 0;
 

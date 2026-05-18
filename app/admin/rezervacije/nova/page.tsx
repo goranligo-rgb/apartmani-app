@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import type { ReactNode } from "react";
 import { prisma } from "@/lib/prisma";
 import { sendMail } from "@/lib/mail";
+import { isRezervacijaOverlap } from "@/lib/dates";
 import CijenaPreview from "./CijenaPreview";
 
 export const dynamic = "force-dynamic";
@@ -507,9 +508,11 @@ export default async function NovaAdminRezervacijaPage({
     ((osnovnaCijena * defaultAkontacijaPostotak) / 100).toFixed(2)
   );
 
+  // Same-day turnover (a.datumDo == b.datumOd) dopušten kroz
+  // isRezervacijaOverlap helper - rješava midnight/noon mix.
   const postojiPreklapanje =
     jedinica && odabraniOd && odabraniDo && odabraniOd < odabraniDo
-      ? await prisma.rezervacija.findFirst({
+      ? (await prisma.rezervacija.findMany({
         where: {
           jedinicaId: jedinica.id,
           status: {
@@ -523,7 +526,9 @@ export default async function NovaAdminRezervacijaPage({
             gt: odabraniOd,
           },
         },
-      })
+      })).find((k) =>
+        isRezervacijaOverlap(k, { datumOd: odabraniOd, datumDo: odabraniDo }),
+      ) ?? null
       : null;
 
   async function kreirajAdminRezervaciju(formData: FormData) {
@@ -603,7 +608,9 @@ export default async function NovaAdminRezervacijaPage({
       throw new Error("Jedinica nije pronađena.");
     }
 
-    const preklapanje = await prisma.rezervacija.findFirst({
+    // Same-day turnover (a.datumDo == b.datumOd) dopušten kroz
+    // isRezervacijaOverlap helper - rješava midnight/noon mix.
+    const kandidati = await prisma.rezervacija.findMany({
       where: {
         jedinicaId,
         status: {
@@ -618,6 +625,9 @@ export default async function NovaAdminRezervacijaPage({
         },
       },
     });
+    const preklapanje = kandidati.find((k) =>
+      isRezervacijaOverlap(k, { datumOd, datumDo }),
+    );
 
     if (preklapanje) {
       throw new Error("Odabrani termin je zauzet.");

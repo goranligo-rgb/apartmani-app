@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
+import { isRezervacijaOverlap } from "@/lib/dates";
 
 export const dynamic = "force-dynamic";
 
@@ -253,9 +254,11 @@ export default async function PromjenaTerminaPage({
     orderBy: [{ datumOd: "asc" }],
   });
 
+  // Same-day turnover (a.datumDo == b.datumOd) dopušten kroz
+  // isRezervacijaOverlap helper - rješava midnight/noon mix.
   const postojiPreklapanje =
     odabraniOd && odabraniDo && odabraniOd < odabraniDo
-      ? await prisma.rezervacija.findFirst({
+      ? (await prisma.rezervacija.findMany({
         where: {
           id: {
             not: rezervacija.id,
@@ -271,7 +274,9 @@ export default async function PromjenaTerminaPage({
             gt: odabraniOd,
           },
         },
-      })
+      })).find((k) =>
+        isRezervacijaOverlap(k, { datumOd: odabraniOd, datumDo: odabraniDo }),
+      ) ?? null
       : null;
 
   const mjeseci = [0, 1, 2, 3, 4, 5].map((i) => {
@@ -317,7 +322,9 @@ export default async function PromjenaTerminaPage({
       );
     }
 
-    const preklapanje = await prisma.rezervacija.findFirst({
+    // Same-day turnover (a.datumDo == b.datumOd) dopušten kroz
+    // isRezervacijaOverlap helper - rješava midnight/noon mix.
+    const kandidati = await prisma.rezervacija.findMany({
       where: {
         id: {
           not: rezervacijaId,
@@ -334,6 +341,9 @@ export default async function PromjenaTerminaPage({
         },
       },
     });
+    const preklapanje = kandidati.find((k) =>
+      isRezervacijaOverlap(k, { datumOd: noviDatumOd, datumDo: noviDatumDo }),
+    );
 
     if (preklapanje) {
       redirect(
