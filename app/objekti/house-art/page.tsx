@@ -3,6 +3,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import GalerijaSlika from "@/components/GalerijaSlika";
 import ObjectLocation from "@/components/ObjectLocation";
+import ObjectStructuredData from "@/components/ObjectStructuredData";
 import { OBJEKTI_PODACI, buildObjectMetadata } from "@/lib/objekti";
 
 export const metadata: Metadata = buildObjectMetadata("house-art");
@@ -74,6 +75,8 @@ export default async function HouseArtPage() {
 
   return (
     <main className="min-h-screen bg-[#f4efe6]">
+      <ObjectStructuredData slug="house-art" />
+
       <section className="relative h-[62vh] overflow-hidden bg-[#0b252b]">
         {heroImages.length > 0 &&
           heroImages.map((src, index) => (
