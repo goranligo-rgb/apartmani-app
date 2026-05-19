@@ -1,5 +1,20 @@
+import type { Metadata } from "next";
 import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
+
+export const metadata: Metadata = {
+  title: "Rezerviraj apartman u Malinskoj",
+  description:
+    "Direktna rezervacija apartmana na otoku Krku bez provizija. Apartments Eva, Marty i House Art u Malinskoj.",
+  alternates: { canonical: "/rezervacije/nova" },
+  openGraph: {
+    title: "Rezerviraj apartman u Malinskoj | Malinska Stay",
+    description:
+      "Direktna rezervacija apartmana na otoku Krku bez provizija.",
+    type: "website",
+    locale: "hr_HR",
+  },
+};
 
 type SearchParams = Promise<{
   jedinicaId?: string;
