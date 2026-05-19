@@ -101,6 +101,10 @@ export default async function AdminRezervacijePage({
 }) {
   const params = await searchParams;
 
+  // Default (bez sort/dir parametara) koristi posebno grupiranje:
+  // buduće prvo (uzlazno po prijavi), pa prošle (uzlazno po prijavi)
+  const isDefaultSort = !params.sort && !params.dir;
+
   const currentSort = params.sort || "termin";
   const currentDir = params.dir === "asc" ? "asc" : "desc";
 
@@ -127,6 +131,19 @@ export default async function AdminRezervacijePage({
   });
 
   filtrirane = [...filtrirane].sort((a, b) => {
+    // Default grupiranje: buduće (checkout >= today) uzlazno, pa prošle uzlazno
+    if (isDefaultSort) {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      const aProslo = a.datumDo.getTime() < today.getTime();
+      const bProslo = b.datumDo.getTime() < today.getTime();
+
+      if (aProslo !== bProslo) return aProslo ? 1 : -1;
+
+      return a.datumOd.getTime() - b.datumOd.getTime();
+    }
+
     const dir = currentDir === "asc" ? 1 : -1;
 
     if (currentSort === "gost") {
@@ -328,7 +345,9 @@ export default async function AdminRezervacijePage({
             </span>
             {" · "}
             <span className="font-black text-[#2e2923]">
-              Sortiranje: {currentSort} {currentDir === "asc" ? "↑" : "↓"}
+              {isDefaultSort
+                ? "Sortiranje: buduće → prošle (po prijavi ↑)"
+                : `Sortiranje: ${currentSort} ${currentDir === "asc" ? "↑" : "↓"}`}
             </span>
           </div>
         </div>
@@ -348,7 +367,7 @@ export default async function AdminRezervacijePage({
                     })}
                     className="cursor-pointer hover:text-[#2e2923]"
                   >
-                    Gost{sortLabel(currentSort, currentDir, "gost")}
+                    Gost{sortLabel(isDefaultSort ? "" : currentSort, currentDir,"gost")}
                   </Link>
                 </th>
 
@@ -364,7 +383,7 @@ export default async function AdminRezervacijePage({
                     className="cursor-pointer hover:text-[#2e2923]"
                   >
                     Objekt / jedinica
-                    {sortLabel(currentSort, currentDir, "objekt")}
+                    {sortLabel(isDefaultSort ? "" : currentSort, currentDir,"objekt")}
                   </Link>
                 </th>
 
@@ -379,7 +398,7 @@ export default async function AdminRezervacijePage({
                     })}
                     className="cursor-pointer hover:text-[#2e2923]"
                   >
-                    Termin{sortLabel(currentSort, currentDir, "termin")}
+                    Termin{sortLabel(isDefaultSort ? "" : currentSort, currentDir,"termin")}
                   </Link>
                 </th>
 
@@ -398,7 +417,7 @@ export default async function AdminRezervacijePage({
                     })}
                     className="cursor-pointer hover:text-[#2e2923]"
                   >
-                    Plaćeno{sortLabel(currentSort, currentDir, "placeno")}
+                    Plaćeno{sortLabel(isDefaultSort ? "" : currentSort, currentDir,"placeno")}
                   </Link>
                 </th>
 
@@ -413,7 +432,7 @@ export default async function AdminRezervacijePage({
                     })}
                     className="cursor-pointer hover:text-[#2e2923]"
                   >
-                    Ostatak{sortLabel(currentSort, currentDir, "ostatak")}
+                    Ostatak{sortLabel(isDefaultSort ? "" : currentSort, currentDir,"ostatak")}
                   </Link>
                 </th>
 
@@ -429,7 +448,7 @@ export default async function AdminRezervacijePage({
                     className="cursor-pointer hover:text-[#2e2923]"
                   >
                     Završna uplata
-                    {sortLabel(currentSort, currentDir, "zavrsna")}
+                    {sortLabel(isDefaultSort ? "" : currentSort, currentDir,"zavrsna")}
                   </Link>
                 </th>
 
