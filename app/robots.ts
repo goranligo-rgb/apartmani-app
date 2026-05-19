@@ -7,7 +7,15 @@ export default function robots(): MetadataRoute.Robots {
     rules: {
       userAgent: "*",
       allow: "/",
-      disallow: ["/admin/", "/api/", "/_next/"],
+      disallow: [
+        "/admin/",
+        "/api/",
+        "/_next/",
+        "/kalendar",
+        "/jedinice",
+        "/posebne-prilike",
+        "/rezervacije/",
+      ],
     },
     sitemap: `${BASE_URL}/sitemap.xml`,
     host: BASE_URL,
