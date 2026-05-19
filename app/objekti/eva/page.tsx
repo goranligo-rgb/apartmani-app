@@ -1,8 +1,11 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import GalerijaSlika from "@/components/GalerijaSlika";
 import ObjectLocation from "@/components/ObjectLocation";
-import { OBJEKTI_PODACI } from "@/lib/objekti";
+import { OBJEKTI_PODACI, buildObjectMetadata } from "@/lib/objekti";
+
+export const metadata: Metadata = buildObjectMetadata("eva");
 
 const apartmaniOpis = [
   {
