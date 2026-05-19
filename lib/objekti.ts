@@ -18,18 +18,10 @@ export type ObjektPodaci = {
   canonicalPath: string;
   priceRange: string;
   amenities: string[];
-  // TODO: zamijeniti placeholder koordinatama točnima koordinatama svakog objekta
   geo: {
     latitude: number;
     longitude: number;
   };
-};
-
-// Privremene koordinate – sve postavljene na centar Malinske.
-// Zamijeniti točnim koordinatama za svaki objekt prije pokretanja.
-const MALINSKA_FALLBACK_GEO = {
-  latitude: 45.1175,
-  longitude: 14.5325,
 };
 
 export const OBJEKTI_PODACI: Record<ObjektSlug, ObjektPodaci> = {
@@ -54,7 +46,10 @@ export const OBJEKTI_PODACI: Record<ObjektSlug, ObjektPodaci> = {
       "Kuhinja",
       "Strojno pranje rublja",
     ],
-    geo: MALINSKA_FALLBACK_GEO,
+    geo: {
+      latitude: 45.12402264305271,
+      longitude: 14.532067282880549,
+    },
   },
   marty: {
     slug: "marty",
@@ -77,7 +72,10 @@ export const OBJEKTI_PODACI: Record<ObjektSlug, ObjektPodaci> = {
       "Terasa / balkon",
       "Kuhinja",
     ],
-    geo: MALINSKA_FALLBACK_GEO,
+    geo: {
+      latitude: 45.11500376423832,
+      longitude: 14.517710784481592,
+    },
   },
   "house-art": {
     slug: "house-art",
@@ -101,7 +99,10 @@ export const OBJEKTI_PODACI: Record<ObjektSlug, ObjektPodaci> = {
       "Kuhinja",
       "5 spavaćih soba",
     ],
-    geo: MALINSKA_FALLBACK_GEO,
+    geo: {
+      latitude: 45.11482568813671,
+      longitude: 14.517004516558073,
+    },
   },
 };
 
