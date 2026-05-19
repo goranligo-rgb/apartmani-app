@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import GalerijaSlika from "@/components/GalerijaSlika";
+import ObjectLocation from "@/components/ObjectLocation";
+import { OBJEKTI_PODACI } from "@/lib/objekti";
 
 const apartmaniOpis = [
   {
@@ -173,6 +175,11 @@ export default async function MartyPage() {
           Kompleks od 5 apartmana različitih veličina. Svaki apartman ima
           pristup zajedničkom bazenu koji pripada Marty apartmanima.
         </p>
+
+        <ObjectLocation
+          address={OBJEKTI_PODACI.marty.adresa}
+          title={OBJEKTI_PODACI.marty.punNaziv}
+        />
 
         <section className="mt-10">
           {slike.length > 0 ? (

@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import GalerijaSlika from "@/components/GalerijaSlika";
+import ObjectLocation from "@/components/ObjectLocation";
+import { OBJEKTI_PODACI } from "@/lib/objekti";
 
 const infoKartice = [
   { label: "Tip", value: "Privatna kuća" },
@@ -117,6 +119,11 @@ export default async function HouseArtPage() {
           3 kupaone i zajedničkim bazenom koji dijeli s objektom Luxury
           Apartments Marty.
         </p>
+
+        <ObjectLocation
+          address={OBJEKTI_PODACI["house-art"].adresa}
+          title={OBJEKTI_PODACI["house-art"].punNaziv}
+        />
 
         <section className="mt-10">
           {slike.length > 0 ? (

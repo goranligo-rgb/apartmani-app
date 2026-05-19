@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import GalerijaSlika from "@/components/GalerijaSlika";
+import ObjectLocation from "@/components/ObjectLocation";
+import { OBJEKTI_PODACI } from "@/lib/objekti";
 
 const apartmaniOpis = [
   {
@@ -153,6 +155,11 @@ export default async function EvaPage() {
           Apartments Eva ima tri apartmana. Eva 1 je raspoređena kroz prizemlje i
           kat, dok su Eva 2 i Eva 3 apartmani na katu.
         </p>
+
+        <ObjectLocation
+          address={OBJEKTI_PODACI.eva.adresa}
+          title={OBJEKTI_PODACI.eva.punNaziv}
+        />
 
         <section className="mt-10">
           {slike.length > 0 ? (
