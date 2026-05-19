@@ -31,14 +31,14 @@ export default function ObjectLocation({ address, title }: Props) {
         </span>
       </div>
 
-      <div className="mt-5 grid gap-5 md:grid-cols-3">
-        <div className="overflow-hidden border border-[#e4d6c0] bg-white shadow-[0_12px_35px_rgba(0,0,0,0.08)] md:col-span-2">
+      <div className="mt-5 grid items-stretch gap-5 md:grid-cols-3">
+        <div className="overflow-hidden border border-[#e4d6c0] bg-white shadow-[0_12px_35px_rgba(0,0,0,0.08)] md:col-span-2 md:h-full">
           <iframe
             src={embedUrl}
             title={`Karta lokacije: ${address}`}
             loading="lazy"
             referrerPolicy="no-referrer-when-downgrade"
-            className="block h-[320px] w-full md:h-[380px]"
+            className="block h-48 w-full md:h-full"
             style={{ border: 0 }}
             allowFullScreen
           />
@@ -62,11 +62,6 @@ export default function ObjectLocation({ address, title }: Props) {
           >
             Otvori u Google Mapsu
           </a>
-
-          <p className="mt-1 text-sm leading-relaxed text-[#6f665a]">
-            Navigacija koristi tvoju trenutnu lokaciju u Google Mapsu i vodi te
-            do adrese.
-          </p>
         </div>
       </div>
     </section>
