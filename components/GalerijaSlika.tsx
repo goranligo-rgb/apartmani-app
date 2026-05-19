@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 type Slika = {
   id: string;
@@ -40,6 +40,33 @@ export default function GalerijaSlika({ slike }: { slike: Slika[] }) {
       return prev === slike.length - 1 ? 0 : prev + 1;
     });
   }
+
+  // Tipkovne strelice: ←/→ navigacija s loopom, Esc zatvara lightbox
+  useEffect(() => {
+    if (aktivniIndex === null) return;
+
+    function handleKey(e: KeyboardEvent) {
+      if (e.key === "ArrowLeft") {
+        e.preventDefault();
+        setAktivniIndex((prev) => {
+          if (prev === null) return null;
+          return prev === 0 ? slike.length - 1 : prev - 1;
+        });
+      } else if (e.key === "ArrowRight") {
+        e.preventDefault();
+        setAktivniIndex((prev) => {
+          if (prev === null) return null;
+          return prev === slike.length - 1 ? 0 : prev + 1;
+        });
+      } else if (e.key === "Escape") {
+        e.preventDefault();
+        setAktivniIndex(null);
+      }
+    }
+
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  }, [aktivniIndex, slike.length]);
 
   if (!slike || slike.length === 0) {
     return null;
