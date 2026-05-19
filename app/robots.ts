@@ -14,7 +14,6 @@ export default function robots(): MetadataRoute.Robots {
         "/kalendar",
         "/jedinice",
         "/posebne-prilike",
-        "/rezervacije/",
       ],
     },
     sitemap: `${BASE_URL}/sitemap.xml`,
