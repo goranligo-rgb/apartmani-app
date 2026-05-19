@@ -105,8 +105,20 @@ export default async function AdminMonitorPage({
   const selectedJediniceText = selectedJediniceParam(selectedJedinicaIds);
 
   const mjesecIzParametra = parseMonth(params.mjesec);
-  const kalendarOd =
-    mjesecIzParametra || new Date(danas.getFullYear(), danas.getMonth(), 1);
+
+  // Default raspon: lipanj-rujan tekuće godine.
+  // Ako je poslije 30. rujna, koristi sezonu sljedeće godine.
+  function defaultniPocetakSezone(today: Date) {
+    const cutoff = new Date(today.getFullYear(), 8, 30); // 30. rujna (mjesec index 8)
+    cutoff.setHours(23, 59, 59, 999);
+    const godina =
+      today.getTime() > cutoff.getTime()
+        ? today.getFullYear() + 1
+        : today.getFullYear();
+    return new Date(godina, 5, 1); // 1. lipnja (mjesec index 5)
+  }
+
+  const kalendarOd = mjesecIzParametra || defaultniPocetakSezone(danas);
 
   const kalendarDo = addMonths(kalendarOd, 4);
 
