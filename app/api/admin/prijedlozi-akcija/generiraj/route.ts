@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
+import { adminSessionOk } from "@/lib/admin-auth";
 
 function toDateOnly(date: Date) {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate());
@@ -13,6 +14,11 @@ function nightsBetween(start: Date, end: Date) {
 }
 
 export async function POST() {
+  // Admin auth gate — bez sesije ne dozvoli generiranje prijedloga akcija.
+  if (!(await adminSessionOk())) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const jedinice = await prisma.jedinica.findMany({
     where: {
       aktivna: true,

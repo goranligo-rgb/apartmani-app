@@ -4,6 +4,7 @@ import { stripe } from "@/lib/stripe";
 import { generateRacunPdf } from "@/lib/generateRacunPdf";
 import { Resend } from "resend";
 import { revalidatePath } from "next/cache";
+import { adminSessionOk } from "@/lib/admin-auth";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 const BCC_EMAIL = process.env.MAIL_BCC || "goran@malinska-stay.hr";
@@ -113,12 +114,15 @@ export async function GET() {
     );
 }
 
-// TODO(security): Endpoint je trenutno javno dostupan. Treba dodati
-// adminSessionOk() check + forward admin cookie u call site-ovima
-// (evidentirajUplatu u [id]/page.tsx i UPLATA_SJELA grana u
-// nova/page.tsx). Tracking: nije production-blocker jer placanjeId
-// je UUID, ali treba riješiti prije javnih demo-a.
+// Admin auth gate dodan: ranije je endpoint bio javan (TODO komentar uklonjen).
+// Call site-ovi koji pozivaju POST iz server actions moraju forward-ati
+// admin cookie ili biti pretvoreni u direktne prisma pozive.
 export async function POST(req: Request) {
+    // Admin auth gate — bez sesije ne dozvoli naplatu/potvrdu plaćanja preko linka.
+    if (!(await adminSessionOk())) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     try {
         let placanjeId = "";
 

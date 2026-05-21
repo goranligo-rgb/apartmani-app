@@ -1,7 +1,13 @@
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
+import { adminSessionOk } from "@/lib/admin-auth";
 
 export async function POST(req: Request) {
+  // Admin auth gate — bez sesije ne dozvoli approve/reject prijedloga.
+  if (!(await adminSessionOk())) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const body = await req.json();
 
   const prijedlogId = String(body.prijedlogId || "");

@@ -4,6 +4,7 @@ import { stripe } from "@/lib/stripe";
 import { generateRacunPdf } from "@/lib/generateRacunPdf";
 import { Resend } from "resend";
 import { revalidatePath } from "next/cache";
+import { adminSessionOk } from "@/lib/admin-auth";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 const BCC_EMAIL = process.env.MAIL_BCC || "goran@malinska-stay.hr";
@@ -107,6 +108,11 @@ function mailWrapper({
 }
 
 export async function GET(req: Request) {
+    // Admin auth gate — bez sesije ne dozvoli potvrdu plaćanja i izradu računa.
+    if (!(await adminSessionOk())) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     try {
         const { searchParams } = new URL(req.url);
         const placanjeId = searchParams.get("placanjeId");

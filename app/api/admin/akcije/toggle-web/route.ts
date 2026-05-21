@@ -1,7 +1,14 @@
 import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
+import { NextResponse } from "next/server";
+import { adminSessionOk } from "@/lib/admin-auth";
 
 export async function POST(req: Request) {
+  // Admin auth gate — bez sesije ne dozvoli toggle web vidljivosti akcija.
+  if (!(await adminSessionOk())) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const formData = await req.formData();
   const id = String(formData.get("id") || "");
 
