@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
 import { isRezervacijaOverlap } from "@/lib/dates";
+import { adminSessionOk } from "@/lib/admin-auth";
 
 function addDays(date: Date, days: number) {
   const d = new Date(date);
@@ -9,6 +10,11 @@ function addDays(date: Date, days: number) {
 }
 
 export async function POST(req: Request) {
+  // Admin auth gate — bez sesije ne dozvoli izmjenu blokada.
+  if (!(await adminSessionOk())) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const body = await req.json();
 
   const jedinicaId = String(body.jedinicaId || "");

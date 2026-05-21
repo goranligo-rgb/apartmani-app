@@ -1,11 +1,17 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { Resend } from "resend";
+import { adminSessionOk } from "@/lib/admin-auth";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 const BCC_EMAIL = process.env.MAIL_BCC || "goran@malinska-stay.hr";
 
 export async function POST(req: Request) {
+  // Admin auth gate — bez sesije ne dozvoli slanje računa gostima.
+  if (!(await adminSessionOk())) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   try {
     const { racunId } = await req.json();
 

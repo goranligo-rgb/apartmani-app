@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
+import { adminSessionOk } from "@/lib/admin-auth";
 
 type BojaPerioda =
   | "PLAVA"
@@ -35,6 +36,11 @@ function isValidBoja(value: string): value is BojaPerioda {
 }
 
 export async function POST(req: Request) {
+  // Admin auth gate — bez sesije ne dozvoli pisanje u cjenik.
+  if (!(await adminSessionOk())) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   try {
     const body = await req.json();
 
@@ -204,6 +210,11 @@ export async function POST(req: Request) {
 }
 
 export async function DELETE(req: Request) {
+  // Admin auth gate — bez sesije ne dozvoli brisanje cjenika.
+  if (!(await adminSessionOk())) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   try {
     const body = await req.json();
     const id = String(body.id || "");
