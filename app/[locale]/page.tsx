@@ -1,5 +1,10 @@
-import Link from "next/link";
+import { getTranslations, setRequestLocale } from "next-intl/server";
+import { notFound } from "next/navigation";
+import { hasLocale } from "next-intl";
 import { prisma } from "@/lib/prisma";
+import { Link } from "@/i18n/navigation";
+import { routing } from "@/i18n/routing";
+import SiteHeader from "@/components/SiteHeader";
 
 const fallbackHeroImages = [
   "/images/hero1.jpg",
@@ -8,31 +13,25 @@ const fallbackHeroImages = [
   "/images/hero4.jpg",
 ];
 
-const objekti = [
-  {
-    naziv: "House Art",
-    nazivMobile: "House Art",
-    href: "/objekti/house-art",
-    opis: "Privatna kuća za do 10 osoba, 5 spavaćih soba, 3 kupaone i privatni bazen samo za goste kuće House Art.",
-    info: "1 kuća · 5 soba · 3 kupaone · privatni bazen",
-  },
-  {
-    naziv: "Luxury Apartments Marty",
-    nazivMobile: "Marty",
-    href: "/objekti/marty",
-    opis: "Pet apartmana različitih kapaciteta, idealno za obitelji i veće grupe. Objekt ima vlastiti bazen za goste apartmana Marty.",
-    info: "5 apartmana · 1–3 sobe · 1–3 kupaone · bazen",
-  },
-  {
-    naziv: "Apartments Eva",
-    nazivMobile: "Eva",
-    href: "/objekti/eva",
-    opis: "Tri apartmana za 4+2 osobe, svaki s dvije spavaće sobe i jednom ili dvije kupaone.",
-    info: "3 apartmana · 2 sobe · 1–2 kupaone",
-  },
-];
+const OBJEKTI_KEYS = [
+  { key: "houseArt", href: "/objekti/house-art" },
+  { key: "marty", href: "/objekti/marty" },
+  { key: "eva", href: "/objekti/eva" },
+] as const;
 
-export default async function HomePage() {
+export default async function HomePage({
+  params,
+}: {
+  params: Promise<{ locale: string }>;
+}) {
+  const { locale } = await params;
+
+  if (!hasLocale(routing.locales, locale)) {
+    notFound();
+  }
+
+  setRequestLocale(locale);
+
   await prisma.slikaObjekta.findMany({
     where: {
       aktivna: true,
@@ -42,65 +41,17 @@ export default async function HomePage() {
   });
 
   const heroImages = fallbackHeroImages;
+  const t = await getTranslations("Home");
+  const tFooter = await getTranslations("Footer");
 
   return (
     <main
       className="min-h-screen bg-[#f4efe6]"
       style={{ fontFamily: "Calibri, Segoe UI, Arial, sans-serif" }}
     >
-      <header className="fixed left-0 top-0 z-50 w-full border-b border-white/10 bg-[#071e24]/95 text-white backdrop-blur">
-        <div className="relative h-[78px] border-b border-white/10 md:flex md:h-[88px] md:items-center md:justify-between">
-          <div className="absolute left-3 top-[58px] flex items-center gap-2 md:static md:order-2 md:mr-0 md:flex md:shrink-0 md:gap-0">
-            <Link
-              href="/posebne-prilike"
-              className="posebne-btn flex h-[38px] w-[68px] items-center justify-center rounded-[4px] border border-white/10 px-2 text-center text-[8px] font-black uppercase leading-tight text-white shadow-[0_8px_22px_rgba(0,0,0,0.28)] md:h-[88px] md:w-[160px] md:rounded-none md:text-sm"
-            >
-              Posebne
-              <br />
-              prilike
-            </Link>
+      <SiteHeader />
 
-            <Link
-              href="/kalendar"
-              className="flex h-[38px] w-[58px] items-center justify-center rounded-[4px] bg-[#c79a57] px-2 text-center text-[8px] font-black uppercase leading-tight text-white shadow-[0_8px_22px_rgba(0,0,0,0.28)] transition hover:brightness-95 md:h-[88px] md:w-[150px] md:rounded-none md:text-sm"
-            >
-              Book
-              <br />
-              now
-            </Link>
-          </div>
-
-          <Link
-            href="/"
-            className="absolute right-3 top-4 flex min-w-0 items-center text-right md:static md:order-1 md:h-[88px] md:flex-1 md:px-8 md:text-left"
-          >
-            <div className="min-w-0">
-              <div className="text-[19px] font-black leading-none tracking-[0.12em] md:text-[30px] md:tracking-[0.16em]">
-                MALINSKA
-              </div>
-
-              <div className="mt-1 text-[8px] uppercase leading-tight tracking-[0.18em] text-[#caa870] md:mt-2 md:text-xs md:tracking-[0.28em]">
-                Apartments & Experience
-              </div>
-            </div>
-          </Link>
-        </div>
-
-        <div className="grid grid-cols-3 text-center text-[15px] font-black uppercase tracking-[0.04em] md:tracking-wide md:text-lg">
-          {objekti.map((o) => (
-            <Link
-              key={o.naziv}
-              href={o.href}
-              className="flex min-h-[64px] items-center justify-center border-r border-white/10 bg-[#071e24]/95 px-1.5 py-2 leading-tight transition hover:bg-white/10 md:min-h-[64px] md:px-3 md:py-2"
-            >
-              <span className="md:hidden">{o.nazivMobile}</span>
-              <span className="hidden md:inline">{o.naziv}</span>
-            </Link>
-          ))}
-        </div>
-      </header>
-
-      <section className="relative min-h-[86vh] overflow-hidden pt-[160px] md:pt-[200px]">
+      <section className="relative min-h-[86vh] overflow-hidden pt-[180px] md:pt-[224px]">
         {heroImages.map((src, index) => (
           <div
             key={`${src}-${index}`}
@@ -118,16 +69,15 @@ export default async function HomePage() {
         <div className="relative z-10 flex min-h-[calc(92vh-174px)] items-end px-6 pb-12 md:min-h-[72vh] md:px-20 md:pb-16">
           <div className="max-w-4xl text-white">
             <p className="mb-3 text-xs font-bold uppercase tracking-[0.3em] text-[#d6b36a] md:mb-4 md:text-sm md:tracking-[0.35em]">
-              Otok Krk · Hrvatska
+              {t("heroEyebrow")}
             </p>
 
             <h1 className="text-5xl font-bold leading-none md:text-8xl">
-              Malinska
+              {t("heroTitle")}
             </h1>
 
             <p className="mt-5 max-w-2xl text-lg leading-relaxed text-white/90 md:mt-6 md:text-xl">
-              Odaberite House Art, Luxury Apartments Marty ili Apartments Eva i
-              provjerite slobodne termine, cijene i dostupnost.
+              {t("heroSubtitle")}
             </p>
 
             <div className="mt-6 grid gap-3 text-sm font-bold text-white/95 md:flex md:flex-wrap md:items-center md:gap-4">
@@ -135,14 +85,14 @@ export default async function HomePage() {
                 href="tel:+38598700415"
                 className="border border-white/30 bg-black/25 px-4 py-3 backdrop-blur transition hover:bg-white/15"
               >
-                Rezervacije: +385 98 700 415
+                {t("heroPhoneLabel")}
               </a>
 
               <a
                 href="mailto:rezervacije@malinska-stay.hr"
                 className="border border-white/30 bg-black/25 px-4 py-3 backdrop-blur transition hover:bg-white/15"
               >
-                rezervacije@malinska-stay.hr
+                {t("heroEmail")}
               </a>
             </div>
 
@@ -151,14 +101,14 @@ export default async function HomePage() {
                 href="/kalendar"
                 className="border border-[#caa870] bg-[#c79a57] px-7 py-4 text-center font-bold text-white transition hover:brightness-95"
               >
-                Pogledaj kalendar
+                {t("heroCtaCalendar")}
               </Link>
 
               <a
                 href="#objekti"
                 className="border border-white/70 bg-white/10 px-7 py-4 text-center font-bold text-white backdrop-blur transition hover:bg-white/20"
               >
-                Pogledaj objekte
+                {t("heroCtaObjekti")}
               </a>
             </div>
           </div>
@@ -169,32 +119,30 @@ export default async function HomePage() {
         <div className="grid gap-8 lg:grid-cols-[1fr_380px]">
           <div>
             <p className="mb-3 text-sm font-bold uppercase tracking-[0.28em] text-[#9b7a4c]">
-              Smještaj u Malinskoj
+              {t("sectionEyebrow")}
             </p>
 
             <h2 className="text-4xl font-bold text-[#2e2923]">
-              Tri objekta za obiteljski odmor
+              {t("sectionTitle")}
             </h2>
 
             <p className="mt-5 max-w-3xl text-lg leading-relaxed text-[#6f665a]">
-              Malinska je mirno mjesto na zapadnoj strani otoka Krka, poznato po
-              šetnicama uz more, plažama, restoranima i ugodnoj atmosferi za
-              obiteljski odmor.
+              {t("sectionDescription")}
             </p>
           </div>
 
           <div className="border border-[#e4d6c0] bg-white p-6 shadow-[0_12px_35px_rgba(0,0,0,0.08)]">
             <div className="text-lg font-bold text-[#2e2923]">
-              Brzi pregled
+              {t("quickOverviewTitle")}
             </div>
 
             <div className="mt-4 space-y-3 text-sm text-[#6f665a]">
-              <div>✓ House Art — kuća za 10 osoba + privatni bazen</div>
-              <div>✓ Marty — 5 apartmana + bazen za goste Martyja</div>
-              <div>✓ Eva — 3 apartmana za 4+2 osobe</div>
-              <div>✓ Online kalendar dostupnosti</div>
+              <div>✓ {t("quickOverview.houseArt")}</div>
+              <div>✓ {t("quickOverview.marty")}</div>
+              <div>✓ {t("quickOverview.eva")}</div>
+              <div>✓ {t("quickOverview.calendar")}</div>
               <div>
-                ✓ Rezervacije:{" "}
+                ✓ {t("phoneLabel")}{" "}
                 <a
                   href="tel:+38598700415"
                   className="font-bold text-[#9b6b12] hover:underline"
@@ -203,7 +151,7 @@ export default async function HomePage() {
                 </a>
               </div>
               <div>
-                ✓ Email:{" "}
+                ✓ {t("emailLabel")}{" "}
                 <a
                   href="mailto:rezervacije@malinska-stay.hr"
                   className="font-bold text-[#9b6b12] hover:underline"
@@ -216,9 +164,9 @@ export default async function HomePage() {
         </div>
 
         <div className="mt-10 grid gap-6 lg:grid-cols-3">
-          {objekti.map((objekt, index) => (
+          {OBJEKTI_KEYS.map((objekt, index) => (
             <Link
-              key={objekt.naziv}
+              key={objekt.key}
               href={objekt.href}
               className="group border border-white/80 bg-white p-7 shadow-[0_12px_35px_rgba(0,0,0,0.08)] transition duration-300 hover:-translate-y-1 hover:shadow-[0_18px_45px_rgba(0,0,0,0.14)]"
               style={{
@@ -227,23 +175,23 @@ export default async function HomePage() {
               }}
             >
               <div className="mb-5 text-sm font-bold uppercase tracking-[0.22em] text-[#c79a57]">
-                Objekt 0{index + 1}
+                {t("objektNumberPrefix")} 0{index + 1}
               </div>
 
               <h3 className="text-2xl font-bold text-[#2e2923]">
-                {objekt.naziv}
+                {t(`objekti.${objekt.key}.naziv`)}
               </h3>
 
               <div className="mt-3 border-l-4 border-[#c79a57] pl-4 text-sm font-bold text-[#5f5549]">
-                {objekt.info}
+                {t(`objekti.${objekt.key}.info`)}
               </div>
 
               <p className="mt-5 min-h-[96px] text-base leading-relaxed text-[#6f665a]">
-                {objekt.opis}
+                {t(`objekti.${objekt.key}.opis`)}
               </p>
 
               <div className="mt-7 font-bold text-[#9b6b12]">
-                Otvori objekt →
+                {t("openObjekt")}
               </div>
             </Link>
           ))}
@@ -251,10 +199,12 @@ export default async function HomePage() {
       </section>
 
       <footer className="border-t border-[#e4d6c0] bg-[#0b252b] px-6 py-10 text-center text-white">
-        <div className="text-xl font-bold tracking-[0.18em]">MALINSKA</div>
+        <div className="text-xl font-bold tracking-[0.18em]">
+          {tFooter("brand")}
+        </div>
 
         <div className="mt-3 text-sm uppercase tracking-[0.25em] text-[#d6b36a]">
-          Apartments & Houses
+          {tFooter("tagline")}
         </div>
 
         <div className="mt-6 flex flex-wrap justify-center gap-4 text-sm font-bold">

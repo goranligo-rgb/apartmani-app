@@ -1,19 +1,20 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import { notFound } from "next/navigation";
+import { hasLocale } from "next-intl";
+import { getTranslations, setRequestLocale } from "next-intl/server";
 import { prisma } from "@/lib/prisma";
 import GalerijaSlika from "@/components/GalerijaSlika";
 import ObjectLocation from "@/components/ObjectLocation";
 import ObjectStructuredData from "@/components/ObjectStructuredData";
-import { OBJEKTI_PODACI, buildObjectMetadata } from "@/lib/objekti";
+import {
+  OBJEKTI_PODACI,
+  buildObjectMetadata,
+  type ObjektSlug,
+} from "@/lib/objekti";
+import { Link } from "@/i18n/navigation";
+import { routing, type Locale } from "@/i18n/routing";
 
-export const metadata: Metadata = buildObjectMetadata("house-art");
-
-const infoKartice = [
-  { label: "Tip", value: "Privatna kuća" },
-  { label: "Spavaće sobe", value: "5" },
-  { label: "Kupaone", value: "3" },
-  { label: "Kapacitet", value: "10 osoba" },
-];
+const SLUG: ObjektSlug = "house-art";
 
 type OpremaItem = {
   oprema: {
@@ -32,14 +33,38 @@ function groupOpremaByKategorija(oprema: OpremaItem[]) {
   }, {});
 }
 
-function formatKapacitet(osnovni: number, dodatni: number) {
-  if (dodatni > 0) return `${osnovni} osobe + ${dodatni} osobe`;
-  return `${osnovni} osoba`;
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ locale: string }>;
+}): Promise<Metadata> {
+  const { locale } = await params;
+
+  if (!hasLocale(routing.locales, locale)) return {};
+
+  return buildObjectMetadata(SLUG, locale as Locale);
 }
 
 export const dynamic = "force-dynamic";
 
-export default async function HouseArtPage() {
+export default async function HouseArtPage({
+  params,
+}: {
+  params: Promise<{ locale: string }>;
+}) {
+  const { locale } = await params;
+
+  if (!hasLocale(routing.locales, locale)) notFound();
+
+  setRequestLocale(locale);
+
+  const t = await getTranslations("Objekti.house-art");
+  const tCommon = await getTranslations("Objekti.common");
+  const tBack = await getTranslations("Common");
+  const tOprema = await getTranslations("DbOprema");
+  const tKategorija = await getTranslations("DbKategorija");
+  const tJedinica = await getTranslations("DbJedinica");
+
   const objekt = await prisma.objekt.findFirst({
     where: { naziv: "House Art" },
     include: {
@@ -73,9 +98,29 @@ export default async function HouseArtPage() {
     .map((s) => s.url)
     .filter(Boolean);
 
+  const tr = (
+    fn:
+      | typeof tOprema
+      | typeof tKategorija
+      | typeof tJedinica,
+    key: string
+  ): string => (fn.has(key) ? fn(key) : key);
+
+  const formatKapacitet = (osnovni: number, dodatni: number) =>
+    dodatni > 0
+      ? tCommon("kapacitetSDodatnim", { base: osnovni, extra: dodatni })
+      : tCommon("kapacitetSamo", { count: osnovni });
+
+  const infoKartice = [
+    { label: t("infoTipLabel"), value: t("infoTipValue") },
+    { label: t("infoSpavaceLabel"), value: t("infoSpavaceValue") },
+    { label: t("infoKupaoneLabel"), value: t("infoKupaoneValue") },
+    { label: t("infoKapacitetLabel"), value: t("infoKapacitetValue") },
+  ];
+
   return (
     <main className="min-h-screen bg-[#f4efe6]">
-      <ObjectStructuredData slug="house-art" />
+      <ObjectStructuredData slug={SLUG} locale={locale as Locale} />
 
       <section className="relative h-[62vh] overflow-hidden bg-[#0b252b]">
         {heroImages.length > 0 &&
@@ -100,35 +145,33 @@ export default async function HouseArtPage() {
             href="/"
             className="inline-block bg-white/90 px-4 py-2 text-sm font-bold text-[#2e2923] shadow hover:bg-white"
           >
-            ← Natrag
+            {tBack("back")}
           </Link>
         </div>
 
         <div className="absolute bottom-10 left-10 z-20 text-white">
           <p className="mb-2 text-sm font-bold uppercase tracking-[0.3em] text-[#d6b36a]">
-            Malinska · Otok Krk
+            {tCommon("eyebrow")}
           </p>
 
-          <h1 className="text-6xl font-bold">House Art</h1>
+          <h1 className="text-6xl font-bold">{OBJEKTI_PODACI[SLUG].punNaziv}</h1>
 
-          <p className="mt-3 text-xl">
-            Privatna kuća za do 10 osoba · zajednički bazen
-          </p>
+          <p className="mt-3 text-xl">{t("heroSubtitle")}</p>
         </div>
       </section>
 
       <section className="mx-auto max-w-6xl px-6 py-14">
-        <h2 className="text-4xl font-bold text-[#2e2923]">House Art</h2>
+        <h2 className="text-4xl font-bold text-[#2e2923]">
+          {t("sectionTitle")}
+        </h2>
 
         <p className="mt-5 max-w-3xl text-lg leading-relaxed text-[#6f665a]">
-          House Art je privatna kuća za obiteljski odmor s 5 spavaćih soba,
-          3 kupaone i zajedničkim bazenom koji dijeli s objektom Luxury
-          Apartments Marty.
+          {t("intro")}
         </p>
 
         <ObjectLocation
-          address={OBJEKTI_PODACI["house-art"].adresa}
-          title={OBJEKTI_PODACI["house-art"].punNaziv}
+          address={OBJEKTI_PODACI[SLUG].adresa}
+          title={OBJEKTI_PODACI[SLUG].punNaziv}
         />
 
         <section className="mt-10">
@@ -136,7 +179,7 @@ export default async function HouseArtPage() {
             <GalerijaSlika slike={slike} />
           ) : (
             <div className="border border-dashed border-[#d8c7aa] bg-white p-8 text-center text-[#6f665a]">
-              Još nema uploadanih slika za House Art.
+              {tCommon("noImages", { naziv: OBJEKTI_PODACI[SLUG].punNaziv })}
             </div>
           )}
         </section>
@@ -160,13 +203,8 @@ export default async function HouseArtPage() {
 
         <div className="mt-10 grid gap-5 md:grid-cols-2">
           {objekt?.jedinice.map((jedinica) => {
-            const opis =
-              jedinica.napomena ||
-              "Privatna kuća s više spavaćih soba, kupaonicama, dnevnim prostorom i kuhinjom.";
-
-            const opremaPoKategoriji = groupOpremaByKategorija(
-              jedinica.oprema
-            );
+            const opis = jedinica.napomena || t("fallbackOpis");
+            const opremaPoKategoriji = groupOpremaByKategorija(jedinica.oprema);
 
             return (
               <div
@@ -176,7 +214,7 @@ export default async function HouseArtPage() {
                 <div className="flex items-start justify-between gap-4">
                   <div>
                     <h3 className="text-2xl font-bold text-[#2e2923]">
-                      {jedinica.naziv}
+                      {tr(tJedinica, jedinica.naziv)}
                     </h3>
 
                     <p className="mt-3 text-[#6f665a]">{opis}</p>
@@ -184,7 +222,7 @@ export default async function HouseArtPage() {
 
                   <div className="min-w-[128px] border border-[#e4d6c0] bg-[#f8f2e8] px-3 py-2 text-right">
                     <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#9b7b45]">
-                      Kapacitet
+                      {tCommon("kapacitet")}
                     </p>
 
                     <p className="mt-1 text-sm font-black leading-snug text-[#2e2923]">
@@ -198,25 +236,29 @@ export default async function HouseArtPage() {
 
                 <div className="mt-5 grid gap-3 border-y border-[#eee1cc] py-4 text-sm text-[#6f665a] md:grid-cols-3">
                   <div>
-                    <b className="text-[#2e2923]">Spavaće sobe</b>
+                    <b className="text-[#2e2923]">{tCommon("bedrooms")}</b>
                     <div>{jedinica.brojSpavacihSoba ?? 0}</div>
                   </div>
 
                   <div>
-                    <b className="text-[#2e2923]">Kupaonice</b>
+                    <b className="text-[#2e2923]">{tCommon("bathrooms")}</b>
                     <div>{jedinica.brojKupaona}</div>
                   </div>
 
                   <div>
-                    <b className="text-[#2e2923]">Bazen</b>
-                    <div>{jedinica.sharedPool ? "Zajednički" : "Ne"}</div>
+                    <b className="text-[#2e2923]">{tCommon("pool")}</b>
+                    <div>
+                      {jedinica.sharedPool
+                        ? tCommon("shared")
+                        : tCommon("no")}
+                    </div>
                   </div>
                 </div>
 
                 {jedinica.oprema.length > 0 && (
                   <div className="mt-5">
                     <h4 className="mb-4 text-lg font-black text-[#2e2923]">
-                      Oprema kuće
+                      {tCommon("amenitiesTitleHouse")}
                     </h4>
 
                     <div className="space-y-4">
@@ -227,13 +269,13 @@ export default async function HouseArtPage() {
                             className="border-t border-[#eadcc5] pt-4"
                           >
                             <p className="mb-2 text-xs font-black uppercase tracking-[0.16em] text-[#9b7b45]">
-                              {kategorija}
+                              {tr(tKategorija, kategorija)}
                             </p>
 
                             <div className="flex flex-wrap gap-x-3 gap-y-2 text-sm leading-7 text-[#3b332a]">
                               {items.map((naziv, index) => (
                                 <span key={naziv} className="font-semibold">
-                                  {naziv}
+                                  {tr(tOprema, naziv)}
                                   {index < items.length - 1 && (
                                     <span className="ml-3 text-[#c79a57]">
                                       •
@@ -254,10 +296,10 @@ export default async function HouseArtPage() {
         </div>
 
         <Link
-          href="/kalendar?objekt=house-art"
+          href={`/kalendar?objekt=${SLUG}`}
           className="mt-10 inline-block bg-[#c79a57] px-7 py-4 font-bold text-white"
         >
-          Provjeri dostupnost
+          {tCommon("checkAvailability")}
         </Link>
       </section>
 

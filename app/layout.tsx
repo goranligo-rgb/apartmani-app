@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { getLocale } from "next-intl/server";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -15,48 +16,10 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   metadataBase: new URL("https://malinska-stay.hr"),
   title: {
-    default: "Malinska Stay – Apartmani na Krku",
+    default: "Malinska Stay",
     template: "%s | Malinska Stay",
   },
-  description:
-    "Apartmani u Malinskoj na otoku Krku – direktna rezervacija u Apartments Eva, Luxury Apartments Marty i House Art. Bez provizija, blizu mora i centra Malinske.",
-  keywords: [
-    "apartmani Malinska",
-    "smještaj Krk",
-    "apartmani Krk",
-    "Malinska smještaj",
-    "Apartments Eva",
-    "Luxury Apartments Marty",
-    "House Art Malinska",
-  ],
   manifest: "/manifest.json",
-  alternates: {
-    canonical: "/",
-  },
-  openGraph: {
-    type: "website",
-    locale: "hr_HR",
-    url: "https://malinska-stay.hr",
-    siteName: "Malinska Stay",
-    title: "Malinska Stay – Apartmani na Krku",
-    description:
-      "Apartmani u Malinskoj na otoku Krku – direktna rezervacija u Apartments Eva, Luxury Apartments Marty i House Art.",
-    images: [
-      {
-        url: "/images/hero1.jpg",
-        width: 1200,
-        height: 630,
-        alt: "Malinska Stay – Malinska, otok Krk",
-      },
-    ],
-  },
-  twitter: {
-    card: "summary_large_image",
-    title: "Malinska Stay – Apartmani na Krku",
-    description:
-      "Apartmani u Malinskoj na otoku Krku – direktna rezervacija.",
-    images: ["/images/hero1.jpg"],
-  },
   robots: {
     index: true,
     follow: true,
@@ -72,14 +35,16 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const locale = await getLocale();
+
   return (
     <html
-      lang="hr"
+      lang={locale}
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">{children}</body>

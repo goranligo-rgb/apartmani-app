@@ -1,39 +1,22 @@
 import type { Metadata } from "next";
 import { prisma } from "@/lib/prisma";
-import { redirect } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
+import { hasLocale } from "next-intl";
+import { getTranslations, setRequestLocale } from "next-intl/server";
+import { routing, type Locale } from "@/i18n/routing";
 
-export const metadata: Metadata = {
-  title: "Rezerviraj apartman u Malinskoj",
-  description:
-    "Direktna rezervacija apartmana na otoku Krku bez provizija. Apartments Eva, Marty i House Art u Malinskoj.",
-  alternates: { canonical: "/rezervacije/nova" },
-  openGraph: {
-    title: "Rezerviraj apartman u Malinskoj | Malinska Stay",
-    description:
-      "Direktna rezervacija apartmana na otoku Krku bez provizija.",
-    type: "website",
-    locale: "hr_HR",
-  },
+const OG_LOCALE: Record<Locale, string> = {
+  hr: "hr_HR",
+  en: "en_US",
+  de: "de_DE",
+  it: "it_IT",
+  hu: "hu_HU",
+  pl: "pl_PL",
+  cs: "cs_CZ",
+  sk: "sk_SK",
 };
 
-type SearchParams = Promise<{
-  jedinicaId?: string;
-  datumOd?: string;
-  datumDo?: string;
-  iznosUkupno?: string;
-  ime?: string;
-  prezime?: string;
-  email?: string;
-  telefon?: string;
-  adresa?: string;
-  grad?: string;
-  drzava?: string;
-  brojOsoba?: string;
-  napomena?: string;
-  error?: string;
-}>;
-
-const DRZAVE = [
+const COUNTRY_KEYS = [
   "Hrvatska",
   "Slovenija",
   "Austrija",
@@ -62,22 +45,78 @@ const DRZAVE = [
   "Sjedinjene Američke Države",
   "Kanada",
   "Australija",
-];
+] as const;
 
-function parseDateOnly(value: string) {
+function localizedPath(locale: Locale, path: string) {
+  if (locale === routing.defaultLocale) return path;
+  return `/${locale}${path}`;
+}
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ locale: string }>;
+}): Promise<Metadata> {
+  const { locale } = await params;
+
+  if (!hasLocale(routing.locales, locale)) return {};
+
+  const t = await getTranslations({ locale, namespace: "Rezervacija.nova" });
+  const canonical = localizedPath(locale as Locale, "/rezervacije/nova");
+
+  return {
+    title: t("metaTitle"),
+    description: t("metaDescription"),
+    alternates: { canonical },
+    openGraph: {
+      title: t("ogTitle"),
+      description: t("ogDescription"),
+      type: "website",
+      locale: OG_LOCALE[locale as Locale],
+    },
+  };
+}
+
+type SearchParams = Promise<{
+  jedinicaId?: string;
+  datumOd?: string;
+  datumDo?: string;
+  iznosUkupno?: string;
+  ime?: string;
+  prezime?: string;
+  email?: string;
+  telefon?: string;
+  adresa?: string;
+  grad?: string;
+  drzava?: string;
+  brojOsoba?: string;
+  napomena?: string;
+  error?: string;
+}>;
+
+function parseDateOnly(value: string, errMsg: string) {
   const [year, month, day] = value.split("-").map(Number);
 
   if (!year || !month || !day) {
-    throw new Error("Neispravan datum.");
+    throw new Error(errMsg);
   }
 
   return new Date(year, month - 1, day, 12, 0, 0, 0);
 }
 
 export default async function NovaRezervacijaPage(props: {
+  params: Promise<{ locale: string }>;
   searchParams: SearchParams;
 }) {
+  const { locale } = await props.params;
+
+  if (!hasLocale(routing.locales, locale)) notFound();
+
+  setRequestLocale(locale);
+
   const searchParams = await props.searchParams;
+  const t = await getTranslations("Rezervacija.nova");
+  const tCountries = await getTranslations("Countries");
 
   const defaultDatumOd = searchParams.datumOd || "";
   const defaultDatumDo = searchParams.datumDo || "";
@@ -92,8 +131,16 @@ export default async function NovaRezervacijaPage(props: {
     ],
   });
 
+  const localeForAction = locale as Locale;
+
   async function createReservation(formData: FormData) {
     "use server";
+
+    // Unutar server akcije ponovno dohvati prijevode za locale s kojeg je dolazio request.
+    const tAction = await getTranslations({
+      locale: localeForAction,
+      namespace: "Rezervacija.nova",
+    });
 
     const jedinicaId = String(formData.get("jedinicaId") || "");
     const ime = String(formData.get("ime") || "").trim();
@@ -122,14 +169,14 @@ export default async function NovaRezervacijaPage(props: {
       !datumDo ||
       !iznosUkupno
     ) {
-      throw new Error("Nedostaju obavezna polja.");
+      throw new Error(tAction("errMissingFields"));
     }
 
-    const od = parseDateOnly(datumOd);
-    const doDatuma = parseDateOnly(datumDo);
+    const od = parseDateOnly(datumOd, tAction("errInvalidDate"));
+    const doDatuma = parseDateOnly(datumDo, tAction("errInvalidDate"));
 
     if (od >= doDatuma) {
-      throw new Error("Datum odlaska mora biti nakon dolaska.");
+      throw new Error(tAction("errDateOrder"));
     }
 
     const brojNocenja = Math.ceil(
@@ -147,13 +194,16 @@ export default async function NovaRezervacijaPage(props: {
     });
 
     if (!jedinica) {
-      throw new Error("Smještajna jedinica nije pronađena.");
+      throw new Error(tAction("errUnitNotFound"));
     }
 
     const kapacitet =
       Number(jedinica.ukupniKapacitet || 0) ||
       Number(jedinica.osnovniKapacitet || 0) +
-      Number(jedinica.dodatniKapacitet || 0);
+        Number(jedinica.dodatniKapacitet || 0);
+
+    const prefix =
+      localeForAction === routing.defaultLocale ? "" : `/${localeForAction}`;
 
     if (kapacitet > 0 && brojOsoba > kapacitet) {
       const params = new URLSearchParams({
@@ -170,34 +220,28 @@ export default async function NovaRezervacijaPage(props: {
         brojOsoba: String(brojOsoba),
         iznosUkupno: String(iznosUkupno),
         napomena,
-        error: `${jedinica.naziv} prima maksimalno ${kapacitet} osoba. Odabrali ste ${brojOsoba}.`,
+        error: tAction("errCapacity", {
+          naziv: jedinica.naziv,
+          kapacitet,
+          brojOsoba,
+        }),
       });
 
-      redirect(`/rezervacije/nova?${params.toString()}`);
+      redirect(`${prefix}/rezervacije/nova?${params.toString()}`);
     }
 
     const postojiPreklapanje = await prisma.rezervacija.findFirst({
       where: {
         jedinicaId,
-        status: {
-          not: "OTKAZANO",
-        },
+        status: { not: "OTKAZANO" },
         obrisanoAt: null,
-        datumOd: {
-          lt: doDatuma,
-        },
-        datumDo: {
-          gt: od,
-        },
+        datumOd: { lt: doDatuma },
+        datumDo: { gt: od },
       },
     });
 
-    console.error("PREKLAPANJE", postojiPreklapanje);
-
     if (postojiPreklapanje) {
-      console.error("PREKLAPANJE", postojiPreklapanje);
-
-      throw new Error("Termin je već zauzet");
+      throw new Error(tAction("errOverlap"));
     }
 
     const params = new URLSearchParams({
@@ -217,7 +261,7 @@ export default async function NovaRezervacijaPage(props: {
       napomena,
     });
 
-    redirect(`/rezervacije/pregled?${params.toString()}`);
+    redirect(`${prefix}/rezervacije/pregled?${params.toString()}`);
   }
 
   return (
@@ -230,12 +274,9 @@ export default async function NovaRezervacijaPage(props: {
       }}
     >
       <div className="mx-auto max-w-3xl border border-white/70 bg-white p-8 shadow-[0_12px_35px_rgba(0,0,0,0.08)]">
-        <h1 className="text-3xl font-bold text-[#2e2923]">Nova rezervacija</h1>
+        <h1 className="text-3xl font-bold text-[#2e2923]">{t("title")}</h1>
 
-        <p className="mt-2 text-[#6f665a]">
-          Unesi podatke gosta. Sva polja za gosta su obavezna za potvrdu
-          rezervacije.
-        </p>
+        <p className="mt-2 text-[#6f665a]">{t("subtitle")}</p>
 
         {searchParams.error && (
           <div className="mt-5 border border-red-300 bg-red-50 p-4 font-bold text-red-800">
@@ -246,7 +287,7 @@ export default async function NovaRezervacijaPage(props: {
         <form action={createReservation} className="mt-8 space-y-5">
           <div>
             <label className="mb-2 block text-sm font-bold text-[#2e2923]">
-              Jedinica
+              {t("labelJedinica")}
             </label>
 
             <select
@@ -255,7 +296,7 @@ export default async function NovaRezervacijaPage(props: {
               className="w-full cursor-pointer border border-[#d9cfbf] bg-[#f8f3ea] px-4 py-3 font-bold outline-none"
               required
             >
-              <option value="">Odaberi jedinicu</option>
+              <option value="">{t("selectJedinica")}</option>
               {jedinice.map((j) => (
                 <option key={j.id} value={j.id}>
                   {j.objekt.naziv} — {j.naziv}
@@ -267,7 +308,7 @@ export default async function NovaRezervacijaPage(props: {
           <div className="grid gap-5 md:grid-cols-2">
             <div>
               <label className="mb-2 block text-sm font-bold text-[#2e2923]">
-                Datum dolaska
+                {t("labelDatumOd")}
               </label>
 
               <input
@@ -282,7 +323,7 @@ export default async function NovaRezervacijaPage(props: {
 
             <div>
               <label className="mb-2 block text-sm font-bold text-[#2e2923]">
-                Datum odlaska
+                {t("labelDatumDo")}
               </label>
 
               <input
@@ -299,7 +340,7 @@ export default async function NovaRezervacijaPage(props: {
           <div className="grid gap-5 md:grid-cols-2">
             <div>
               <label className="mb-2 block text-sm font-bold text-[#2e2923]">
-                Ime
+                {t("labelIme")}
               </label>
 
               <input
@@ -312,7 +353,7 @@ export default async function NovaRezervacijaPage(props: {
 
             <div>
               <label className="mb-2 block text-sm font-bold text-[#2e2923]">
-                Prezime
+                {t("labelPrezime")}
               </label>
 
               <input
@@ -327,7 +368,7 @@ export default async function NovaRezervacijaPage(props: {
           <div className="grid gap-5 md:grid-cols-2">
             <div>
               <label className="mb-2 block text-sm font-bold text-[#2e2923]">
-                Email
+                {t("labelEmail")}
               </label>
 
               <input
@@ -341,7 +382,7 @@ export default async function NovaRezervacijaPage(props: {
 
             <div>
               <label className="mb-2 block text-sm font-bold text-[#2e2923]">
-                Telefon
+                {t("labelTelefon")}
               </label>
 
               <input
@@ -355,7 +396,7 @@ export default async function NovaRezervacijaPage(props: {
 
           <div>
             <label className="mb-2 block text-sm font-bold text-[#2e2923]">
-              Adresa
+              {t("labelAdresa")}
             </label>
 
             <input
@@ -369,7 +410,7 @@ export default async function NovaRezervacijaPage(props: {
           <div className="grid gap-5 md:grid-cols-2">
             <div>
               <label className="mb-2 block text-sm font-bold text-[#2e2923]">
-                Grad
+                {t("labelGrad")}
               </label>
 
               <input
@@ -382,7 +423,7 @@ export default async function NovaRezervacijaPage(props: {
 
             <div>
               <label className="mb-2 block text-sm font-bold text-[#2e2923]">
-                Država
+                {t("labelDrzava")}
               </label>
 
               <select
@@ -392,26 +433,24 @@ export default async function NovaRezervacijaPage(props: {
                 required
               >
                 <option value="" disabled>
-                  Odaberite državu
+                  {t("selectDrzava")}
                 </option>
 
-                {DRZAVE.map((drzava) => (
-                  <option key={drzava} value={drzava}>
-                    {drzava}
+                {COUNTRY_KEYS.map((key) => (
+                  <option key={key} value={key}>
+                    {tCountries(key)}
                   </option>
                 ))}
               </select>
 
-              <p className="mt-1 text-xs text-[#7b6f62]">
-                Odaberite državu iz popisa.
-              </p>
+              <p className="mt-1 text-xs text-[#7b6f62]">{t("drzavaHelp")}</p>
             </div>
           </div>
 
           <div className="grid gap-5 md:grid-cols-2">
             <div>
               <label className="mb-2 block text-sm font-bold text-[#2e2923]">
-                Broj osoba
+                {t("labelBrojOsoba")}
               </label>
 
               <input
@@ -426,7 +465,7 @@ export default async function NovaRezervacijaPage(props: {
 
             <div>
               <label className="mb-2 block text-sm font-bold text-[#2e2923]">
-                Ukupna cijena (€)
+                {t("labelIznos")}
               </label>
 
               <input
@@ -439,15 +478,13 @@ export default async function NovaRezervacijaPage(props: {
                 required
               />
 
-              <p className="mt-1 text-xs text-[#7b6f62]">
-                Cijena je izračunata prema odabranom terminu i admin cjeniku.
-              </p>
+              <p className="mt-1 text-xs text-[#7b6f62]">{t("iznosHelp")}</p>
             </div>
           </div>
 
           <div>
             <label className="mb-2 block text-sm font-bold text-[#2e2923]">
-              Napomena
+              {t("labelNapomena")}
             </label>
 
             <textarea
@@ -463,7 +500,7 @@ export default async function NovaRezervacijaPage(props: {
               type="submit"
               className="cursor-pointer border border-[#caa870] bg-[#c79a57] px-6 py-3 font-bold text-white transition hover:brightness-95"
             >
-              Nastavi na pregled
+              {t("submit")}
             </button>
           </div>
         </form>

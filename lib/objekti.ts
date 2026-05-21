@@ -1,7 +1,11 @@
 // Statički podaci o objektima koji nisu pohranjeni u bazi
-// (adrese, SEO opisi, geo koordinate, sadržaji za structured data).
+// (adrese, geo koordinate, slike, cjenovni rang).
+// SEO tekstovi (title, description, amenities) sad žive u messages/{locale}.json
+// pod ključem "SEOObjekti.<slug>" i dohvaćaju se preko next-intl.
 
 import type { Metadata } from "next";
+import { getTranslations } from "next-intl/server";
+import { routing, type Locale } from "@/i18n/routing";
 
 export type ObjektSlug = "eva" | "marty" | "house-art";
 
@@ -12,12 +16,9 @@ export type ObjektPodaci = {
   postanskiBroj: string;
   mjesto: string;
   drzava: string; // ISO 3166-1 alpha-2 (HR)
-  seoTitle: string;
-  seoDescription: string;
   ogImage: string; // putanja relativna na origin (npr. "/images/hero1.jpg")
-  canonicalPath: string;
+  canonicalPath: string; // bez locale prefiksa, npr. "/objekti/eva"
   priceRange: string;
-  amenities: string[];
   geo: {
     latitude: number;
     longitude: number;
@@ -32,20 +33,9 @@ export const OBJEKTI_PODACI: Record<ObjektSlug, ObjektPodaci> = {
     postanskiBroj: "51511",
     mjesto: "Malinska",
     drzava: "HR",
-    seoTitle: "Apartments Eva – Malinska, Krk",
-    seoDescription:
-      "Apartments Eva u Malinskoj na otoku Krku: 3 apartmana s 2 spavaće sobe, do 6 osoba po jedinici. Direktna rezervacija bez provizija.",
     ogImage: "/images/hero1.jpg",
     canonicalPath: "/objekti/eva",
     priceRange: "€€",
-    amenities: [
-      "Besplatan WiFi",
-      "Klima uređaj",
-      "Parking",
-      "Terasa",
-      "Kuhinja",
-      "Strojno pranje rublja",
-    ],
     geo: {
       latitude: 45.12402264305271,
       longitude: 14.532067282880549,
@@ -58,20 +48,9 @@ export const OBJEKTI_PODACI: Record<ObjektSlug, ObjektPodaci> = {
     postanskiBroj: "51511",
     mjesto: "Malinska",
     drzava: "HR",
-    seoTitle: "Luxury Apartments Marty – Malinska, Krk",
-    seoDescription:
-      "Luxury Apartments Marty u Malinskoj na otoku Krku: 5 apartmana s zajedničkim bazenom, idealno za obitelji i veće grupe. Direktna rezervacija.",
     ogImage: "/images/hero2.jpg",
     canonicalPath: "/objekti/marty",
     priceRange: "€€€",
-    amenities: [
-      "Zajednički bazen",
-      "Besplatan WiFi",
-      "Klima uređaj",
-      "Parking",
-      "Terasa / balkon",
-      "Kuhinja",
-    ],
     geo: {
       latitude: 45.11500376423832,
       longitude: 14.517710784481592,
@@ -84,21 +63,9 @@ export const OBJEKTI_PODACI: Record<ObjektSlug, ObjektPodaci> = {
     postanskiBroj: "51511",
     mjesto: "Malinska",
     drzava: "HR",
-    seoTitle: "House Art – Privatna kuća u Malinskoj, Krk",
-    seoDescription:
-      "House Art je privatna kuća u Malinskoj na otoku Krku za do 10 osoba, s 5 spavaćih soba, 3 kupaone i zajedničkim bazenom.",
     ogImage: "/images/hero3.jpg",
     canonicalPath: "/objekti/house-art",
     priceRange: "€€€",
-    amenities: [
-      "Zajednički bazen",
-      "Besplatan WiFi",
-      "Klima uređaj",
-      "Parking",
-      "Vrt",
-      "Kuhinja",
-      "5 spavaćih soba",
-    ],
     geo: {
       latitude: 45.11482568813671,
       longitude: 14.517004516558073,
@@ -106,22 +73,59 @@ export const OBJEKTI_PODACI: Record<ObjektSlug, ObjektPodaci> = {
   },
 };
 
-export function buildObjectMetadata(slug: ObjektSlug): Metadata {
+const OG_LOCALE: Record<Locale, string> = {
+  hr: "hr_HR",
+  en: "en_US",
+  de: "de_DE",
+  it: "it_IT",
+  hu: "hu_HU",
+  pl: "pl_PL",
+  cs: "cs_CZ",
+  sk: "sk_SK",
+};
+
+// Vraća URL putanju s prefiksom locale-a, osim za default locale (hr)
+// gdje prefiksa nema (kompatibilno s localePrefix: 'as-needed').
+function localizedPath(locale: Locale, path: string) {
+  if (locale === routing.defaultLocale) return path;
+  return `/${locale}${path}`;
+}
+
+function buildLanguageAlternates(canonicalPath: string) {
+  const languages: Record<string, string> = {};
+  for (const loc of routing.locales) {
+    languages[loc] = localizedPath(loc, canonicalPath);
+  }
+  languages["x-default"] = canonicalPath;
+  return languages;
+}
+
+export async function buildObjectMetadata(
+  slug: ObjektSlug,
+  locale: Locale
+): Promise<Metadata> {
   const p = OBJEKTI_PODACI[slug];
+  const t = await getTranslations({ locale, namespace: `SEOObjekti.${slug}` });
+  const tMeta = await getTranslations({ locale, namespace: "Meta" });
+
+  const title = t("title");
+  const description = t("description");
+  const canonical = localizedPath(locale, p.canonicalPath);
 
   return {
-    title: p.seoTitle,
-    description: p.seoDescription,
+    title,
+    description,
     alternates: {
-      canonical: p.canonicalPath,
+      canonical,
+      languages: buildLanguageAlternates(p.canonicalPath),
     },
     openGraph: {
       type: "website",
-      locale: "hr_HR",
-      url: p.canonicalPath,
-      siteName: "Malinska Stay",
-      title: p.seoTitle,
-      description: p.seoDescription,
+      locale: OG_LOCALE[locale],
+      url: canonical,
+      siteName: tMeta("siteName"),
+      title,
+      description,
       images: [
         {
           url: p.ogImage,
@@ -133,9 +137,21 @@ export function buildObjectMetadata(slug: ObjektSlug): Metadata {
     },
     twitter: {
       card: "summary_large_image",
-      title: p.seoTitle,
-      description: p.seoDescription,
+      title,
+      description,
       images: [p.ogImage],
     },
   };
+}
+
+// Vraća lokalizirani popis amenities za dani objekt (koristi SEOObjekti.<slug>.amenities array).
+export async function getObjectAmenities(
+  slug: ObjektSlug,
+  locale: Locale
+): Promise<string[]> {
+  const t = await getTranslations({ locale, namespace: `SEOObjekti.${slug}` });
+  // amenities je array u messages JSON-u; next-intl ga eksponira preko raw
+  const raw = t.raw("amenities") as unknown;
+  if (Array.isArray(raw)) return raw.map(String);
+  return [];
 }
