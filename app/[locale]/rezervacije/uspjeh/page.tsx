@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { stripe } from "@/lib/stripe";
 import { generateRacunPdf } from "@/lib/generateRacunPdf";
 import { Resend } from "resend";
+import { zaprimiAutoriziranuRezervaciju } from "@/lib/zaprimiRezervaciju";
 
 export const dynamic = "force-dynamic";
 
@@ -50,24 +51,6 @@ async function getAppUrl() {
   }
 
   return `https://${clean}`;
-}
-
-async function getAdminEmails() {
-  const postavke = await prisma.postavkeNaplate.findFirst({
-    orderBy: { updatedAt: "desc" },
-  });
-
-  if (postavke?.adminEmails) {
-    return postavke.adminEmails
-      .split(",")
-      .map((email) => email.trim())
-      .filter(Boolean);
-  }
-
-  return String(process.env.ADMIN_EMAILS || "")
-    .split(",")
-    .map((email) => email.trim())
-    .filter(Boolean);
 }
 
 function sanitizePrefix(value?: string | null) {
@@ -206,135 +189,15 @@ async function obradiPlacanjeAkoTreba(placanjeId: string, sessionId?: string) {
       return placanje;
     }
 
-    await prisma.placanje.update({
-      where: { id: placanje.id },
-      data: {
-        paymentIntentId,
-        autoriziranoAt: sada,
-        status: "ZAHTJEV_POSLAN",
-      },
+    // Prijelaz UPIT -> CEKA_POTVRDU + mailovi (gostu "zaprimljeno", domaćinu
+    // "čeka potvrdu") idu kroz zajednički helper — isti koji zove i Stripe
+    // webhook. Helper koristi uvjetni updateMany kao atomsku bravu: kad
+    // webhook i ova stranica stignu ~istovremeno, točno jedan odradi prijelaz
+    // i pošalje mailove (bez duplog maila gostu — scenarij C iz plana).
+    await zaprimiAutoriziranuRezervaciju({
+      placanjeId: placanje.id,
+      paymentIntentId,
     });
-
-    await prisma.rezervacija.update({
-      where: { id: r.id },
-      data: {
-        status: "CEKA_POTVRDU",
-      },
-    });
-
-    try {
-      const adminEmails = await getAdminEmails();
-      const baseUrl = await getAppUrl();
-
-      if (adminEmails.length > 0) {
-        await resend.emails.send({
-          from: getMailFrom(),
-          to: adminEmails,
-          bcc: [BCC_EMAIL],
-          subject: `Nova rezervacija čeka potvrdu - ${r.jedinica.objekt.naziv} / ${r.jedinica.naziv}`,
-          html: mailWrapper({
-            title: "Nova rezervacija čeka potvrdu",
-            subtitle: "Gost je autorizirao karticu. Potrebna je odluka domaćina.",
-            children: `
-              <p><strong>Gost:</strong> ${r.gost?.ime || ""} ${r.gost?.prezime || ""}</p>
-              <p><strong>Email:</strong> ${r.gost?.email || "-"}</p>
-              <p><strong>Telefon:</strong> ${r.gost?.telefon || "-"}</p>
-
-              <div style="margin:22px 0; padding:18px; background:#fcfaf6; border:1px solid #eadfce;">
-                <h3 style="margin:0 0 14px;">Detalji rezervacije</h3>
-                <p><strong>Objekt:</strong> ${r.jedinica.objekt.naziv}</p>
-                <p><strong>Smještajna jedinica:</strong> ${r.jedinica.naziv}</p>
-                <p><strong>Dolazak:</strong> ${formatDate(r.datumOd)}</p>
-                <p><strong>Odlazak:</strong> ${formatDate(r.datumDo)}</p>
-                <p><strong>Broj noćenja:</strong> ${r.brojNocenja}</p>
-                <p><strong>Broj osoba:</strong> ${r.brojOsoba}</p>
-                <p><strong>Ukupno:</strong> ${money(r.iznosUkupno)}</p>
-                <p><strong>Autorizirano:</strong> ${money(placanje.iznos)}</p>
-              </div>
-
-              <p>
-                <a href="${baseUrl}/admin/rezervacije/${r.id}" style="display:inline-block; background:#c79a57; color:white; padding:12px 18px; text-decoration:none; font-weight:bold;">
-                  Otvori rezervaciju u adminu
-                </a>
-              </p>
-            `,
-          }),
-        });
-      }
-    } catch (mailError) {
-      console.error("Greška kod slanja admin maila:", mailError);
-    }
-
-    try {
-      if (r.gost?.email) {
-        await resend.emails.send({
-          from: getMailFrom(),
-          to: r.gost.email,
-          bcc: [BCC_EMAIL],
-          subject: "Rezervacija je zaprimljena - Malinska Stay",
-          html: mailWrapper({
-            title: "Rezervacija je zaprimljena",
-            subtitle: "Hvala vam na rezervaciji. Vaš zahtjev je uspješno zaprimljen.",
-            children: `
-              <p>Poštovani <strong>${r.gost.ime || "goste"} ${r.gost.prezime || ""}</strong>,</p>
-
-              <p>
-                Vaša kartica je uspješno autorizirana za iznos
-                <strong>${money(placanje.iznos)}</strong>.
-                Novac još nije naplaćen, nego su sredstva samo rezervirana do konačne potvrde rezervacije.
-              </p>
-
-              <div style="margin:22px 0; padding:18px; background:#fcfaf6; border:1px solid #eadfce;">
-                <h3 style="margin:0 0 14px;">Detalji rezervacije</h3>
-                <p><strong>Objekt:</strong> ${r.jedinica.objekt.naziv}</p>
-                <p><strong>Smještajna jedinica:</strong> ${r.jedinica.naziv}</p>
-                <p><strong>Dolazak:</strong> ${formatDate(r.datumOd)}</p>
-                <p><strong>Odlazak:</strong> ${formatDate(r.datumDo)}</p>
-                <p><strong>Broj noćenja:</strong> ${r.brojNocenja}</p>
-                <p><strong>Broj osoba:</strong> ${r.brojOsoba}</p>
-              </div>
-
-              <div style="padding:16px; background:#fff6e2; border:1px solid #c79a57; color:#7a5a22;">
-                <strong>Važno:</strong><br/>
-                Rezervacija još čeka konačnu potvrdu domaćina. Nakon obrade poslat ćemo vam konačnu potvrdu rezervacije.
-              </div>
-
-              <p style="margin-top:22px;">
-                Račun se šalje tek nakon stvarne naplate.
-              </p>
-
-              <p style="margin-top:28px;">
-                Lijep pozdrav,<br/>
-                <strong>Malinska Stay</strong>
-              </p>
-            `,
-          }),
-        });
-
-        await prisma.emailLog.create({
-          data: {
-            rezervacijaId: r.id,
-            to: r.gost.email,
-            subject: "Rezervacija je zaprimljena - Malinska Stay",
-            tip: "POTVRDA_REZERVACIJE",
-            status: "POSLANO",
-          },
-        });
-      }
-    } catch (mailError: any) {
-      console.error("Greška kod slanja maila gostu:", mailError);
-
-      await prisma.emailLog.create({
-        data: {
-          rezervacijaId: r.id,
-          to: r.gost?.email || "bez-emaila",
-          subject: "Rezervacija je zaprimljena - Malinska Stay",
-          tip: "POTVRDA_REZERVACIJE",
-          status: "GRESKA",
-          greska: mailError?.message || "Greška kod slanja maila gostu.",
-        },
-      });
-    }
 
     return placanje;
   }
