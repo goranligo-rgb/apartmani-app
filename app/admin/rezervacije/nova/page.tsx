@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { sendMail } from "@/lib/mail";
 import { isRezervacijaOverlap } from "@/lib/dates";
 import CijenaPreview from "./CijenaPreview";
+import { potvrdiNaplatu } from "@/lib/potvrdaNaplate";
 
 export const dynamic = "force-dynamic";
 
@@ -973,37 +974,16 @@ export default async function NovaAdminRezervacijaPage({
       // Automatska potvrda plaćanja — isto kao klik na "Potvrdi plaćanje" u
       // [id] view-u. Mijenja Placanje → PLACENO, Rezervaciju → PLACENO, kreira
       // Racun + PDF, šalje mail s atačovanim PDF-om.
-      const baseUrl = await getAppUrl();
-      console.log("[UPLATA_SJELA] baseUrl", baseUrl);
-
-      let potvrda;
-      try {
-        potvrda = await fetch(`${baseUrl}/api/admin/placanja/potvrdi-link`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ placanjeId: placanje.id }),
-        });
-        console.log("[UPLATA_SJELA] fetch done", {
-          status: potvrda.status,
-          ok: potvrda.ok,
-        });
-      } catch (e) {
-        console.error("[UPLATA_SJELA] fetch THREW", {
-          baseUrl,
-          placanjeId: placanje.id,
-          error: String(e),
-          stack: e instanceof Error ? e.stack : undefined,
-        });
-        throw e;
-      }
+      // Potvrda/naplata se zove direktno (in-process), bez HTTP fetch-a na
+      // /api/admin rutu — server akcija ne nosi admin cookie pa bi fetch
+      // dobio 401 (root cause "0 placanja/racuna" nakon kreiranja rezervacije).
+      const potvrda = await potvrdiNaplatu(placanje.id);
 
       if (!potvrda.ok) {
-        const body = await potvrda.text().catch(() => "(no body)");
-        console.error("[UPLATA_SJELA] potvrdi-link non-OK", {
+        console.error("[UPLATA_SJELA] potvrdiNaplatu non-OK", {
           placanjeId: placanje.id,
           rezervacijaId: rezervacija.id,
-          status: potvrda.status,
-          body: body.slice(0, 500),
+          error: potvrda.error,
         });
         throw new Error(
           "Rezervacija je kreirana, ali automatska potvrda plaćanja je pala. " +

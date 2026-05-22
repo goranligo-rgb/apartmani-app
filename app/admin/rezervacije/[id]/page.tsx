@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { Resend } from "resend";
 import { stripe } from "@/lib/stripe";
 import { dodajTtlockSifru } from "@/lib/ttlock";
+import { potvrdiNaplatu } from "@/lib/potvrdaNaplate";
 
 export const dynamic = "force-dynamic";
 
@@ -17,16 +18,6 @@ const BCC_EMAIL = process.env.MAIL_BCC || "goran@malinska-stay.hr";
 
 function getMailFrom() {
   return process.env.MAIL_FROM || "Malinska Stay <rezervacije@malinska-stay.hr>";
-}
-
-async function getAppUrl() {
-  const postavke = await prisma.postavkeNaplate.findFirst();
-
-  if (postavke?.appUrl) return postavke.appUrl;
-  if (process.env.NEXT_PUBLIC_APP_URL) return process.env.NEXT_PUBLIC_APP_URL;
-  if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
-
-  return "http://localhost:3000";
 }
 
 const UI_COLORS = {
@@ -560,20 +551,12 @@ export default async function RezervacijaDetaljPage({
     revalidatePath("/admin/rezervacije/naplata");
     revalidatePath("/admin/monitor");
 
-    const baseUrl = await getAppUrl();
-
-    const potvrda = await fetch(`${baseUrl}/api/admin/placanja/potvrdi-link`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        placanjeId: placanje.id,
-      }),
-    });
+    // Potvrda/naplata se zove direktno (in-process), bez HTTP fetch-a na
+    // /api/admin rutu — server akcija ne nosi admin cookie pa bi fetch dobio 401.
+    const potvrda = await potvrdiNaplatu(placanje.id);
 
     if (!potvrda.ok) {
-      throw new Error("Greška kod potvrde uplate.");
+      throw new Error(`Greška kod potvrde uplate: ${potvrda.error}`);
     }
   }
 
