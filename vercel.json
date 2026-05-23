@@ -7,6 +7,10 @@
     {
       "path": "/api/cron/ostatak",
       "schedule": "30 7 * * *"
+    },
+    {
+      "path": "/api/cron/ciscenje-tjedni",
+      "schedule": "0 * * * *"
     }
   ]
 }
