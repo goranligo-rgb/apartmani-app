@@ -14,7 +14,9 @@ export default async function SiteHeader() {
 
   return (
     <header className="fixed left-0 top-0 z-50 w-full border-b border-white/10 bg-[#071e24]/95 text-white backdrop-blur">
-      <div className="relative h-[78px] border-b border-white/10 md:flex md:h-[88px] md:items-center md:justify-between">
+      {/* Mobitel: gumbi su absolute na top-[58px] s h-[38px] → bottom 96px.
+          Container mora biti dovoljno visok da ne bleeda u red s prebacivacem jezika. */}
+      <div className="relative h-[104px] border-b border-white/10 md:flex md:h-[88px] md:items-center md:justify-between">
         <div className="absolute left-3 top-[58px] flex items-center gap-2 md:static md:order-2 md:mr-0 md:flex md:shrink-0 md:gap-0">
           <Link
             href="/posebne-prilike"

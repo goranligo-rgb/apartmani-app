@@ -51,7 +51,8 @@ export default async function HomePage({
     >
       <SiteHeader />
 
-      <section className="relative min-h-[86vh] overflow-hidden pt-[180px] md:pt-[224px]">
+      {/* pt prati ukupnu visinu fiksnog headera (mobitel: 104 + ~36 lang + 64 grid = ~204). */}
+      <section className="relative min-h-[86vh] overflow-hidden pt-[204px] md:pt-[224px]">
         {heroImages.map((src, index) => (
           <div
             key={`${src}-${index}`}
@@ -72,7 +73,7 @@ export default async function HomePage({
               {t("heroEyebrow")}
             </p>
 
-            <h1 className="text-5xl font-bold leading-none md:text-8xl">
+            <h1 className="text-6xl font-bold leading-none md:text-8xl">
               {t("heroTitle")}
             </h1>
 
@@ -178,7 +179,7 @@ export default async function HomePage({
                 {t("objektNumberPrefix")} 0{index + 1}
               </div>
 
-              <h3 className="text-2xl font-bold text-[#2e2923]">
+              <h3 className="text-xl font-bold text-[#2e2923]">
                 {t(`objekti.${objekt.key}.naziv`)}
               </h3>
 

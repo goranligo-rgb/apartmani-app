@@ -396,7 +396,8 @@ export default async function CiscenjeAdminPage({
         </div>
       )}
 
-      <div style={layoutStyle}>
+      {/* Mobitel: jedan stupac. Od lg: lijevo 580px (postavke), desno popis (1fr). */}
+      <div className="grid items-start gap-6 lg:grid-cols-[580px_minmax(0,1fr)]">
         <div style={leftColumnStyle}>
           <form action={spremiPostavke}>
             <div style={cardStyle}>
@@ -737,7 +738,8 @@ function Field({
 
 const pageStyle: React.CSSProperties = {
   minHeight: "100vh",
-  padding: 32,
+  // Na mobitelu 12px, na desktopu do 32px — bez media queryja u inline stilovima.
+  padding: "clamp(12px, 4vw, 32px)",
   fontFamily: "Calibri, Segoe UI, Arial, sans-serif",
   background: "#f5f6f7",
 };
@@ -750,15 +752,11 @@ const backLinkStyle: React.CSSProperties = {
   textDecoration: "none",
 };
 
-const layoutStyle: React.CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "580px 1fr",
-  gap: 24,
-  alignItems: "start",
-};
+// layoutStyle uklonjen — layout je sada Tailwind grid (vidi gore u JSX-u).
 
 const leftColumnStyle: React.CSSProperties = {
-  width: 580,
+  width: "100%",
+  maxWidth: 580,
 };
 
 const rightColumnStyle: React.CSSProperties = {
@@ -768,7 +766,9 @@ const rightColumnStyle: React.CSSProperties = {
 const cardStyle: React.CSSProperties = {
   background: "white",
   padding: 20,
-  width: 560,
+  width: "100%",
+  maxWidth: 560,
+  boxSizing: "border-box",
   border: "1px solid #ddd",
   boxShadow: "0 2px 10px rgba(0,0,0,0.05)",
 };
@@ -802,7 +802,9 @@ const successStyle: React.CSSProperties = {
   border: "1px solid #bde5c8",
   padding: 12,
   marginBottom: 16,
-  width: 560,
+  width: "100%",
+  maxWidth: 560,
+  boxSizing: "border-box",
 };
 
 const errorStyle: React.CSSProperties = {
@@ -810,7 +812,9 @@ const errorStyle: React.CSSProperties = {
   border: "1px solid #f0b5b5",
   padding: 12,
   marginBottom: 16,
-  width: 560,
+  width: "100%",
+  maxWidth: 560,
+  boxSizing: "border-box",
 };
 
 const checkLine: React.CSSProperties = {
