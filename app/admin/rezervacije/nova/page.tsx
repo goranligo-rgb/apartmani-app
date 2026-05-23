@@ -7,6 +7,7 @@ import { sendMail } from "@/lib/mail";
 import { pronadiPreklapanja, STATUSI_KOJI_ZAUZIMAJU } from "@/lib/zauzeca";
 import CijenaPreview from "./CijenaPreview";
 import { potvrdiNaplatu } from "@/lib/potvrdaNaplate";
+import { mozdaPosaljiNadopunu } from "@/lib/ciscenje/mozdaPosaljiNadopunu";
 
 export const dynamic = "force-dynamic";
 
@@ -1042,6 +1043,12 @@ export default async function NovaAdminRezervacijaPage({
         korisnikIme: "Admin",
       },
     });
+
+    // Nadopuna rasporeda čišćenja (PR2) — helper sam provjeri je li
+    // rezervacija u prozoru posljednjeg poslanog tjednog plana i poštuje
+    // `automatskoCiscenje=false`. Fire-and-forget: ne ruši kreiranje
+    // rezervacije ako mail propadne.
+    await mozdaPosaljiNadopunu({ rezervacijaIds: [rezervacija.id] });
 
     revalidatePath("/admin/rezervacije");
     revalidatePath("/admin/monitor");
