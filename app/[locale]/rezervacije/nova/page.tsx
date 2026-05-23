@@ -91,6 +91,10 @@ type SearchParams = Promise<{
   drzava?: string;
   brojOsoba?: string;
   napomena?: string;
+  // `akcijaId` se propagira iz `/rezervacije/posebne-prilike` kroz formu i
+  // dalje na `/rezervacije/pregled` → `/api/rezervacije/create-payment`, gdje
+  // ga server koristi za autoritativnu cijenu iz baze (vidi PR3).
+  akcijaId?: string;
   error?: string;
 }>;
 
@@ -155,6 +159,9 @@ export default async function NovaRezervacijaPage(props: {
     const brojOsoba = Number(formData.get("brojOsoba") || 1);
     const iznosUkupno = Number(formData.get("iznosUkupno") || 0);
     const napomena = String(formData.get("napomena") || "").trim();
+    // `akcijaId` se samo prosljeđuje dalje — autoritativnu validaciju radi
+    // server u `/api/rezervacije/create-payment` (zatvorena rupa cijene).
+    const akcijaId = String(formData.get("akcijaId") || "").trim();
 
     if (
       !jedinicaId ||
@@ -227,6 +234,12 @@ export default async function NovaRezervacijaPage(props: {
         }),
       });
 
+      // Sačuvaj `akcijaId` kod redirect-a natrag na formu, da se posebna
+      // prilika ne izgubi nakon validacijske greške.
+      if (akcijaId) {
+        params.set("akcijaId", akcijaId);
+      }
+
       redirect(`${prefix}/rezervacije/nova?${params.toString()}`);
     }
 
@@ -261,6 +274,13 @@ export default async function NovaRezervacijaPage(props: {
       napomena,
     });
 
+    // Propagiraj `akcijaId` na `/rezervacije/pregled` da se odande prenese u
+    // POST formi prema `/api/rezervacije/create-payment` (gdje server uzima
+    // autoritativnu cijenu iz baze).
+    if (akcijaId) {
+      params.set("akcijaId", akcijaId);
+    }
+
     redirect(`${prefix}/rezervacije/pregled?${params.toString()}`);
   }
 
@@ -285,6 +305,16 @@ export default async function NovaRezervacijaPage(props: {
         )}
 
         <form action={createReservation} className="mt-8 space-y-5">
+          {/* `akcijaId` se nosi kroz formu kao skriveno polje — server koristi
+              za autoritativnu cijenu iz baze (PR3). */}
+          {searchParams.akcijaId && (
+            <input
+              type="hidden"
+              name="akcijaId"
+              value={searchParams.akcijaId}
+            />
+          )}
+
           <div>
             <label className="mb-2 block text-sm font-bold text-[#2e2923]">
               {t("labelJedinica")}

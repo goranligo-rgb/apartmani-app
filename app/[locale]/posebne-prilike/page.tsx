@@ -1,33 +1,11 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
+import { jedinicaJeSlobodna } from "@/lib/zauzeca";
 
 export const dynamic = "force-dynamic";
 
 function startOfDay(d: Date) {
   return new Date(d.getFullYear(), d.getMonth(), d.getDate(), 12, 0, 0, 0);
-}
-
-function imaPreklapanje(a: any) {
-  const datumOd = startOfDay(a.datumOd);
-  const datumDo = startOfDay(a.datumDo);
-
-  const imaRezervaciju = a.jedinica.rezervacije.some((r: any) => {
-    return (
-      r.status !== "OTKAZANO" &&
-      startOfDay(r.datumOd) < datumDo &&
-      startOfDay(r.datumDo) > datumOd
-    );
-  });
-
-  const imaBlokadu = a.jedinica.blokade?.some((b: any) => {
-    return (
-      b.aktivna &&
-      startOfDay(b.datumOd) < datumDo &&
-      startOfDay(b.datumDo) > datumOd
-    );
-  });
-
-  return imaRezervaciju || imaBlokadu;
 }
 
 export default async function PosebnePrilikePage() {
@@ -45,26 +23,29 @@ export default async function PosebnePrilikePage() {
       jedinica: {
         include: {
           objekt: true,
-          rezervacije: {
-            where: {
-              status: {
-                not: "OTKAZANO",
-              },
-            },
-          },
-          blokade: {
-            where: {
-              aktivna: true,
-            },
-          },
         },
       },
     },
     orderBy: [{ datumOd: "asc" }],
   });
 
-  // 🔥 OVDJE se filtriraju i nestaju zauzete prilike
-  const akcije = akcijeIzBaze.filter((a) => !imaPreklapanje(a));
+  // Filtriraj zauzete prilike kroz `jedinicaJeSlobodna` (lib/zauzeca.ts) — sad
+  // gleda i vanjske blokade (Booking/iCal), što stari `imaPreklapanje` filter
+  // nije radio. Posljedica: posebna prilika kojoj je termin u Booking-u više
+  // se ne prikazuje na webu (prije se prikazivala pa bi `create-payment` POST
+  // vratio 409). Više zaokruženih DB poziva (jedna provjera po akciji), ali
+  // popis posebnih prilika je obično kratak.
+  const slobodneZastavice = await Promise.all(
+    akcijeIzBaze.map((a) =>
+      jedinicaJeSlobodna({
+        jedinicaId: a.jedinicaId,
+        datumOd: a.datumOd,
+        datumDo: a.datumDo,
+      }),
+    ),
+  );
+
+  const akcije = akcijeIzBaze.filter((_, i) => slobodneZastavice[i]);
 
   return (
     <main

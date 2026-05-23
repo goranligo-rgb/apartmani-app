@@ -15,6 +15,9 @@ type SearchParams = Promise<{
   brojOsoba?: string;
   iznosUkupno?: string;
   napomena?: string;
+  // `akcijaId` se nosi do POST forme prema `/api/rezervacije/create-payment`,
+  // gdje server uzima autoritativnu cijenu iz baze (PR3).
+  akcijaId?: string;
 }>;
 
 function brojNocenja(datumOd: string, datumDo: string) {
@@ -58,6 +61,7 @@ export default async function PregledRezervacijePage(props: {
   const brojOsoba = Number(searchParams.brojOsoba || "1");
   const iznosUkupno = Number(searchParams.iznosUkupno || "0");
   const napomena = searchParams.napomena || "";
+  const akcijaId = (searchParams.akcijaId || "").trim();
 
   const backParams = new URLSearchParams({
     jedinicaId,
@@ -74,6 +78,12 @@ export default async function PregledRezervacijePage(props: {
     iznosUkupno: String(iznosUkupno),
     napomena,
   });
+
+  // Sačuvaj `akcijaId` u "Natrag" linku da se posebna prilika ne izgubi ako
+  // gost vrati i ponovo otvori pregled.
+  if (akcijaId) {
+    backParams.set("akcijaId", akcijaId);
+  }
 
   if (
     !jedinicaId ||
@@ -219,6 +229,13 @@ export default async function PregledRezervacijePage(props: {
             <input type="hidden" name="iznosUkupno" value={iznosUkupno} />
             <input type="hidden" name="iznosPotvrde" value={iznosPotvrde} />
             <input type="hidden" name="napomena" value={napomena} />
+
+            {/* `akcijaId` je signal serveru da rezervaciju treba vezati uz
+                konkretnu Akciju i uzeti cijenu iz baze (ignorira `iznosUkupno`
+                i `iznosPotvrde` iz forme). Vidi `create-payment` POST (PR3). */}
+            {akcijaId && (
+              <input type="hidden" name="akcijaId" value={akcijaId} />
+            )}
 
             <button className="cursor-pointer border border-[#caa870] bg-[#c79a57] px-5 py-3 font-bold text-white transition hover:brightness-95">
               {naplataPunogIznosa ? "Plati cijeli iznos karticom" : "Plati akontaciju karticom"}
