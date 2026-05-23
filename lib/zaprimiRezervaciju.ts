@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { Resend } from "resend";
+import { mozdaPosaljiNadopunu } from "@/lib/ciscenje/mozdaPosaljiNadopunu";
 
 // ── Zaprimanje rezervacije nakon uspješne Stripe autorizacije kartice ──
 //
@@ -314,6 +315,14 @@ export async function zaprimiAutoriziranuRezervaciju(args: {
       },
     });
   }
+
+  // ── Nadopuna rasporeda čišćenja (PR2) ──
+  // Samo unutar grane `count === 1` — sloj 1 atomske brave garantira da
+  // se ovo izvrši točno jednom čak i kad webhook+success page stignu
+  // istovremeno. Helper sam unutar sebe ima `napomena LIKE` spam check
+  // kao back-up za eventualne ručne reset/retry scenarije.
+  // Fire-and-forget: helper sve hvata i ne baca dalje.
+  await mozdaPosaljiNadopunu({ rezervacijaIds: [r.id] });
 
   return { ok: true, zaprimljeno: true, rezervacijaId: r.id };
 }

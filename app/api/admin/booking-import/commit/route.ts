@@ -11,6 +11,7 @@ import {
   type ObjektKey,
 } from "@/lib/booking-unit-mapping";
 import { startOfTodayInZagreb } from "@/lib/dates";
+import { mozdaPosaljiNadopunu } from "@/lib/ciscenje/mozdaPosaljiNadopunu";
 
 export const dynamic = "force-dynamic";
 
@@ -292,6 +293,13 @@ export async function POST(req: Request) {
   }> = [];
   let brojObrisano = 0;
 
+  // ID-evi STVARNO novokreiranih Shadow Rezervacija (samo iz `tx.rezervacija.create`
+  // grane niže, NE iz idempotentnog update-a postojećih po icalUid-u).
+  // Koristi ih PR2 nadopuna helper poslije transakcije — kritično je da
+  // Excel re-uvoz NE pošalje agenciji nadopunu za rezervacije koje su
+  // već postojale u bazi.
+  const noviRezervacijeIds: string[] = [];
+
   try {
     await prisma.$transaction(
       async (tx) => {
@@ -409,7 +417,9 @@ export async function POST(req: Request) {
             1
           );
 
-          await tx.rezervacija.create({
+          // STVARNO nova Shadow Rezervacija — capture id za PR2 nadopuna helper.
+          // Grana iznad (existing → update + continue) NE zapisuje u noviRezervacijeIds.
+          const novaRez = await tx.rezervacija.create({
             data: {
               jedinicaId: op.jedinicaId,
               gostId,
@@ -431,7 +441,10 @@ export async function POST(req: Request) {
               automatskoCiscenje: true,
               automatskaPosteljina: true,
             },
+            select: { id: true },
           });
+
+          noviRezervacijeIds.push(novaRez.id);
         }
 
         // 3. Audit log — uključuje brojObrisano + listu obrisanih rezervacija
@@ -464,6 +477,21 @@ export async function POST(req: Request) {
       { status: 500 }
     );
   }
+
+  // ── Nadopuna rasporeda čišćenja (PR2) — JEDNOM nakon transakcije ──
+  //
+  // Pozivamo helper ZBIRNO s array-em ID-eva (jedan mail s N redaka, ne N mail-ova).
+  // `noviRezervacijeIds` sadrži SAMO Shadow Rezervacije iz `tx.rezervacija.create`
+  // grane (stvarno novokreirane), NE i one iz idempotentnog update-a postojećih
+  // po icalUid-u (grana `if (existing) { tx.rezervacija.update(...); continue; }`).
+  //
+  // Time se garantira da Excel re-uvoz iste tabele NE pošalje nadopunu agenciji
+  // za rezervacije koje su već postojale u bazi prije ovog uvoza.
+  //
+  // Helper interno filtrira `automatskoCiscenje: true`, status ≠ OTKAZANO, i
+  // preklapanje s prozorom posljednjeg weekly-ja, pa bezopasno zovemo i ako je
+  // prazan ili sve rezervacije padaju izvan prozora.
+  await mozdaPosaljiNadopunu({ rezervacijaIds: noviRezervacijeIds });
 
   return NextResponse.json({
     ok: true,
