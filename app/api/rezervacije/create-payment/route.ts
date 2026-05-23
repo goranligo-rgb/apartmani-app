@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { stripe } from "@/lib/stripe";
 import { Resend } from "resend";
-import { isRezervacijaOverlap } from "@/lib/dates";
+import { pronadiPreklapanja } from "@/lib/zauzeca";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -335,75 +335,34 @@ export async function POST(req: Request) {
       );
     }
 
-    // Same-day turnover (a.datumDo == b.datumOd) dopušten kroz
-    // isRezervacijaOverlap helper - rješava midnight/noon mix.
-    const kandidatiRez = await prisma.rezervacija.findMany({
-      where: {
-        jedinicaId,
-        status: {
-          notIn: ["OTKAZANO", "UPIT"],
-        },
-        obrisanoAt: null,
-        datumOd: {
-          lt: datumDo,
-        },
-        datumDo: {
-          gt: datumOd,
-        },
-      },
+    // Jedinstvena provjera dostupnosti kroz `pronadiPreklapanja` (lib/zauzeca.ts).
+    // Bitno: whitelist sad UKLJUČUJE UPIT — prije je `notIn: ["OTKAZANO", "UPIT"]`
+    // ostavljao race window u kojem su dvije paralelne web rezervacije obje
+    // mogle proći (svaka ne vidi UPIT druge → obje stignu do Stripe-a → obje
+    // potencijalno uspiju jer atomska brava u `zaprimiAutoriziranuRezervaciju`
+    // radi po pojedinoj rezervaciji). Stale UPIT-i čiste se kroz `expired`
+    // webhook.
+    const preklapanja = await pronadiPreklapanja({
+      jedinicaId,
+      datumOd,
+      datumDo,
     });
-    const postojiPreklapanje = kandidatiRez.find((k) =>
-      isRezervacijaOverlap(k, { datumOd, datumDo }),
-    );
 
-    if (postojiPreklapanje) {
+    if (preklapanja.rezervacije.length > 0) {
       return NextResponse.json(
         { error: "Termin je već zauzet." },
         { status: 409 }
       );
     }
 
-    // Same-day turnover dopušten kroz isRezervacijaOverlap helper.
-    const kandidatiManual = await prisma.blokadaJedinice.findMany({
-      where: {
-        jedinicaId,
-        aktivna: true,
-        datumOd: {
-          lt: datumDo,
-        },
-        datumDo: {
-          gt: datumOd,
-        },
-      },
-    });
-    const postojiRucnaBlokada = kandidatiManual.find((k) =>
-      isRezervacijaOverlap(k, { datumOd, datumDo }),
-    );
-
-    if (postojiRucnaBlokada) {
+    if (preklapanja.blokadeRucne.length > 0) {
       return NextResponse.json(
         { error: "Termin je blokiran i nije dostupan za rezervaciju." },
         { status: 409 }
       );
     }
 
-    // Same-day turnover dopušten kroz isRezervacijaOverlap helper.
-    const kandidatiBooking = await prisma.blokadaVanjskogKalendara.findMany({
-      where: {
-        jedinicaId,
-        datumOd: {
-          lt: datumDo,
-        },
-        datumDo: {
-          gt: datumOd,
-        },
-      },
-    });
-    const postojiBookingBlokada = kandidatiBooking.find((k) =>
-      isRezervacijaOverlap(k, { datumOd, datumDo }),
-    );
-
-    if (postojiBookingBlokada) {
+    if (preklapanja.blokadeVanjske.length > 0) {
       return NextResponse.json(
         { error: "Termin je zauzet preko vanjskog kalendara / Booking.com." },
         { status: 409 }

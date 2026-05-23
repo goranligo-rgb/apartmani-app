@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
-import { isRezervacijaOverlap } from "@/lib/dates";
+import { pronadiPreklapanja } from "@/lib/zauzeca";
 import { adminSessionOk } from "@/lib/admin-auth";
 
 function addDays(date: Date, days: number) {
@@ -42,21 +42,19 @@ export async function POST(req: Request) {
 
   const doDatuma = addDays(doZakljucno, 1);
 
-  // Same-day turnover (a.datumDo == b.datumOd) dopušten kroz
-  // isRezervacijaOverlap helper - rješava midnight/noon mix.
-  const kandidatiRez = await prisma.rezervacija.findMany({
-    where: {
-      jedinicaId,
-      status: { not: "OTKAZANO" },
-      datumOd: { lt: doDatuma },
-      datumDo: { gt: od },
-    },
+  // Jedinstvena provjera dostupnosti kroz `pronadiPreklapanja`. Tri vrste
+  // preklapanja se ovdje različito tretiraju:
+  // - rezervacije → REJECT (ne smije se blokirati preko žive rezervacije)
+  // - ručne blokade → TOGGLE (klik na blokirani dan otvara / deaktivira ih)
+  // - vanjske (Booking) blokade → IGNORIRAJ (admin svjesno dodaje ručnu
+  //   blokadu pa preko Booking termina; to je trenutno ponašanje, ne mijenjamo)
+  const preklapanja = await pronadiPreklapanja({
+    jedinicaId,
+    datumOd: od,
+    datumDo: doDatuma,
   });
-  const postojiRez = kandidatiRez.find((k) =>
-    isRezervacijaOverlap(k, { datumOd: od, datumDo: doDatuma }),
-  );
 
-  if (postojiRez) {
+  if (preklapanja.rezervacije.length > 0) {
     return NextResponse.json(
       {
         error:
@@ -66,18 +64,7 @@ export async function POST(req: Request) {
     );
   }
 
-  // Same-day turnover dopušten kroz isRezervacijaOverlap helper.
-  const kandidatiBlokade = await prisma.blokadaJedinice.findMany({
-    where: {
-      jedinicaId,
-      aktivna: true,
-      datumOd: { lt: doDatuma },
-      datumDo: { gt: od },
-    },
-  });
-  const postojeceBlokade = kandidatiBlokade.filter((b) =>
-    isRezervacijaOverlap(b, { datumOd: od, datumDo: doDatuma }),
-  );
+  const postojeceBlokade = preklapanja.blokadeRucne;
 
   if (postojeceBlokade.length > 0) {
     await prisma.blokadaJedinice.updateMany({

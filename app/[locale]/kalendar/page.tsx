@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { STATUSI_KOJI_ZAUZIMAJU } from "@/lib/zauzeca";
 import CalendarClient from "./CalendarClient";
 
 type SearchParams = Promise<{
@@ -72,9 +73,12 @@ export default async function KalendarPage(props: {
         },
       },
       rezervacije: {
+        // Whitelist statusa (vidi lib/zauzeca.ts) umjesto `not: "OTKAZANO"` —
+        // funkcionalno isto danas, ali eksplicitno + sigurno prema budućim
+        // statusima.
         where: {
           status: {
-            not: "OTKAZANO",
+            in: [...STATUSI_KOJI_ZAUZIMAJU],
           },
           obrisanoAt: null,
         },
