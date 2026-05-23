@@ -258,9 +258,17 @@ export async function POST(req: Request) {
     const drzava = String(formData.get("drzava") || "").trim();
 
     const brojOsoba = Number(formData.get("brojOsoba") || 1);
-    const iznosUkupno = parseMoney(formData.get("iznosUkupno"));
-    const iznosPotvrdeForm = parseMoney(formData.get("iznosPotvrde"));
+    let iznosUkupno = parseMoney(formData.get("iznosUkupno"));
+    let iznosPotvrdeForm = parseMoney(formData.get("iznosPotvrde"));
     const napomena = String(formData.get("napomena") || "").trim();
+
+    // `akcijaId` ulazi u tok iz `/rezervacije/posebne-prilike` kroz formu —
+    // ako je prisutan, server uzima cijenu iz baze (Akcija) i prebrisuje
+    // `iznosUkupno`/`iznosPotvrdeForm` iz form-data. Time zatvaramo rupu u
+    // kojoj je gost mogao u URL-u prepisati cijenu posebne prilike i platiti
+    // npr. 1 €. Validira se samo postojanje, status i točno poklapanje
+    // jedinice + termina — bez tih uvjeta zahtjev je 400.
+    const akcijaId = String(formData.get("akcijaId") || "").trim();
 
     if (
       !jedinicaId ||
@@ -288,6 +296,50 @@ export async function POST(req: Request) {
         { error: "Broj osoba mora biti veći od 0." },
         { status: 400 }
       );
+    }
+
+    // Za posebne prilike ranije dohvati Akciju i prepiši `iznosUkupno` iz
+    // baze prije iznos validacije — gost koji bi u formi predao 0 ne smije
+    // srušiti tok. Poklapanje jedinice + termina validira se kasnije, jer
+    // tek tada imamo `parseDateOnly` datume. `iznosPotvrdeForm` se ovdje
+    // privremeno poravnava s cijenom kako bi prošao `<= 0` check — pravu
+    // vrijednost (akontacija ili full) izračunamo niže iz `postotakAkontacije`.
+    let akcijaIzBaze: Awaited<ReturnType<typeof prisma.akcija.findUnique>> =
+      null;
+
+    if (akcijaId) {
+      akcijaIzBaze = await prisma.akcija.findUnique({
+        where: { id: akcijaId },
+      });
+
+      if (
+        !akcijaIzBaze ||
+        !akcijaIzBaze.aktivna ||
+        !akcijaIzBaze.prikaziNaWebu
+      ) {
+        return NextResponse.json(
+          {
+            error:
+              "Posebna prilika nije više dostupna. Osvježite stranicu i pokušajte ponovno.",
+          },
+          { status: 400 }
+        );
+      }
+
+      const cijenaIzBaze = Number(akcijaIzBaze.cijenaUkupno || 0);
+
+      if (!Number.isFinite(cijenaIzBaze) || cijenaIzBaze <= 0) {
+        return NextResponse.json(
+          {
+            error:
+              "Posebna prilika nema ispravno postavljenu cijenu. Javite se vlasniku.",
+          },
+          { status: 400 }
+        );
+      }
+
+      iznosUkupno = cijenaIzBaze;
+      iznosPotvrdeForm = cijenaIzBaze;
     }
 
     if (iznosUkupno <= 0 || iznosPotvrdeForm <= 0) {
@@ -333,6 +385,37 @@ export async function POST(req: Request) {
         },
         { status: 400 }
       );
+    }
+
+    // Posebna prilika: poklapanje jedinice i točnih datuma s Akcijom u bazi
+    // mora biti striktno. Ako se gost u URL-u igrao s `datumOd/datumDo` ili
+    // `jedinicaId`, ovdje vraćamo 400. `iznosPotvrdeForm` se ovdje računa
+    // iz `jedinica.postotakAkontacije` (ili full ako je dolazak blizu praga
+    // pune naplate) — ista logika kao na `/rezervacije/pregled`, ali server
+    // je sad vlasnik istine.
+    if (akcijaIzBaze) {
+      const istaJedinica = akcijaIzBaze.jedinicaId === jedinicaId;
+      const istiOd = akcijaIzBaze.datumOd.getTime() === datumOd.getTime();
+      const istiDo = akcijaIzBaze.datumDo.getTime() === datumDo.getTime();
+
+      if (!istaJedinica || !istiOd || !istiDo) {
+        return NextResponse.json(
+          {
+            error:
+              "Detalji rezervacije ne odgovaraju posebnoj prilici. Osvježite stranicu i pokušajte ponovno.",
+          },
+          { status: 400 }
+        );
+      }
+
+      const danaDoDolaskaZaAkciju = daysUntil(datumOd);
+      const naplataPunogIznosaZaAkciju =
+        danaDoDolaskaZaAkciju <= PRAG_PUNE_NAPLATE_DANA;
+      const postotak = Number(jedinica.postotakAkontacije ?? 30);
+
+      iznosPotvrdeForm = naplataPunogIznosaZaAkciju
+        ? iznosUkupno
+        : Number(((iznosUkupno * postotak) / 100).toFixed(2));
     }
 
     // Jedinstvena provjera dostupnosti kroz `pronadiPreklapanja` (lib/zauzeca.ts).
@@ -446,6 +529,14 @@ export async function POST(req: Request) {
         },
       });
 
+      // Za audit toka: ako je rezervacija nastala iz posebne prilike, dodajemo
+      // suffix u `napomena` plaćanja i `posebnaPrilika` blok u `noviPodaci`
+      // promjene (audit log). Veza prema `Akcija` modelu kroz FK nije dio PR3
+      // (out of scope) — `akcijaId` se prati samo kroz JSON audit.
+      const napomenaPosebnePrilike = akcijaIzBaze
+        ? ` Posebna prilika: ${akcijaIzBaze.naziv || "Akcijska ponuda"} (${akcijaIzBaze.id}).`
+        : "";
+
       const placanje = await tx.placanje.create({
         data: {
           rezervacijaId: rezervacija.id,
@@ -455,15 +546,16 @@ export async function POST(req: Request) {
           valuta: "EUR",
           nacinPlacanja: "KARTICA",
           provider: "STRIPE",
-          napomena: naplataPunogIznosa
-            ? `Stripe naplata cijelog iznosa jer je dolazak za ${danaDoDolaska} dana. Ukupno: ${money(
-              iznosUkupno
-            )}.`
-            : `Stripe autorizacija potvrde rezervacije. Ukupno: ${money(
-              iznosUkupno
-            )}, potvrda: ${money(iznosZaNaplatu)}, ostatak: ${money(
-              iznosOstatka
-            )}.`,
+          napomena:
+            (naplataPunogIznosa
+              ? `Stripe naplata cijelog iznosa jer je dolazak za ${danaDoDolaska} dana. Ukupno: ${money(
+                iznosUkupno
+              )}.`
+              : `Stripe autorizacija potvrde rezervacije. Ukupno: ${money(
+                iznosUkupno
+              )}, potvrda: ${money(iznosZaNaplatu)}, ostatak: ${money(
+                iznosOstatka
+              )}.`) + napomenaPosebnePrilike,
         },
       });
 
@@ -471,9 +563,11 @@ export async function POST(req: Request) {
         data: {
           rezervacijaId: rezervacija.id,
           tip: "KREIRANJE_WEB_REZERVACIJE",
-          opis: naplataPunogIznosa
-            ? `Gost je pokrenuo web rezervaciju. Dolazak je za ${danaDoDolaska} dana pa se naplaćuje 100% iznosa.`
-            : "Gost je pokrenuo web rezervaciju i otvorena je Stripe autorizacija kartice.",
+          opis: akcijaIzBaze
+            ? `Gost je pokrenuo web rezervaciju kroz posebnu priliku "${akcijaIzBaze.naziv || "Akcijska ponuda"}" i otvorena je Stripe autorizacija kartice.`
+            : naplataPunogIznosa
+              ? `Gost je pokrenuo web rezervaciju. Dolazak je za ${danaDoDolaska} dana pa se naplaćuje 100% iznosa.`
+              : "Gost je pokrenuo web rezervaciju i otvorena je Stripe autorizacija kartice.",
           noviPodaci: JSON.stringify({
             objekt: jedinica.objekt.naziv,
             jedinica: jedinica.naziv,
@@ -489,6 +583,13 @@ export async function POST(req: Request) {
             pragPuneNaplateDana: PRAG_PUNE_NAPLATE_DANA,
             danaDoDolaska,
             tipPlacanja,
+            posebnaPrilika: akcijaIzBaze
+              ? {
+                akcijaId: akcijaIzBaze.id,
+                naziv: akcijaIzBaze.naziv,
+                cijenaIzBaze: Number(akcijaIzBaze.cijenaUkupno || 0),
+              }
+              : null,
             gost: {
               ime,
               prezime,

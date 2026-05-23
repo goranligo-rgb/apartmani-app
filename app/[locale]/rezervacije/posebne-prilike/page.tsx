@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
+import { jedinicaJeSlobodna } from "@/lib/zauzeca";
 
 export const dynamic = "force-dynamic";
 
@@ -57,26 +58,26 @@ export default async function PosebnePrilikeRezervacijaPage({
     redirect("/posebne-prilike");
   }
 
-  const zauzeto = await prisma.rezervacija.findFirst({
-    where: {
-      jedinicaId: akcija.jedinicaId,
-      status: {
-        not: "OTKAZANO",
-      },
-      datumOd: {
-        lt: akcija.datumDo,
-      },
-      datumDo: {
-        gt: akcija.datumOd,
-      },
-    },
+  // Jedinstvena provjera dostupnosti kroz `jedinicaJeSlobodna` (lib/zauzeca.ts).
+  // Stara verzija je gledala samo rezervacije (`not: "OTKAZANO"`) — ručne i
+  // vanjske blokade (iCal/Booking) bi prošle, gost bi kliknuo "Rezerviraj" i
+  // tek `create-payment` POST bi vratio 409. Sad je UI usklađen s validacijom.
+  const slobodno = await jedinicaJeSlobodna({
+    jedinicaId: akcija.jedinicaId,
+    datumOd: akcija.datumOd,
+    datumDo: akcija.datumDo,
   });
+  const zauzeto = !slobodno;
 
   const ukupno = Number(akcija.cijenaUkupno || 0);
   const osobe = Number(
     akcija.brojOsoba || akcija.jedinica.ukupniKapacitet || 1
   );
 
+  // `akcijaId` putuje kroz cijeli tok do `create-payment` POST-a, gdje server
+  // dohvaća cijenu iz baze i ignorira `iznosUkupno` iz URL-a (zatvorena rupa
+  // manipulacije cijene). `iznosUkupno` ostaje u URL-u samo za prikaz na
+  // `/rezervacije/nova` i `/rezervacije/pregled` — server ga ne vjeruje.
   const rezervacijaParams = new URLSearchParams({
     jedinicaId: akcija.jedinicaId,
     datumOd: toIsoDate(akcija.datumOd),
@@ -84,6 +85,7 @@ export default async function PosebnePrilikeRezervacijaPage({
     iznosUkupno: String(ukupno),
     brojOsoba: String(osobe),
     napomena: `Posebna prilika: ${akcija.naziv || "Akcijska ponuda"}`,
+    akcijaId: akcija.id,
   });
 
   return (
