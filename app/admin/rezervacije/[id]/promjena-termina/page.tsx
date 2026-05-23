@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { isRezervacijaOverlap } from "@/lib/dates";
+import { pronadiPreklapanja, STATUSI_KOJI_ZAUZIMAJU } from "@/lib/zauzeca";
 
 export const dynamic = "force-dynamic";
 
@@ -221,11 +221,12 @@ export default async function PromjenaTerminaPage({
   const kalendarOd = prviMjesec;
   const kalendarDo = addMonths(kalendarOd, 6);
 
+  // Whitelist statusa (lib/zauzeca.ts) umjesto `not: "OTKAZANO"`.
   const rezervacije = await prisma.rezervacija.findMany({
     where: {
       jedinicaId: rezervacija.jedinicaId,
       status: {
-        not: "OTKAZANO",
+        in: [...STATUSI_KOJI_ZAUZIMAJU],
       },
       datumOd: {
         lt: kalendarDo,
@@ -254,30 +255,26 @@ export default async function PromjenaTerminaPage({
     orderBy: [{ datumOd: "asc" }],
   });
 
-  // Same-day turnover (a.datumDo == b.datumOd) dopušten kroz
-  // isRezervacijaOverlap helper - rješava midnight/noon mix.
-  const postojiPreklapanje =
+  // Jedinstvena provjera dostupnosti kroz `pronadiPreklapanja` — uključuje
+  // i ručne blokade i Booking iCal blokade (prije se gledalo samo
+  // rezervacije, pa se premještaj termina mogao slučajno preklopiti s
+  // ručnom blokadom ili vanjskim kalendarom). `iskljuciRezervacijuId`
+  // sprječava da rezervacija prijavi sukob sama protiv sebe.
+  const preklapanjaPromjena =
     odabraniOd && odabraniDo && odabraniOd < odabraniDo
-      ? (await prisma.rezervacija.findMany({
-        where: {
-          id: {
-            not: rezervacija.id,
-          },
-          jedinicaId: rezervacija.jedinicaId,
-          status: {
-            not: "OTKAZANO",
-          },
-          datumOd: {
-            lt: odabraniDo,
-          },
-          datumDo: {
-            gt: odabraniOd,
-          },
-        },
-      })).find((k) =>
-        isRezervacijaOverlap(k, { datumOd: odabraniOd, datumDo: odabraniDo }),
-      ) ?? null
+      ? await pronadiPreklapanja({
+        jedinicaId: rezervacija.jedinicaId,
+        datumOd: odabraniOd,
+        datumDo: odabraniDo,
+        iskljuciRezervacijuId: rezervacija.id,
+      })
       : null;
+
+  const postojiPreklapanje =
+    !!preklapanjaPromjena &&
+    (preklapanjaPromjena.rezervacije.length > 0 ||
+      preklapanjaPromjena.blokadeRucne.length > 0 ||
+      preklapanjaPromjena.blokadeVanjske.length > 0);
 
   const mjeseci = [0, 1, 2, 3, 4, 5].map((i) => {
     const d = addMonths(kalendarOd, i);
@@ -322,30 +319,20 @@ export default async function PromjenaTerminaPage({
       );
     }
 
-    // Same-day turnover (a.datumDo == b.datumOd) dopušten kroz
-    // isRezervacijaOverlap helper - rješava midnight/noon mix.
-    const kandidati = await prisma.rezervacija.findMany({
-      where: {
-        id: {
-          not: rezervacijaId,
-        },
-        jedinicaId: r.jedinicaId,
-        status: {
-          not: "OTKAZANO",
-        },
-        datumOd: {
-          lt: noviDatumDo,
-        },
-        datumDo: {
-          gt: noviDatumOd,
-        },
-      },
+    // Jedinstvena provjera kroz helper — gleda rezervacije + ručne + Booking
+    // blokade, isključuje samu rezervaciju koja se mijenja.
+    const preklapanjaServ = await pronadiPreklapanja({
+      jedinicaId: r.jedinicaId,
+      datumOd: noviDatumOd,
+      datumDo: noviDatumDo,
+      iskljuciRezervacijuId: rezervacijaId,
     });
-    const preklapanje = kandidati.find((k) =>
-      isRezervacijaOverlap(k, { datumOd: noviDatumOd, datumDo: noviDatumDo }),
-    );
 
-    if (preklapanje) {
+    if (
+      preklapanjaServ.rezervacije.length > 0 ||
+      preklapanjaServ.blokadeRucne.length > 0 ||
+      preklapanjaServ.blokadeVanjske.length > 0
+    ) {
       redirect(
         `/admin/rezervacije/${rezervacijaId}/promjena-termina?od=${noviDatumOdRaw}&do=${noviDatumDoRaw}&error=preklapanje`
       );

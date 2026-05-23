@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import type { ReactNode } from "react";
 import { prisma } from "@/lib/prisma";
 import { sendMail } from "@/lib/mail";
-import { isRezervacijaOverlap } from "@/lib/dates";
+import { pronadiPreklapanja, STATUSI_KOJI_ZAUZIMAJU } from "@/lib/zauzeca";
 import CijenaPreview from "./CijenaPreview";
 import { potvrdiNaplatu } from "@/lib/potvrdaNaplate";
 
@@ -447,12 +447,15 @@ export default async function NovaAdminRezervacijaPage({
       },
     }));
 
+  // Whitelist statusa (STATUSI_KOJI_ZAUZIMAJU) umjesto `not: "OTKAZANO"`.
+  // Funkcionalno isto danas (sve osim OTKAZANO), ali eksplicitno + sigurno
+  // prema budućim statusima.
   const rezervacije = jedinica
     ? await prisma.rezervacija.findMany({
       where: {
         jedinicaId: jedinica.id,
         status: {
-          not: "OTKAZANO",
+          in: [...STATUSI_KOJI_ZAUZIMAJU],
         },
         obrisanoAt: null,
         datumOd: {
@@ -509,28 +512,25 @@ export default async function NovaAdminRezervacijaPage({
     ((osnovnaCijena * defaultAkontacijaPostotak) / 100).toFixed(2)
   );
 
-  // Same-day turnover (a.datumDo == b.datumOd) dopušten kroz
-  // isRezervacijaOverlap helper - rješava midnight/noon mix.
-  const postojiPreklapanje =
+  // Jedinstvena provjera preko `pronadiPreklapanja` — uključuje i ručne
+  // blokade i Booking iCal blokade, ne samo rezervacije (prije se admin
+  // alat mogao slučajno koristiti preko Booking termina jer su BlokadaVanjsko
+  // blokade bile nevidljive ovom check-u).
+  const preklapanja =
     jedinica && odabraniOd && odabraniDo && odabraniOd < odabraniDo
-      ? (await prisma.rezervacija.findMany({
-        where: {
-          jedinicaId: jedinica.id,
-          status: {
-            not: "OTKAZANO",
-          },
-          obrisanoAt: null,
-          datumOd: {
-            lt: odabraniDo,
-          },
-          datumDo: {
-            gt: odabraniOd,
-          },
-        },
-      })).find((k) =>
-        isRezervacijaOverlap(k, { datumOd: odabraniOd, datumDo: odabraniDo }),
-      ) ?? null
+      ? await pronadiPreklapanja({
+        jedinicaId: jedinica.id,
+        datumOd: odabraniOd,
+        datumDo: odabraniDo,
+      })
       : null;
+
+  const postojiPreklapanjeRez = preklapanja?.rezervacije[0] ?? null;
+  const postojiBlokadaRucna = preklapanja?.blokadeRucne[0] ?? null;
+  const postojiBlokadaVanjska = preklapanja?.blokadeVanjske[0] ?? null;
+
+  const postojiPreklapanje =
+    !!postojiPreklapanjeRez || !!postojiBlokadaRucna || !!postojiBlokadaVanjska;
 
   async function kreirajAdminRezervaciju(formData: FormData) {
     "use server";
@@ -609,29 +609,28 @@ export default async function NovaAdminRezervacijaPage({
       throw new Error("Jedinica nije pronađena.");
     }
 
-    // Same-day turnover (a.datumDo == b.datumOd) dopušten kroz
-    // isRezervacijaOverlap helper - rješava midnight/noon mix.
-    const kandidati = await prisma.rezervacija.findMany({
-      where: {
-        jedinicaId,
-        status: {
-          not: "OTKAZANO",
-        },
-        obrisanoAt: null,
-        datumOd: {
-          lt: datumDo,
-        },
-        datumDo: {
-          gt: datumOd,
-        },
-      },
+    // Jedinstvena provjera kroz helper — pokriva rezervacije, ručne blokade
+    // i Booking iCal blokade odjednom. Prije se admin "Nova" akcija nije
+    // gledala blokade pa je admin mogao slučajno bukirati preko Booking
+    // gosta ili ručno blokiranog termina.
+    const preklapanja = await pronadiPreklapanja({
+      jedinicaId,
+      datumOd,
+      datumDo,
     });
-    const preklapanje = kandidati.find((k) =>
-      isRezervacijaOverlap(k, { datumOd, datumDo }),
-    );
 
-    if (preklapanje) {
+    if (preklapanja.rezervacije.length > 0) {
       throw new Error("Odabrani termin je zauzet.");
+    }
+
+    if (preklapanja.blokadeRucne.length > 0) {
+      throw new Error("Termin je ručno blokiran.");
+    }
+
+    if (preklapanja.blokadeVanjske.length > 0) {
+      throw new Error(
+        "Termin je zauzet preko vanjskog kalendara / Booking.com.",
+      );
     }
 
     const nocenja = countNights(datumOd, datumDo);
@@ -1219,9 +1218,29 @@ export default async function NovaAdminRezervacijaPage({
               {postojiPreklapanje && (
                 <div className="mt-5 border border-red-300 bg-red-50 p-4 text-sm font-black text-red-700">
                   Odabrani termin je zauzet. Odaberi drugi termin.
-                  {postojiPreklapanje.izvor === "BOOKING" && (
+                  {/* Shadow Booking rezervacija (Excel obogaćena) — već prepoznata
+                      kroz izvor polje na rezervaciji. */}
+                  {postojiPreklapanjeRez?.izvor === "BOOKING" && (
                     <div className="mt-1 text-purple-800">
                       Termin je zauzet preko Booking rezervacije.
+                    </div>
+                  )}
+                  {postojiBlokadaRucna && (
+                    <div className="mt-1 text-amber-800">
+                      Termin je ručno blokiran
+                      {postojiBlokadaRucna.razlog
+                        ? ` (${postojiBlokadaRucna.razlog})`
+                        : ""}
+                      .
+                    </div>
+                  )}
+                  {postojiBlokadaVanjska && (
+                    <div className="mt-1 text-purple-800">
+                      Termin je zauzet preko vanjskog kalendara
+                      {postojiBlokadaVanjska.izvor
+                        ? ` (${postojiBlokadaVanjska.izvor})`
+                        : ""}
+                      .
                     </div>
                   )}
                 </div>
