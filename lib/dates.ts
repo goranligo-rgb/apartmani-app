@@ -42,6 +42,56 @@ export function startOfTodayInZagreb(): Date {
 }
 
 /**
+ * Vraća trenutni dan tjedna i sat u Europe/Zagreb zoni.
+ *
+ * Koristi se za cron-driven okidače gdje je raspored definiran u lokalnom
+ * vremenu (npr. "pošalji mail agenciji petkom u 08:00"). Vercel cron se vrti
+ * u UTC, pa kod treba sam odlučiti je li trenutak podudaranja u lokalnoj zoni
+ * — što ovo dvije godišnje skoka DST-a (CET ↔ CEST) automatski preživljava
+ * jer se oslanja na Intl API umjesto na fiksni offset.
+ *
+ * dayOfWeek prati JS konvenciju: 0 = Nedjelja, 1 = Ponedjeljak, ..., 6 = Subota.
+ * Time podudaranje s `saljiPonedjeljak/Utorak/...` poljima u `CiscenjeMailPostavke`
+ * postaje običan switch (vidi `martyBazenZaDan` u `generirajINaPosalji.ts`).
+ *
+ * Primjer:
+ *   UTC 2026-05-23 06:00 (CEST, ljeto)  → { dayOfWeek: 6, hour: 8 }
+ *   UTC 2026-01-15 07:00 (CET, zima)    → { dayOfWeek: 4, hour: 8 }
+ */
+export function dohvatiZagrebDanISat(): { dayOfWeek: number; hour: number } {
+  const formatter = new Intl.DateTimeFormat("en-US", {
+    timeZone: ZAGREB_TZ,
+    weekday: "short",
+    hour: "2-digit",
+    hour12: false,
+  });
+
+  const parts = formatter.formatToParts(new Date());
+  const weekday = parts.find((p) => p.type === "weekday")?.value || "";
+  const hourStr = parts.find((p) => p.type === "hour")?.value || "0";
+
+  // Intl s en-US locale vraća "Sun", "Mon", ...
+  const mapa: Record<string, number> = {
+    Sun: 0,
+    Mon: 1,
+    Tue: 2,
+    Wed: 3,
+    Thu: 4,
+    Fri: 5,
+    Sat: 6,
+  };
+
+  // hour "24" se ponekad pojavi za ponoć u en-US (kvirk Intl-a) — normaliziraj.
+  const hourRaw = Number(hourStr);
+  const hour = hourRaw === 24 ? 0 : hourRaw;
+
+  return {
+    dayOfWeek: mapa[weekday] ?? 0,
+    hour,
+  };
+}
+
+/**
  * Normaliziraj datum na 12:00 UTC istog UTC kalendarskog dana.
  *
  * Konvencija: rezervacije i blokade se interpretiraju kao "od 12:00 do 12:00"
