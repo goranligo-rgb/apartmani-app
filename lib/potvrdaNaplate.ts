@@ -336,7 +336,7 @@ export async function potvrdiNaplatu(
       ).toLocaleDateString("hr-HR");
 
       const mailResult = await resend.emails.send({
-        from: "Malinska-stay <rezervacije@malinska-stay.hr>",
+        from: "Malinska Stay <rezervacije@malinska-stay.hr>",
         to: email,
         cc: ccEmails,
         bcc: [BCC_EMAIL],
@@ -390,6 +390,7 @@ export async function potvrdiNaplatu(
           <div style="padding:16px; background:#fff6e2; border:1px solid #c79a57; color:#7a5a22;">
             <strong>Potvrđeno:</strong><br/>
             Rezervacija je potvrđena. U privitku vam šaljemo račun za zaprimljenu uplatu.
+            Ostatak iznosa potrebno je uplatiti prije dolaska — podsjetnik s linkom za uplatu poslat ćemo Vam nekoliko dana ranije.
           </div>
         `
       }
