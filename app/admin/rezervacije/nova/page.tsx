@@ -2,12 +2,14 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import type { ReactNode } from "react";
+import { hasLocale } from "next-intl";
 import { prisma } from "@/lib/prisma";
 import { sendMail } from "@/lib/mail";
 import { pronadiPreklapanja, STATUSI_KOJI_ZAUZIMAJU } from "@/lib/zauzeca";
 import CijenaPreview from "./CijenaPreview";
 import { potvrdiNaplatu } from "@/lib/potvrdaNaplate";
 import { mozdaPosaljiNadopunu } from "@/lib/ciscenje/mozdaPosaljiNadopunu";
+import { routing } from "@/i18n/routing";
 
 export const dynamic = "force-dynamic";
 
@@ -547,6 +549,12 @@ export default async function NovaAdminRezervacijaPage({
     const adresa = String(formData.get("adresa") || "").trim();
     const grad = String(formData.get("grad") || "").trim();
     const drzava = String(formData.get("drzava") || "").trim();
+
+    // Admin svjesno bira jezik komunikacije iz dropdown-a — jaki signal,
+    // overwrite-uvijek na Gostu (za razliku od bookinga gdje je signal slab).
+    const jezikRaw = String(formData.get("jezik") || "").trim();
+    const jezik = hasLocale(routing.locales, jezikRaw) ? jezikRaw : "hr";
+
     const brojOsoba = Number(formData.get("brojOsoba") || 1);
 
     const popustPostotak = parseMoney(formData.get("popustPostotak"));
@@ -718,6 +726,7 @@ export default async function NovaAdminRezervacijaPage({
           adresa: adresa || null,
           grad: grad || null,
           drzava: drzava || null,
+          jezik,
         },
         create: {
           ime,
@@ -727,6 +736,7 @@ export default async function NovaAdminRezervacijaPage({
           adresa: adresa || null,
           grad: grad || null,
           drzava: drzava || null,
+          jezik,
         },
       });
     } else {
@@ -739,6 +749,7 @@ export default async function NovaAdminRezervacijaPage({
           adresa: adresa || null,
           grad: grad || null,
           drzava: drzava || null,
+          jezik,
         },
       });
     }
@@ -1021,6 +1032,7 @@ export default async function NovaAdminRezervacijaPage({
             adresa,
             grad,
             drzava,
+            jezik,
           },
           iznosOsnovni,
           popustPostotak,
@@ -1342,6 +1354,23 @@ export default async function NovaAdminRezervacijaPage({
                         </select>
                       </Field>
                     </div>
+
+                    <Field label="Jezik komunikacije">
+                      <select
+                        name="jezik"
+                        defaultValue="hr"
+                        className="w-full cursor-pointer border border-[#d8c8aa] bg-white px-3 py-2 text-[#2e2923] outline-none"
+                      >
+                        <option value="hr">Hrvatski</option>
+                        <option value="en">English</option>
+                        <option value="de">Deutsch</option>
+                        <option value="it">Italiano</option>
+                        <option value="hu">Magyar</option>
+                        <option value="pl">Polski</option>
+                        <option value="cs">Čeština</option>
+                        <option value="sk">Slovenčina</option>
+                      </select>
+                    </Field>
 
                     <Field label="Broj osoba">
                       <input

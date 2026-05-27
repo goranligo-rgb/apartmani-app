@@ -11,6 +11,7 @@ import {
   type ObjektKey,
 } from "@/lib/booking-unit-mapping";
 import { startOfTodayInZagreb } from "@/lib/dates";
+import { drzavaUJezik } from "@/lib/jezik";
 import { mozdaPosaljiNadopunu } from "@/lib/ciscenje/mozdaPosaljiNadopunu";
 
 export const dynamic = "force-dynamic";
@@ -380,6 +381,11 @@ export async function POST(req: Request) {
 
           let gostId: string | null = null;
 
+          // Mapiraj državu u jezik (booking ISO kod → routing locale).
+          // Booking je slabiji signal od weba; jezik NE prepisujemo na postojećem
+          // gostu — koristimo "fill if null" obrazac niže.
+          const bookingJezik = drzavaUJezik(op.gostDrzava);
+
           if (op.gostEmail) {
             const g = await tx.gost.upsert({
               where: { email: op.gostEmail },
@@ -389,6 +395,7 @@ export async function POST(req: Request) {
                 email: op.gostEmail,
                 telefon: op.gostTelefon,
                 drzava: op.gostDrzava,
+                jezik: bookingJezik,
               },
               update: {
                 ime: op.gostIme || undefined,
@@ -398,6 +405,15 @@ export async function POST(req: Request) {
               },
             });
             gostId = g.id;
+
+            // Postojeći gost bez jezika dobiva ga iz booking signala; ako već
+            // ima jezik (npr. web ga je postavio), NE diramo.
+            if (bookingJezik && g.jezik == null) {
+              await tx.gost.update({
+                where: { id: g.id },
+                data: { jezik: bookingJezik },
+              });
+            }
           } else if (op.gostIme) {
             const g = await tx.gost.create({
               data: {
@@ -405,6 +421,7 @@ export async function POST(req: Request) {
                 prezime: op.gostPrezime,
                 telefon: op.gostTelefon,
                 drzava: op.gostDrzava,
+                jezik: bookingJezik,
               },
             });
             gostId = g.id;
