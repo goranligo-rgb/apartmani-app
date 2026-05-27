@@ -213,6 +213,14 @@ async function posaljiSifruGostu(formData: FormData) {
     const jezik = odaberiJezikMaila(rezervacija.gost.jezik);
     const t = dohvatiPrijevode(jezik).ttlockSifra;
 
+    // House Art (vrsta=KUCA) ima samo 1 jedinicu istog naziva kao objekt —
+    // preskačemo naziv jedinice u naslovu da se ne ponavlja "House Art, House Art".
+    // Multi-unit objekti (APARTMAN/STAN, npr. "Eva 1") dobivaju oba.
+    const jedinicaNazivZaNaslov =
+        rezervacija.jedinica.vrsta === "KUCA"
+            ? undefined
+            : rezervacija.jedinica.naziv;
+
     await resend.emails.send({
         from: process.env.MAIL_FROM || "Malinska Stay <rezervacije@malinska-stay.hr>",
         to: rezervacija.gost.email,
@@ -220,7 +228,7 @@ async function posaljiSifruGostu(formData: FormData) {
         subject: t.subject(rezervacija.jedinica.objekt.naziv),
         html: `
             <div style="font-family:Arial,sans-serif;line-height:1.6;color:#2f261d">
-                <h2>${t.naslov}</h2>
+                <h2>${t.naslov(rezervacija.jedinica.objekt.naziv, jedinicaNazivZaNaslov)}</h2>
                 <p>${t.pozdrav(rezervacija.gost.ime || "")}</p>
                 <p>${t.sifraJe}</p>
                 <div style="font-size:34px;font-weight:800;letter-spacing:8px;padding:16px;background:#f7f2e8;border-radius:16px;text-align:center;">

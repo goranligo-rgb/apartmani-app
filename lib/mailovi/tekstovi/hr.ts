@@ -239,7 +239,10 @@ export const hr: MailTekstovi = {
   // 10. TTLOCK_SIFRA — app/admin/ttlock/rezervacije/page.tsx
   ttlockSifra: {
     subject: (nazivObjekta) => `Vaša ulazna šifra - ${nazivObjekta}`,
-    naslov: "Dobrodošli u Malinska Stay",
+    naslov: (nazivObjekta, jedinicaNaziv) =>
+      jedinicaNaziv
+        ? `Dobrodošli u ${nazivObjekta}, ${jedinicaNaziv}`
+        : `Dobrodošli u ${nazivObjekta}`,
     pozdrav: (ime) => `Poštovani ${ime},`,
     sifraJe: "Vaša ulazna šifra je:",
     sifraVrijedi: (vrijediOd, vrijediDo) =>

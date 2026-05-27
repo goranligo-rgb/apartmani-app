@@ -191,7 +191,10 @@ export interface MailTekstovi {
   // 10. TTLock — admin pošalje gostu ulaznu šifru (kod za bravu).
   ttlockSifra: {
     subject: (nazivObjekta: string) => string;
-    naslov: string;
+    // naslov u tijelu maila — dinamički ovisno o tipu jedinice. Za KUCA
+    // (House Art) ne ponavljamo naziv jedinice jer je isti kao objekt;
+    // za APARTMAN/STAN dodajemo i naziv jedinice (npr. "Eva 1").
+    naslov: (nazivObjekta: string, jedinicaNaziv?: string) => string;
     pozdrav: (ime: string) => string;
     sifraJe: string;
     sifraVrijedi: (vrijediOd: string, vrijediDo: string) => string;

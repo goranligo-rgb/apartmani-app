@@ -235,7 +235,10 @@ export const en: MailTekstovi = {
   // 10. TTLOCK_SIFRA
   ttlockSifra: {
     subject: (nazivObjekta) => `Your entry code - ${nazivObjekta}`,
-    naslov: "Welcome to Malinska Stay",
+    naslov: (nazivObjekta, jedinicaNaziv) =>
+      jedinicaNaziv
+        ? `Welcome to ${nazivObjekta}, ${jedinicaNaziv}`
+        : `Welcome to ${nazivObjekta}`,
     pozdrav: (ime) => `Dear ${ime},`,
     sifraJe: "Your entry code is:",
     sifraVrijedi: (vrijediOd, vrijediDo) =>
