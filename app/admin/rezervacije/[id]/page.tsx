@@ -6,6 +6,11 @@ import { Resend } from "resend";
 import { stripe } from "@/lib/stripe";
 import { dodajTtlockSifru } from "@/lib/ttlock";
 import { potvrdiNaplatu } from "@/lib/potvrdaNaplate";
+import {
+  dohvatiPrijevode,
+  odaberiJezikMaila,
+  formatDateZaMail,
+} from "@/lib/mailovi";
 
 export const dynamic = "force-dynamic";
 
@@ -424,49 +429,49 @@ export default async function RezervacijaDetaljPage({
     });
 
     if (r.gost?.email) {
+      const jezik = odaberiJezikMaila(r.gost.jezik);
+      const t = dohvatiPrijevode(jezik).rezervacijaOdbijena;
+
       await resend.emails.send({
         from: getMailFrom(),
         to: r.gost.email,
         bcc: [BCC_EMAIL],
-        subject: "Rezervacija nije potvrđena",
+        subject: t.subject,
         html: `
   <div style="font-family: Arial, sans-serif; background:#f4efe6; padding:24px;">
     <div style="max-width:640px; margin:0 auto; background:white; border:1px solid #eadfce;">
       <div style="background:#7f1d1d; color:white; padding:22px;">
-        <h2 style="margin:0;">Rezervacija nije potvrđena</h2>
+        <h2 style="margin:0;">${t.title}</h2>
         <p style="margin:8px 0 0; color:#fee2e2;">
-          Žao nam je, vašu rezervaciju trenutno nismo u mogućnosti potvrditi.
+          ${t.subtitle}
         </p>
       </div>
 
       <div style="padding:24px; color:#2e2923; line-height:1.55;">
-        <p>Poštovani <strong>${r.gost.ime || "goste"} ${r.gost.prezime || ""}</strong>,</p>
+        <p>${t.pozdrav(r.gost.ime || "goste", r.gost.prezime || "")}</p>
 
         <p>
-          Hvala vam na poslanom zahtjevu za rezervaciju. Nažalost, nakon provjere
-          dostupnosti nismo u mogućnosti potvrditi ovu rezervaciju.
+          ${t.uvodPara}
         </p>
 
         <div style="margin:22px 0; padding:18px; background:#fcfaf6; border:1px solid #eadfce;">
-          <h3 style="margin:0 0 14px;">Detalji zahtjeva</h3>
-          <p><strong>Objekt:</strong> ${r.jedinica.objekt.naziv}</p>
-          <p><strong>Smještajna jedinica:</strong> ${r.jedinica.naziv}</p>
-          <p><strong>Dolazak:</strong> ${formatDate(r.datumOd)}</p>
-          <p><strong>Odlazak:</strong> ${formatDate(r.datumDo)}</p>
+          <h3 style="margin:0 0 14px;">${t.detaljiNaslov}</h3>
+          <p><strong>${t.labelObjekt}</strong> ${r.jedinica.objekt.naziv}</p>
+          <p><strong>${t.labelJedinica}</strong> ${r.jedinica.naziv}</p>
+          <p><strong>${t.labelDolazak}</strong> ${formatDateZaMail(r.datumOd, jezik)}</p>
+          <p><strong>${t.labelOdlazak}</strong> ${formatDateZaMail(r.datumDo, jezik)}</p>
         </div>
 
         <div style="padding:16px; background:#fff6e2; border:1px solid #c79a57; color:#7a5a22;">
-          Ako je kartica bila autorizirana, autorizacija se poništava i iznos se ne naplaćuje.
+          ${t.autorizacijaPonistena}
         </div>
 
         <p style="margin-top:22px;">
-          Ispričavamo se zbog neugodnosti. Slobodno nam se javite za drugi termin
-          ili drugu smještajnu jedinicu.
+          ${t.ispricavamoSe}
         </p>
 
         <p style="margin-top:28px;">
-          Lijep pozdrav,<br/>
-          <strong>Malinska Stay</strong>
+          ${t.zavrsetak}
         </p>
       </div>
     </div>
@@ -478,7 +483,7 @@ export default async function RezervacijaDetaljPage({
         data: {
           rezervacijaId,
           to: r.gost.email,
-          subject: "Rezervacija nije potvrđena",
+          subject: t.subject,
           tip: "OTKAZIVANJE_REZERVACIJE",
           status: "POSLANO",
         },
@@ -609,12 +614,10 @@ export default async function RezervacijaDetaljPage({
       },
     });
 
-    const subject =
-      tip === "AKONTACIJA"
-        ? "Zahtjev za uplatu akontacije"
-        : tip === "RAZLIKA"
-          ? "Zahtjev za uplatu razlike"
-          : "Zahtjev za uplatu ostatka";
+    const jezik = odaberiJezikMaila(r.gost?.jezik);
+    const t = dohvatiPrijevode(jezik).zahtjevZaUplatu;
+
+    const subject = t.subject(tip);
 
     const tipEmaila =
       tip === "AKONTACIJA"
@@ -641,44 +644,40 @@ export default async function RezervacijaDetaljPage({
               <div style="background:#2e2923;color:white;padding:22px;">
                 <h2 style="margin:0;">${subject}</h2>
                 <p style="margin:8px 0 0;color:#eadfce;">
-                  Rezervacija čeka uplatu.
+                  ${t.subtitle}
                 </p>
               </div>
 
               <div style="padding:24px;color:#2e2923;line-height:1.55;">
                 <p>
-                  Poštovani <strong>${r.gost.ime || "goste"} ${r.gost.prezime || ""
-            }</strong>,
+                  ${t.pozdrav(r.gost.ime || "goste", r.gost.prezime || "")}
                 </p>
 
                 <p>
-                  Vaša rezervacija je evidentirana. Molimo uplatu kako bismo
-                  mogli potvrditi rezervaciju.
+                  ${t.uvodPara}
                 </p>
 
                 <div style="margin:22px 0;padding:18px;background:#fcfaf6;border:1px solid #eadfce;">
-                  <h3 style="margin:0 0 14px;">Detalji rezervacije</h3>
-                  <p><strong>Objekt:</strong> ${r.jedinica.objekt.naziv}</p>
-                  <p><strong>Smještajna jedinica:</strong> ${r.jedinica.naziv}</p>
-                  <p><strong>Dolazak:</strong> ${formatDate(r.datumOd)}</p>
-                  <p><strong>Odlazak:</strong> ${formatDate(r.datumDo)}</p>
-                  <p><strong>Iznos za uplatu:</strong> ${money(iznos)}</p>
+                  <h3 style="margin:0 0 14px;">${t.detaljiNaslov}</h3>
+                  <p><strong>${t.labelObjekt}</strong> ${r.jedinica.objekt.naziv}</p>
+                  <p><strong>${t.labelJedinica}</strong> ${r.jedinica.naziv}</p>
+                  <p><strong>${t.labelDolazak}</strong> ${formatDateZaMail(r.datumOd, jezik)}</p>
+                  <p><strong>${t.labelOdlazak}</strong> ${formatDateZaMail(r.datumDo, jezik)}</p>
+                  <p><strong>${t.labelIznosZaUplatu}</strong> ${money(iznos)}</p>
                   ${rokUplateAkontacije
-              ? `<p><strong>Rok uplate:</strong> ${formatDate(
-                rokUplateAkontacije
+              ? `<p><strong>${t.labelRokUplate}</strong> ${formatDateZaMail(
+                rokUplateAkontacije, jezik
               )}</p>`
               : ""
             }
                 </div>
 
                 <div style="padding:16px;background:#fff6e2;border:1px solid #c79a57;color:#7a5a22;">
-                  Nakon što uplata bude vidljiva na našem računu, poslat ćemo
-                  vam potvrdu rezervacije i račun.
+                  ${t.napomena}
                 </div>
 
                 <p style="margin-top:28px;">
-                  Lijep pozdrav,<br/>
-                  <strong>Malinska Stay</strong>
+                  ${t.zavrsetak}
                 </p>
               </div>
             </div>

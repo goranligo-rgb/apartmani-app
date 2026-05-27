@@ -4,6 +4,12 @@ import { stripe } from "@/lib/stripe";
 import { generateRacunPdf } from "@/lib/generateRacunPdf";
 import { Resend } from "resend";
 import { zaprimiAutoriziranuRezervaciju } from "@/lib/zaprimiRezervaciju";
+import {
+  dohvatiPrijevode,
+  odaberiJezikMaila,
+  formatDateZaMail,
+  money,
+} from "@/lib/mailovi";
 
 export const dynamic = "force-dynamic";
 
@@ -14,10 +20,6 @@ type SearchParams = Promise<{
   placanjeId?: string;
   session_id?: string;
 }>;
-
-function money(value?: number | null) {
-  return `${Number(value || 0).toFixed(2)} €`;
-}
 
 function formatDate(value?: Date | null) {
   if (!value) return "-";
@@ -339,10 +341,11 @@ async function obradiPlacanjeAkoTreba(placanjeId: string, sessionId?: string) {
     : "";
 
   if (gost?.email) {
-    const subject =
-      noviOstatak <= 0
-        ? "Rezervacija i plaćanje potvrđeni - Malinska Stay"
-        : "Rezervacija je potvrđena - Malinska Stay";
+    const jezik = odaberiJezikMaila(gost.jezik);
+    const t = dohvatiPrijevode(jezik).uspjehPlacanje;
+    const placeno = noviOstatak <= 0;
+
+    const subject = t.subject(placeno);
 
     await resend.emails.send({
       from: getMailFrom(),
@@ -350,57 +353,42 @@ async function obradiPlacanjeAkoTreba(placanjeId: string, sessionId?: string) {
       bcc: [BCC_EMAIL],
       subject,
       html: mailWrapper({
-        title:
-          noviOstatak <= 0
-            ? "Rezervacija i plaćanje potvrđeni"
-            : "Rezervacija je potvrđena",
-        subtitle:
-          noviOstatak <= 0
-            ? "Vaše plaćanje je uspješno zaprimljeno i rezervacija je potvrđena."
-            : "Akontacija je zaprimljena i rezervacija je potvrđena.",
+        title: t.title(placeno),
+        subtitle: t.subtitle(placeno),
         children: `
-    <p>Poštovani <strong>${gost.ime || "goste"} ${gost.prezime || ""}</strong>,</p>
+    <p>${t.pozdrav(gost.ime || "goste", gost.prezime || "")}</p>
 
-    <p>
-      ${noviOstatak <= 0
-            ? "Vaše plaćanje je uspješno zaprimljeno i rezervacija je u potpunosti plaćena."
-            : "Vaša akontacija je uspješno zaprimljena i rezervacija je potvrđena."
-          }
-    </p>
+    <p>${t.uvodPara(placeno)}</p>
 
     <div style="margin:22px 0; padding:18px; background:#fcfaf6; border:1px solid #eadfce;">
-      <h3 style="margin:0 0 14px;">Detalji rezervacije</h3>
-      <p><strong>Objekt:</strong> ${r.jedinica.objekt.naziv}</p>
-      <p><strong>Smještajna jedinica:</strong> ${r.jedinica.naziv}</p>
-      <p><strong>Dolazak:</strong> ${formatDate(r.datumOd)}</p>
-      <p><strong>Odlazak:</strong> ${formatDate(r.datumDo)}</p>
-      <p><strong>Broj noćenja:</strong> ${r.brojNocenja}</p>
-      <p><strong>Broj osoba:</strong> ${r.brojOsoba}</p>
-      <p><strong>Zaprimljena uplata:</strong> ${money(placanje?.iznos)}</p>
-      <p><strong>Preostalo za platiti:</strong> ${money(noviOstatak)}</p>
+      <h3 style="margin:0 0 14px;">${t.detaljiNaslov}</h3>
+      <p><strong>${t.labelObjekt}</strong> ${r.jedinica.objekt.naziv}</p>
+      <p><strong>${t.labelJedinica}</strong> ${r.jedinica.naziv}</p>
+      <p><strong>${t.labelDolazak}</strong> ${formatDateZaMail(r.datumOd, jezik)}</p>
+      <p><strong>${t.labelOdlazak}</strong> ${formatDateZaMail(r.datumDo, jezik)}</p>
+      <p><strong>${t.labelBrojNocenja}</strong> ${r.brojNocenja}</p>
+      <p><strong>${t.labelBrojOsoba}</strong> ${r.brojOsoba}</p>
+      <p><strong>${t.labelZaprimljenaUplata}</strong> ${money(placanje?.iznos)}</p>
+      <p><strong>${t.labelPreostalo}</strong> ${money(noviOstatak)}</p>
     </div>
 
     <div style="padding:16px; background:#e8f7ee; border:1px solid #22c55e; color:#166534;">
-      <strong>Potvrđeno:</strong><br/>
-      ${noviOstatak <= 0
-            ? "Rezervacija je potvrđena i u potpunosti plaćena."
-            : "Rezervacija je potvrđena. Ostatak iznosa potrebno je platiti prema dogovorenim uvjetima."
-          }
+      <strong>${t.potvrdjenoNaslov}</strong><br/>
+      ${t.potvrdjenoText(placeno)}
     </div>
 
     ${pdfLink
             ? `
           <div style="margin-top:22px; padding:16px; background:#fff6e2; border:1px solid #c79a57; color:#7a5a22;">
-            Račun možete otvoriti ovdje:<br/>
-            <a href="${pdfLink}" style="color:#7a5a22; font-weight:bold;">Otvori račun</a>
+            ${t.racunOtvoriText}<br/>
+            <a href="${pdfLink}" style="color:#7a5a22; font-weight:bold;">${t.racunOtvoriLink}</a>
           </div>
         `
             : ""
           }
 
     <p style="margin-top:28px;">
-      Lijep pozdrav,<br/>
-      <strong>Malinska Stay</strong>
+      ${t.zavrsetak}
     </p>
   `,
       }),

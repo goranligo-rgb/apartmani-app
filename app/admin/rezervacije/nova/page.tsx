@@ -10,6 +10,11 @@ import CijenaPreview from "./CijenaPreview";
 import { potvrdiNaplatu } from "@/lib/potvrdaNaplate";
 import { mozdaPosaljiNadopunu } from "@/lib/ciscenje/mozdaPosaljiNadopunu";
 import { routing } from "@/i18n/routing";
+import {
+  dohvatiPrijevode,
+  odaberiJezikMaila,
+  formatDateZaMail,
+} from "@/lib/mailovi";
 
 export const dynamic = "force-dynamic";
 
@@ -309,6 +314,7 @@ function paymentMailTemplate({
   paymentLink,
   buttonText,
   infoText,
+  labels,
 }: {
   title: string;
   subtitle: string;
@@ -324,6 +330,24 @@ function paymentMailTemplate({
   paymentLink: string;
   buttonText: string;
   infoText: string;
+  // Lokalizirani labeli — struktura kompatibilna i s pozivZaPlacanje i s
+  // rezervacijaZaprimljenaBanka iz @/lib/mailovi MailTekstovi (TS strukturno
+  // tipiziranje propusti `t.*` objekt iz oba mail bundle-a).
+  labels: {
+    pozdrav: (imePrezime: string) => string;
+    detaljiNaslov: string;
+    labelObjekt: string;
+    labelJedinica: string;
+    labelDolazak: string;
+    labelOdlazak: string;
+    labelUkupanIznos: string;
+    labelIznosZaUplatu: string;
+    labelOstatak: string;
+    labelRokPlacanja: string;
+    automatskaPotvrda: string;
+    akoGumbNeRadi: string;
+    zavrsetak: string;
+  };
 }) {
   return `
     <div style="font-family:Arial,sans-serif;background:#f4efe6;padding:24px;">
@@ -334,25 +358,25 @@ function paymentMailTemplate({
         </div>
 
         <div style="padding:32px;color:#2e2923;font-size:16px;line-height:1.6;">
-          <p>Poštovani <strong>${imePrezime}</strong>,</p>
+          <p>${labels.pozdrav(imePrezime)}</p>
 
           <p>${infoText}</p>
 
           <div style="margin:26px 0;padding:24px;border:1px solid #d8c8aa;background:#fcfaf6;">
-            <h2 style="margin:0 0 18px;font-size:22px;">Detalji rezervacije</h2>
+            <h2 style="margin:0 0 18px;font-size:22px;">${labels.detaljiNaslov}</h2>
 
-            <p><strong>Objekt:</strong> ${objekt}</p>
-            <p><strong>Smještajna jedinica:</strong> ${jedinica}</p>
-            <p><strong>Dolazak:</strong> ${datumOd}</p>
-            <p><strong>Odlazak:</strong> ${datumDo}</p>
-            <p><strong>Ukupan iznos rezervacije:</strong> ${ukupno}</p>
-            <p><strong>Iznos za uplatu:</strong> ${zaPlatiti}</p>
-            <p><strong>Ostatak:</strong> ${ostatak}</p>
-            <p><strong>Rok plaćanja:</strong> ${rokPlacanja}</p>
+            <p><strong>${labels.labelObjekt}</strong> ${objekt}</p>
+            <p><strong>${labels.labelJedinica}</strong> ${jedinica}</p>
+            <p><strong>${labels.labelDolazak}</strong> ${datumOd}</p>
+            <p><strong>${labels.labelOdlazak}</strong> ${datumDo}</p>
+            <p><strong>${labels.labelUkupanIznos}</strong> ${ukupno}</p>
+            <p><strong>${labels.labelIznosZaUplatu}</strong> ${zaPlatiti}</p>
+            <p><strong>${labels.labelOstatak}</strong> ${ostatak}</p>
+            <p><strong>${labels.labelRokPlacanja}</strong> ${rokPlacanja}</p>
           </div>
 
           <div style="margin:26px 0;padding:18px;background:#fff6e2;border:1px solid #c79a57;color:#7a5a22;">
-            Nakon uspješne uplate primit ćete automatsku potvrdu rezervacije i račun.
+            ${labels.automatskaPotvrda}
           </div>
 
           <p style="margin:30px 0;">
@@ -363,13 +387,12 @@ function paymentMailTemplate({
           </p>
 
           <p style="font-size:13px;color:#6f665a;">
-            Ako gumb ne radi, kopirajte ovaj link u preglednik:<br/>
+            ${labels.akoGumbNeRadi}<br/>
             <a href="${paymentLink}" style="color:#7a5a22;">${paymentLink}</a>
           </p>
 
           <p style="margin-top:30px;">
-            Lijep pozdrav,<br/>
-            <strong>Malinska Stay</strong>
+            ${labels.zavrsetak}
           </p>
         </div>
       </div>
@@ -820,9 +843,11 @@ export default async function NovaAdminRezervacijaPage({
       let mailStatus: "POSLANO" | "GRESKA" = "GRESKA";
       let mailGreska: string | null = null;
 
-      const subject = naplataPunogIznosa
-        ? "Poziv za plaćanje rezervacije"
-        : "Poziv za plaćanje akontacije";
+      const mailJezik = odaberiJezikMaila(jezik);
+      const t = dohvatiPrijevode(mailJezik).pozivZaPlacanje;
+      const cijeli = naplataPunogIznosa;
+
+      const subject = t.subject(cijeli);
 
       if (!email) {
         mailGreska = "Gost nema email adresu. Mail nije poslan.";
@@ -831,29 +856,24 @@ export default async function NovaAdminRezervacijaPage({
           to: email,
           subject,
           html: paymentMailTemplate({
-            title: subject,
-            subtitle: naplataPunogIznosa
-              ? "Za potvrdu rezervacije potrebno je platiti puni iznos."
-              : "Za potvrdu rezervacije potrebno je platiti akontaciju.",
+            title: t.title(cijeli),
+            subtitle: t.subtitle(cijeli),
             imePrezime: `${ime}${prezime ? " " + prezime : ""}`,
             objekt: jedinica.objekt.naziv,
             jedinica: jedinica.naziv,
-            datumOd: datumOd.toLocaleDateString("hr-HR"),
-            datumDo: datumDo.toLocaleDateString("hr-HR"),
+            datumOd: formatDateZaMail(datumOd, mailJezik),
+            datumDo: formatDateZaMail(datumDo, mailJezik),
             ukupno: `${dogovoreniIznos.toFixed(2)} €`,
             zaPlatiti: `${iznosZaKarticniPoziv.toFixed(2)} €`,
             ostatak: `${Math.max(
               dogovoreniIznos - iznosZaKarticniPoziv,
               0
             ).toFixed(2)} €`,
-            rokPlacanja: rokUplateAkontacije.toLocaleDateString("hr-HR"),
+            rokPlacanja: formatDateZaMail(rokUplateAkontacije, mailJezik),
             paymentLink,
-            buttonText: naplataPunogIznosa
-              ? "Plati rezervaciju karticom"
-              : "Plati akontaciju karticom",
-            infoText: naplataPunogIznosa
-              ? `Vaša rezervacija je evidentirana. Budući da je dolazak za ${danaDoDolaska} dana, za potvrdu rezervacije potrebno je platiti puni iznos.`
-              : "Vaša rezervacija je evidentirana. Za potvrdu rezervacije potrebno je platiti akontaciju.",
+            buttonText: t.button(cijeli),
+            infoText: t.infoText(cijeli, danaDoDolaska),
+            labels: t,
           }),
         });
 
@@ -890,7 +910,10 @@ export default async function NovaAdminRezervacijaPage({
         },
       });
 
-      const subject = "Rezervacija zaprimljena — čekamo uplatu";
+      const mailJezik = odaberiJezikMaila(jezik);
+      const t = dohvatiPrijevode(mailJezik).rezervacijaZaprimljenaBanka;
+
+      const subject = t.subject;
 
       let mailStatus: "POSLANO" | "GRESKA" = "GRESKA";
       let mailGreska: string | null = null;
@@ -902,21 +925,21 @@ export default async function NovaAdminRezervacijaPage({
           to: email,
           subject,
           html: paymentMailTemplate({
-            title: "Rezervacija je zaprimljena",
-            subtitle: "Čekamo uplatu za potvrdu rezervacije.",
+            title: t.title,
+            subtitle: t.subtitle,
             imePrezime: `${ime}${prezime ? " " + prezime : ""}`,
             objekt: jedinica.objekt.naziv,
             jedinica: jedinica.naziv,
-            datumOd: datumOd.toLocaleDateString("hr-HR"),
-            datumDo: datumDo.toLocaleDateString("hr-HR"),
+            datumOd: formatDateZaMail(datumOd, mailJezik),
+            datumDo: formatDateZaMail(datumDo, mailJezik),
             ukupno: `${dogovoreniIznos.toFixed(2)} €`,
             zaPlatiti: `${iznosAkontacije.toFixed(2)} €`,
             ostatak: `${Math.max(dogovoreniIznos - iznosAkontacije, 0).toFixed(2)} €`,
-            rokPlacanja: rokUplateAkontacije.toLocaleDateString("hr-HR"),
+            rokPlacanja: formatDateZaMail(rokUplateAkontacije, mailJezik),
             paymentLink: "#",
-            buttonText: "Čekamo uplatu preko banke",
-            infoText:
-              "Vaša rezervacija je evidentirana. Za potvrdu rezervacije potrebno je izvršiti uplatu u navedenom roku. Nakon što uplata bude vidljiva na našem računu, poslat ćemo vam potvrdu rezervacije i račun. Ako uplata ne sjedne u roku, rezervacija se može automatski stornirati.",
+            buttonText: t.button,
+            infoText: t.infoText,
+            labels: t,
           }),
         });
 

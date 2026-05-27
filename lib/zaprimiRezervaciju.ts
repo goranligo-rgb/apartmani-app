@@ -1,6 +1,13 @@
 import { prisma } from "@/lib/prisma";
 import { Resend } from "resend";
 import { mozdaPosaljiNadopunu } from "@/lib/ciscenje/mozdaPosaljiNadopunu";
+import {
+  BUNDLE,
+  dohvatiPrijevode,
+  odaberiJezikMaila,
+  formatDateZaMail,
+  money,
+} from "@/lib/mailovi";
 
 // ── Zaprimanje rezervacije nakon uspješne Stripe autorizacije kartice ──
 //
@@ -23,10 +30,6 @@ import { mozdaPosaljiNadopunu } from "@/lib/ciscenje/mozdaPosaljiNadopunu";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 const BCC_EMAIL = process.env.MAIL_BCC || "goran@malinska-stay.hr";
-
-function money(value?: number | null) {
-  return `${Number(value || 0).toFixed(2)} €`;
-}
 
 function formatDate(value?: Date | string | null) {
   if (!value) return "-";
@@ -185,13 +188,24 @@ export async function zaprimiAutoriziranuRezervaciju(args: {
   // Ako mail gostu već postoji u logu (npr. status ručno resetiran na UPIT
   // nakon već poslanih mailova), ne šaljemo ništa opet.
   const gostEmail = r.gost?.email || "";
+  const jezik = odaberiJezikMaila(r.gost?.jezik);
+  const t = dohvatiPrijevode(jezik).zaprimiRezervaciju;
 
   if (gostEmail) {
+    // Trojezicni dedup: emailLog moze sadrzavati subject u bilo kojem od 3
+    // jezika (npr. gost.jezik promijenjen izmedju resetova, ili null u
+    // historijskoj rezi gdje je log u HR). Provjera kroz `in` pokriva sve.
+    const dedupSubjects = [
+      BUNDLE.hr.zaprimiRezervaciju.subject,
+      BUNDLE.en.zaprimiRezervaciju.subject,
+      BUNDLE.de.zaprimiRezervaciju.subject,
+    ];
+
     const vecPoslan = await prisma.emailLog.findFirst({
       where: {
         rezervacijaId: r.id,
         to: gostEmail,
-        subject: { contains: "Rezervacija je zaprimljena" },
+        subject: { in: dedupSubjects },
       },
     });
 
@@ -251,41 +265,36 @@ export async function zaprimiAutoriziranuRezervaciju(args: {
         from: getMailFrom(),
         to: gostEmail,
         bcc: [BCC_EMAIL],
-        subject: "Rezervacija je zaprimljena - Malinska Stay",
+        subject: t.subject,
         html: mailWrapper({
-          title: "Rezervacija je zaprimljena",
-          subtitle: "Hvala vam na rezervaciji. Vaš zahtjev je uspješno zaprimljen.",
+          title: t.title,
+          subtitle: t.subtitle,
           children: `
-              <p>Poštovani <strong>${r.gost?.ime || "goste"} ${r.gost?.prezime || ""}</strong>,</p>
+              <p>${t.pozdrav(r.gost?.ime || "goste", r.gost?.prezime || "")}</p>
 
-              <p>
-                Vaša kartica je uspješno autorizirana za iznos
-                <strong>${money(placanje.iznos)}</strong>.
-                Novac još nije naplaćen, nego su sredstva samo rezervirana do konačne potvrde rezervacije.
-              </p>
+              <p>${t.uvodPara(money(placanje.iznos))}</p>
 
               <div style="margin:22px 0; padding:18px; background:#fcfaf6; border:1px solid #eadfce;">
-                <h3 style="margin:0 0 14px;">Detalji rezervacije</h3>
-                <p><strong>Objekt:</strong> ${r.jedinica.objekt.naziv}</p>
-                <p><strong>Smještajna jedinica:</strong> ${r.jedinica.naziv}</p>
-                <p><strong>Dolazak:</strong> ${formatDate(r.datumOd)}</p>
-                <p><strong>Odlazak:</strong> ${formatDate(r.datumDo)}</p>
-                <p><strong>Broj noćenja:</strong> ${r.brojNocenja}</p>
-                <p><strong>Broj osoba:</strong> ${r.brojOsoba}</p>
+                <h3 style="margin:0 0 14px;">${t.detaljiNaslov}</h3>
+                <p><strong>${t.labelObjekt}</strong> ${r.jedinica.objekt.naziv}</p>
+                <p><strong>${t.labelJedinica}</strong> ${r.jedinica.naziv}</p>
+                <p><strong>${t.labelDolazak}</strong> ${formatDateZaMail(r.datumOd, jezik)}</p>
+                <p><strong>${t.labelOdlazak}</strong> ${formatDateZaMail(r.datumDo, jezik)}</p>
+                <p><strong>${t.labelBrojNocenja}</strong> ${r.brojNocenja}</p>
+                <p><strong>${t.labelBrojOsoba}</strong> ${r.brojOsoba}</p>
               </div>
 
               <div style="padding:16px; background:#fff6e2; border:1px solid #c79a57; color:#7a5a22;">
-                <strong>Važno:</strong><br/>
-                Rezervacija još čeka konačnu potvrdu domaćina. Nakon obrade poslat ćemo vam konačnu potvrdu rezervacije.
+                <strong>${t.vaznoNaslov}</strong><br/>
+                ${t.vaznoText}
               </div>
 
               <p style="margin-top:22px;">
-                Račun se šalje tek nakon stvarne naplate.
+                ${t.racunNapomena}
               </p>
 
               <p style="margin-top:28px;">
-                Lijep pozdrav,<br/>
-                <strong>Malinska Stay</strong>
+                ${t.zavrsetak}
               </p>
             `,
         }),
@@ -295,7 +304,7 @@ export async function zaprimiAutoriziranuRezervaciju(args: {
         data: {
           rezervacijaId: r.id,
           to: gostEmail,
-          subject: "Rezervacija je zaprimljena - Malinska Stay",
+          subject: t.subject,
           tip: "POTVRDA_REZERVACIJE",
           status: "POSLANO",
         },
@@ -308,7 +317,7 @@ export async function zaprimiAutoriziranuRezervaciju(args: {
       data: {
         rezervacijaId: r.id,
         to: gostEmail || "bez-emaila",
-        subject: "Rezervacija je zaprimljena - Malinska Stay",
+        subject: t.subject,
         tip: "POTVRDA_REZERVACIJE",
         status: "GRESKA",
         greska: mailError?.message || "Greška kod slanja maila gostu.",

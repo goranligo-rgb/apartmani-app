@@ -3,6 +3,11 @@ import { stripe } from "@/lib/stripe";
 import { generateRacunPdf } from "@/lib/generateRacunPdf";
 import { Resend } from "resend";
 import { revalidatePath } from "next/cache";
+import {
+  dohvatiPrijevode,
+  odaberiJezikMaila,
+  formatDateZaMail,
+} from "@/lib/mailovi";
 
 // Zajednička logika potvrde/naplate plaćanja — izlučena iz
 // /api/admin/placanja/potvrdi-link route handlera.
@@ -323,85 +328,67 @@ export async function potvrdiNaplatu(
         placanje.rezervacija.gost?.email || "goran.ligo@gmail.com";
       const ccEmails = getCcEmails(objekt);
 
+      const jezik = odaberiJezikMaila(placanje.rezervacija.gost?.jezik);
+      const t = dohvatiPrijevode(jezik).potvrdaNaplate;
+      const placeno = noviStatus === "PLACENO";
+
       const gostIme = placanje.rezervacija.gost?.ime || "Poštovani gost";
       const nazivJedinice = placanje.rezervacija.jedinica.naziv;
       const nazivObjekta = placanje.rezervacija.jedinica.objekt.naziv;
 
-      const datumOd = new Date(
-        placanje.rezervacija.datumOd
-      ).toLocaleDateString("hr-HR");
-
-      const datumDo = new Date(
-        placanje.rezervacija.datumDo
-      ).toLocaleDateString("hr-HR");
+      const datumOd = formatDateZaMail(placanje.rezervacija.datumOd, jezik);
+      const datumDo = formatDateZaMail(placanje.rezervacija.datumDo, jezik);
 
       const mailResult = await resend.emails.send({
         from: "Malinska Stay <rezervacije@malinska-stay.hr>",
         to: email,
         cc: ccEmails,
         bcc: [BCC_EMAIL],
-        subject:
-          noviStatus === "PLACENO"
-            ? "Rezervacija i plaćanje potvrđeni"
-            : "Vaša rezervacija je potvrđena",
+        subject: t.subject(placeno),
         html: mailWrapper({
-          title:
-            noviStatus === "PLACENO"
-              ? "Rezervacija i plaćanje potvrđeni"
-              : "Rezervacija je potvrđena",
-          subtitle:
-            noviStatus === "PLACENO"
-              ? "Vaša rezervacija je potvrđena i u potpunosti plaćena."
-              : "Vaša rezervacija je potvrđena uz uplatu akontacije.",
+          title: t.title(placeno),
+          subtitle: t.subtitle(placeno),
           children: `
-      <p>Poštovani <strong>${gostIme}</strong>,</p>
+      <p>${t.pozdrav(gostIme)}</p>
 
-      <p>
-        ${
-          noviStatus === "PLACENO"
-            ? "Vaše plaćanje je uspješno zaprimljeno i rezervacija je potvrđena."
-            : "Vaša rezervacija je uspješno potvrđena. Preostali iznos bit će potrebno podmiriti prema dogovorenim uvjetima prije dolaska."
-        }
-      </p>
+      <p>${t.uvodPara(placeno)}</p>
 
       <div style="margin:22px 0; padding:18px; background:#fcfaf6; border:1px solid #eadfce;">
-        <h3 style="margin:0 0 14px;">Detalji rezervacije</h3>
-        <p><strong>Objekt:</strong> ${nazivObjekta}</p>
-        <p><strong>Smještajna jedinica:</strong> ${nazivJedinice}</p>
-        <p><strong>Dolazak:</strong> ${datumOd}</p>
-        <p><strong>Odlazak:</strong> ${datumDo}</p>
-        <p><strong>Uplaćeno:</strong> ${Number(placanje.iznos || 0).toFixed(2)} ${placanje.valuta || "EUR"}</p>
+        <h3 style="margin:0 0 14px;">${t.detaljiNaslov}</h3>
+        <p><strong>${t.labelObjekt}</strong> ${nazivObjekta}</p>
+        <p><strong>${t.labelJedinica}</strong> ${nazivJedinice}</p>
+        <p><strong>${t.labelDolazak}</strong> ${datumOd}</p>
+        <p><strong>${t.labelOdlazak}</strong> ${datumDo}</p>
+        <p><strong>${t.labelUplaceno}</strong> ${Number(placanje.iznos || 0).toFixed(2)} ${placanje.valuta || "EUR"}</p>
         ${
           noviOstatak > 0
-            ? `<p><strong>Preostalo za uplatu:</strong> ${Number(noviOstatak).toFixed(2)} ${placanje.valuta || "EUR"}</p>`
+            ? `<p><strong>${t.labelPreostalo}</strong> ${Number(noviOstatak).toFixed(2)} ${placanje.valuta || "EUR"}</p>`
             : ""
         }
       </div>
 
       ${
-        noviStatus === "PLACENO"
+        placeno
           ? `
           <div style="padding:16px; background:#eaf7ef; border:1px solid #22c55e; color:#166534;">
-            <strong>Potvrđeno:</strong><br/>
-            Rezervacija je u potpunosti plaćena. U privitku vam šaljemo račun.
+            <strong>${t.potvrdjenoNaslov}</strong><br/>
+            ${t.potvrdjenoText(true)}
           </div>
         `
           : `
           <div style="padding:16px; background:#fff6e2; border:1px solid #c79a57; color:#7a5a22;">
-            <strong>Potvrđeno:</strong><br/>
-            Rezervacija je potvrđena. U privitku vam šaljemo račun za zaprimljenu uplatu.
-            Ostatak iznosa potrebno je uplatiti prije dolaska — podsjetnik s linkom za uplatu poslat ćemo Vam nekoliko dana ranije.
+            <strong>${t.potvrdjenoNaslov}</strong><br/>
+            ${t.potvrdjenoText(false)}
           </div>
         `
       }
 
       <p style="margin-top:28px;">
-        Veselimo se vašem dolasku u Malinsku.
+        ${t.veselimoSe}
       </p>
 
       <p>
-        Lijep pozdrav,<br/>
-        <strong>Malinska Stay</strong>
+        ${t.zavrsetak}
       </p>
     `,
         }),

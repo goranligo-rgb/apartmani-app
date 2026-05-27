@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { Resend } from "resend";
 import { adminSessionOk } from "@/lib/admin-auth";
+import { dohvatiPrijevode, odaberiJezikMaila } from "@/lib/mailovi";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 const BCC_EMAIL = process.env.MAIL_BCC || "goran@malinska-stay.hr";
@@ -62,7 +63,10 @@ export async function POST(req: Request) {
     const arrayBuffer = await pdfResponse.arrayBuffer();
     const fileBuffer = Buffer.from(arrayBuffer);
 
-    const subject = `Račun ${racun.brojRacuna} ponovno poslan`;
+    const jezik = odaberiJezikMaila(racun.rezervacija.gost?.jezik);
+    const t = dohvatiPrijevode(jezik).racunPonovnoPoslan;
+
+    const subject = t.subject(racun.brojRacuna);
 
     // Resend SDK ne baca na error, već vraća { data, error }. Provjera
     // `result.error` sprječava lažno-pozitivni EmailLog status "POSLANO"
@@ -74,9 +78,9 @@ export async function POST(req: Request) {
       bcc: [BCC_EMAIL],
       subject,
       html: `
-    <p>Poštovani,</p>
-    <p>U privitku vam ponovno šaljemo račun.</p>
-    <p>Lijep pozdrav,<br/>Malinska Stay</p>
+    <p>${t.pozdrav}</p>
+    <p>${t.privitak}</p>
+    <p>${t.zavrsetak}</p>
   `,
       attachments: [
         {

@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { Resend } from "resend";
+import {
+  dohvatiPrijevode,
+  odaberiJezikMaila,
+  formatDateZaMail,
+} from "@/lib/mailovi";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 const BCC_EMAIL = process.env.MAIL_BCC || "goran@malinska-stay.hr";
@@ -141,48 +146,49 @@ export async function GET() {
       }
 
       const paymentLink = `${baseUrl}/placanje/${placanje.id}`;
+      const jezik = odaberiJezikMaila(r.gost.jezik);
+      const t = dohvatiPrijevode(jezik).podsjetnikOstatak;
 
       await resend.emails.send({
         from: getMailFrom(),
         to: r.gost.email,
         bcc: [BCC_EMAIL],
-        subject: "Molimo uplatu ostatka rezervacije",
+        subject: t.subject,
         html: mailWrapper({
-          title: "Podsjetnik za uplatu ostatka",
-          subtitle: "Vaš dolazak se približava.",
+          title: t.title,
+          subtitle: t.subtitle,
           children: `
-    <p>Poštovani <strong>${r.gost.ime || "goste"}</strong>,</p>
+    <p>${t.pozdrav(r.gost.ime || "goste")}</p>
 
     <p>
-      Ljubazno vas podsjećamo da je preostali iznos za vašu rezervaciju potrebno podmiriti prije dolaska.
+      ${t.uvodPara}
     </p>
 
     <div style="margin:22px 0; padding:18px; background:#fcfaf6; border:1px solid #eadfce;">
-      <h3 style="margin:0 0 14px;">Detalji rezervacije</h3>
-      <p><strong>Objekt:</strong> ${r.jedinica.objekt.naziv}</p>
-      <p><strong>Smještajna jedinica:</strong> ${r.jedinica.naziv}</p>
-      <p><strong>Dolazak:</strong> ${new Date(r.datumOd).toLocaleDateString("hr-HR")}</p>
-      <p><strong>Odlazak:</strong> ${new Date(r.datumDo).toLocaleDateString("hr-HR")}</p>
-      <p><strong>Preostalo za uplatu:</strong> ${ostatak.toFixed(2)} ${r.valuta || "EUR"}</p>
+      <h3 style="margin:0 0 14px;">${t.detaljiNaslov}</h3>
+      <p><strong>${t.labelObjekt}</strong> ${r.jedinica.objekt.naziv}</p>
+      <p><strong>${t.labelJedinica}</strong> ${r.jedinica.naziv}</p>
+      <p><strong>${t.labelDolazak}</strong> ${formatDateZaMail(r.datumOd, jezik)}</p>
+      <p><strong>${t.labelOdlazak}</strong> ${formatDateZaMail(r.datumDo, jezik)}</p>
+      <p><strong>${t.labelPreostalo}</strong> ${ostatak.toFixed(2)} ${r.valuta || "EUR"}</p>
     </div>
 
     <p style="margin:24px 0;">
       <a href="${paymentLink}" style="display:inline-block;background:#2e2923;color:#fff;padding:13px 20px;text-decoration:none;font-weight:bold;">
-        Plati ostatak rezervacije
+        ${t.button}
       </a>
     </p>
 
     <div style="padding:16px; background:#fff6e2; border:1px solid #c79a57; color:#7a5a22;">
-      Ako ste uplatu već izvršili, ovu poruku možete zanemariti.
+      ${t.vecZanemarite}
     </div>
 
     <p style="margin-top:28px;">
-      Veselimo se vašem dolasku u Malinsku.
+      ${t.veselimoSe}
     </p>
 
     <p>
-       Lijep pozdrav,<br/>
-              <strong>Malinska Stay</strong>
+       ${t.zavrsetak}
             </p>
           `,
         }),
@@ -192,7 +198,7 @@ export async function GET() {
         data: {
           rezervacijaId: r.id,
           to: r.gost.email,
-          subject: "Podsjetnik za uplatu ostatka",
+          subject: t.subject,
           tip: "ZAHTJEV_OSTATAK",
         },
       });

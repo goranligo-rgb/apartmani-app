@@ -1,6 +1,11 @@
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { Resend } from "resend";
+import {
+  dohvatiPrijevode,
+  odaberiJezikMaila,
+  formatDateTimeZaMail,
+} from "@/lib/mailovi";
 
 export const dynamic = "force-dynamic";
 
@@ -205,26 +210,28 @@ async function posaljiSifruGostu(formData: FormData) {
     if (rezervacija.ttlockSifre.length === 0) return;
 
     const prva = rezervacija.ttlockSifre[0];
+    const jezik = odaberiJezikMaila(rezervacija.gost.jezik);
+    const t = dohvatiPrijevode(jezik).ttlockSifra;
 
     await resend.emails.send({
         from: process.env.MAIL_FROM || "Malinska Stay <rezervacije@malinska-stay.hr>",
         to: rezervacija.gost.email,
         bcc: [BCC_EMAIL],
-        subject: `Vaša ulazna šifra - ${rezervacija.jedinica.objekt.naziv}`,
+        subject: t.subject(rezervacija.jedinica.objekt.naziv),
         html: `
             <div style="font-family:Arial,sans-serif;line-height:1.6;color:#2f261d">
-                <h2>Dobrodošli u Malinska Stay</h2>
-                <p>Poštovani ${rezervacija.gost.ime},</p>
-                <p>Vaša ulazna šifra je:</p>
+                <h2>${t.naslov}</h2>
+                <p>${t.pozdrav(rezervacija.gost.ime || "")}</p>
+                <p>${t.sifraJe}</p>
                 <div style="font-size:34px;font-weight:800;letter-spacing:8px;padding:16px;background:#f7f2e8;border-radius:16px;text-align:center;">
                     ${prva.sifra}
                 </div>
-                <p>Šifra vrijedi od <strong>${formatDateTime(prva.vrijediOd)}</strong> do <strong>${formatDateTime(prva.vrijediDo)}</strong>.</p>
-                <p>Šifra vrijedi za:</p>
+                <p>${t.sifraVrijedi(formatDateTimeZaMail(prva.vrijediOd, jezik), formatDateTimeZaMail(prva.vrijediDo, jezik))}</p>
+                <p>${t.vrijediZa}</p>
                 <ul>
                     ${rezervacija.ttlockSifre.map((s) => `<li>${s.brava.naziv}</li>`).join("")}
                 </ul>
-                <p>Lijep pozdrav,<br/>Malinska Stay</p>
+                <p>${t.zavrsetak}</p>
             </div>
         `,
     });
