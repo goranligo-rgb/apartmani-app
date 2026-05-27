@@ -197,6 +197,7 @@ model Gost {
   adresa    String?
   grad      String?
   drzava    String?
+  jezik     String?  @default("hr")
   napomena  String?
   oznake    String?
   createdAt DateTime @default(now())

@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server";
+import { hasLocale } from "next-intl";
 import { prisma } from "@/lib/prisma";
 import { stripe } from "@/lib/stripe";
 import { Resend } from "resend";
 import { pronadiPreklapanja } from "@/lib/zauzeca";
+import { routing } from "@/i18n/routing";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -262,6 +264,9 @@ export async function POST(req: Request) {
     let iznosPotvrdeForm = parseMoney(formData.get("iznosPotvrde"));
     const napomena = String(formData.get("napomena") || "").trim();
 
+    const localeRaw = String(formData.get("locale") || "").trim();
+    const jezik = hasLocale(routing.locales, localeRaw) ? localeRaw : "hr";
+
     // `akcijaId` ulazi u tok iz `/rezervacije/posebne-prilike` kroz formu —
     // ako je prisutan, server uzima cijenu iz baze (Akcija) i prebrisuje
     // `iznosUkupno`/`iznosPotvrdeForm` iz form-data. Time zatvaramo rupu u
@@ -481,6 +486,7 @@ export async function POST(req: Request) {
           adresa,
           grad,
           drzava,
+          jezik,
         },
         create: {
           ime,
@@ -490,6 +496,7 @@ export async function POST(req: Request) {
           adresa,
           grad,
           drzava,
+          jezik,
         },
       });
 
@@ -598,6 +605,7 @@ export async function POST(req: Request) {
               adresa,
               grad,
               drzava,
+              jezik,
             },
           }),
           korisnikIme: "Web gost",

@@ -1,5 +1,9 @@
 import Link from "next/link";
+import { notFound } from "next/navigation";
+import { hasLocale } from "next-intl";
+import { setRequestLocale } from "next-intl/server";
 import { prisma } from "@/lib/prisma";
+import { routing } from "@/i18n/routing";
 
 type SearchParams = Promise<{
   jedinicaId?: string;
@@ -41,8 +45,15 @@ function daysUntil(date: Date) {
 }
 
 export default async function PregledRezervacijePage(props: {
+  params: Promise<{ locale: string }>;
   searchParams: SearchParams;
 }) {
+  const { locale } = await props.params;
+
+  if (!hasLocale(routing.locales, locale)) notFound();
+
+  setRequestLocale(locale);
+
   const searchParams = await props.searchParams;
 
   const jedinicaId = searchParams.jedinicaId || "";
@@ -224,6 +235,7 @@ export default async function PregledRezervacijePage(props: {
             <input type="hidden" name="adresa" value={adresa} />
             <input type="hidden" name="grad" value={grad} />
             <input type="hidden" name="drzava" value={drzava} />
+            <input type="hidden" name="locale" value={locale} />
 
             <input type="hidden" name="brojOsoba" value={brojOsoba} />
             <input type="hidden" name="iznosUkupno" value={iznosUkupno} />
