@@ -43,3 +43,6 @@ next-env.d.ts
 # backup files (DB dumps, ad-hoc data exports — često sadrže osobne podatke)
 *-backup-*.json
 *.backup.json
+
+# preview / throwaway artifacts
+/tmp/
