@@ -10,6 +10,7 @@ type SearchParams = Promise<{
   jedinicaId?: string;
   od?: string;
   do?: string;
+  mjesecOffset?: string;
 }>;
 
 function parseDateOnly(value?: string | null) {
@@ -141,11 +142,13 @@ function buildAdminHref({
   jedinicaId,
   od,
   doDatuma,
+  mjesecOffset,
 }: {
   objektId?: string;
   jedinicaId?: string;
   od?: string;
   doDatuma?: string;
+  mjesecOffset?: number;
 }) {
   const q = new URLSearchParams();
 
@@ -153,6 +156,7 @@ function buildAdminHref({
   if (jedinicaId) q.set("jedinicaId", jedinicaId);
   if (od) q.set("od", od);
   if (doDatuma) q.set("do", doDatuma);
+  if (mjesecOffset) q.set("mjesecOffset", String(mjesecOffset));
 
   const s = q.toString();
   return s ? `/admin/posebne-prilike?${s}` : "/admin/posebne-prilike";
@@ -197,6 +201,8 @@ export default async function AdminPosebnePrilikePage({
 }) {
   const params = await searchParams;
 
+  const mjesecOffset = Number.parseInt(params.mjesecOffset ?? "0", 10) || 0;
+
   const odabraniOd = parseDateOnly(params.od);
   const odabraniDo = parseDateOnly(params.do);
 
@@ -233,7 +239,8 @@ export default async function AdminPosebnePrilikePage({
     : null;
 
   const danas = startOfDay(new Date());
-  const kalendarOd = new Date(danas.getFullYear(), danas.getMonth(), 1);
+  const baznoOd = new Date(danas.getFullYear(), danas.getMonth(), 1);
+  const kalendarOd = addMonths(baznoOd, mjesecOffset);
   const kalendarDo = addMonths(kalendarOd, 3);
 
   const rezervacije = odabranaJedinica
@@ -738,6 +745,29 @@ export default async function AdminPosebnePrilikePage({
                   <Legend color="#3b82f6" label="Odabrano" />
                   <Legend color="#8b5cf6" label="Posebna prilika" />
                 </section>
+
+                <div className="flex items-center justify-center gap-2">
+                  <Link
+                    href={`${buildAdminHref({ objektId: params.objektId, jedinicaId: params.jedinicaId, od: params.od, doDatuma: params.do, mjesecOffset: mjesecOffset - 1 })}#kalendar`}
+                    className="border border-[#e2d8c8] bg-white px-4 py-2 text-sm font-black text-[#6f665a] hover:bg-[#f8f3ea]"
+                  >
+                    ← Prethodni
+                  </Link>
+
+                  <Link
+                    href={`${buildAdminHref({ objektId: params.objektId, jedinicaId: params.jedinicaId, od: params.od, doDatuma: params.do })}#kalendar`}
+                    className="border border-[#e2d8c8] bg-white px-4 py-2 text-sm font-black text-[#6f665a] hover:bg-[#f8f3ea]"
+                  >
+                    Danas
+                  </Link>
+
+                  <Link
+                    href={`${buildAdminHref({ objektId: params.objektId, jedinicaId: params.jedinicaId, od: params.od, doDatuma: params.do, mjesecOffset: mjesecOffset + 1 })}#kalendar`}
+                    className="border border-[#e2d8c8] bg-white px-4 py-2 text-sm font-black text-[#6f665a] hover:bg-[#f8f3ea]"
+                  >
+                    Sljedeći →
+                  </Link>
+                </div>
 
                 <div id="kalendar" className="grid scroll-mt-40 gap-4 xl:grid-cols-2">
                   {mjeseci.map((mjesec) => (
