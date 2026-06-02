@@ -1,9 +1,11 @@
+import { Fragment } from "react";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import {
   getRezervacijeIBlokade,
   type RezervacijaCard,
 } from "@/lib/rezervacije-union";
+import ScrollToToday from "./ScrollToToday";
 
 export const dynamic = "force-dynamic";
 
@@ -12,6 +14,7 @@ type SearchParams = Promise<{
   mjesec?: string;
   sort?: string;
   dir?: string;
+  prikaziOtkazane?: string;
 }>;
 
 function formatDate(d: Date) {
@@ -44,12 +47,14 @@ function sortLabel(currentSort: string, currentDir: string, key: string) {
 function sortHref({
   objektId,
   mjesec,
+  prikaziOtkazane,
   currentSort,
   currentDir,
   nextSort,
 }: {
   objektId?: string;
   mjesec?: string;
+  prikaziOtkazane?: string;
   currentSort: string;
   currentDir: string;
   nextSort: string;
@@ -58,6 +63,7 @@ function sortHref({
 
   if (objektId) q.set("objektId", objektId);
   if (mjesec) q.set("mjesec", mjesec);
+  if (prikaziOtkazane) q.set("prikaziOtkazane", prikaziOtkazane);
 
   q.set("sort", nextSort);
 
@@ -84,7 +90,7 @@ function statusClass(status: string) {
   }
 
   if (status === "OTKAZANO") {
-    return "border-slate-300 bg-slate-100 text-slate-600";
+    return "border-red-300 bg-red-50 text-red-700";
   }
 
   if (status === "BOOKING") {
@@ -108,12 +114,15 @@ export default async function AdminRezervacijePage({
   const currentSort = params.sort || "termin";
   const currentDir = params.dir === "asc" ? "asc" : "desc";
 
+  // Otkazane su skrivene osim kad je toggle (?prikaziOtkazane=1) uključen.
+  const prikaziOtkazane = params.prikaziOtkazane === "1";
+
   const objekti = await prisma.objekt.findMany({
     orderBy: { naziv: "asc" },
   });
 
   const sveRezervacije: RezervacijaCard[] = await getRezervacijeIBlokade({
-    ukljuciOtkazane: true,
+    ukljuciOtkazane: prikaziOtkazane,
   });
 
   const dostupniMjeseci = Array.from(
@@ -139,8 +148,13 @@ export default async function AdminRezervacijePage({
       const aProslo = a.datumDo.getTime() < today.getTime();
       const bProslo = b.datumDo.getTime() < today.getTime();
 
-      if (aProslo !== bProslo) return aProslo ? 1 : -1;
+      // Prošle na vrh, nadolazeće ispod.
+      if (aProslo !== bProslo) return aProslo ? -1 : 1;
 
+      // Unutar prošlih: najnovija prošla prva (desc po datumDo).
+      if (aProslo) return b.datumDo.getTime() - a.datumDo.getTime();
+
+      // Unutar nadolazećih: najbliža danas prva (asc po datumOd).
       return a.datumOd.getTime() - b.datumOd.getTime();
     }
 
@@ -197,6 +211,20 @@ export default async function AdminRezervacijePage({
     return (a.datumOd.getTime() - b.datumOd.getTime()) * dir;
   });
 
+  // Granica prošle → nadolazeće (prvi card s datumDo >= danas).
+  const danasGranica = new Date();
+  danasGranica.setHours(0, 0, 0, 0);
+
+  const granicaIndex = filtrirane.findIndex(
+    (card) => card.datumDo.getTime() >= danasGranica.getTime()
+  );
+  const imaProslih = granicaIndex > 0;
+  const imaNadolazecih = granicaIndex !== -1;
+
+  // Razdjelnu liniju + auto-scroll prikaži SAMO kad postoje i prošle i nadolazeće
+  // (i kad je default grupiranje aktivno, tj. nema ručnog column-sorta).
+  const prikaziGranicu = isDefaultSort && imaProslih && imaNadolazecih;
+
   const ukupnoRezervacija = filtrirane.length;
 
   const ukupnoIznos = filtrirane.reduce((sum, card) => {
@@ -217,6 +245,7 @@ export default async function AdminRezervacijePage({
     if (params.mjesec) q.set("mjesec", params.mjesec);
     if (params.sort) q.set("sort", params.sort);
     if (params.dir) q.set("dir", params.dir);
+    if (params.prikaziOtkazane) q.set("prikaziOtkazane", params.prikaziOtkazane);
 
     const s = q.toString();
     return s ? `/admin/rezervacije?${s}` : "/admin/rezervacije";
@@ -227,6 +256,20 @@ export default async function AdminRezervacijePage({
     if (params.objektId) q.set("objektId", params.objektId);
     if (params.sort) q.set("sort", params.sort);
     if (params.dir) q.set("dir", params.dir);
+    if (params.prikaziOtkazane) q.set("prikaziOtkazane", params.prikaziOtkazane);
+
+    const s = q.toString();
+    return s ? `/admin/rezervacije?${s}` : "/admin/rezervacije";
+  }
+
+  // Toggle "Prikaži otkazane": uključi (=1) kad je sad isključeno, inače makni param.
+  function buildToggleOtkazaneHref() {
+    const q = new URLSearchParams();
+    if (params.objektId) q.set("objektId", params.objektId);
+    if (params.mjesec) q.set("mjesec", params.mjesec);
+    if (params.sort) q.set("sort", params.sort);
+    if (params.dir) q.set("dir", params.dir);
+    if (!prikaziOtkazane) q.set("prikaziOtkazane", "1");
 
     const s = q.toString();
     return s ? `/admin/rezervacije?${s}` : "/admin/rezervacije";
@@ -285,6 +328,8 @@ export default async function AdminRezervacijePage({
               if (params.mjesec) q.set("mjesec", params.mjesec);
               if (params.sort) q.set("sort", params.sort);
               if (params.dir) q.set("dir", params.dir);
+              if (params.prikaziOtkazane)
+                q.set("prikaziOtkazane", params.prikaziOtkazane);
 
               return (
                 <Link
@@ -318,6 +363,8 @@ export default async function AdminRezervacijePage({
               q.set("mjesec", m);
               if (params.sort) q.set("sort", params.sort);
               if (params.dir) q.set("dir", params.dir);
+              if (params.prikaziOtkazane)
+                q.set("prikaziOtkazane", params.prikaziOtkazane);
 
               return (
                 <Link
@@ -332,6 +379,20 @@ export default async function AdminRezervacijePage({
                 </Link>
               );
             })}
+          </div>
+
+          <div className="mt-4">
+            <Link
+              href={buildToggleOtkazaneHref()}
+              className={`inline-flex cursor-pointer items-center gap-2 border px-4 py-2 text-sm font-black ${
+                prikaziOtkazane
+                  ? "border-slate-400 bg-slate-100 text-slate-700"
+                  : "border-[#e2d8c8] bg-white text-[#6f665a] hover:bg-[#f8f3ea]"
+              }`}
+            >
+              <span aria-hidden>{prikaziOtkazane ? "☑" : "☐"}</span>
+              Prikaži otkazane rezervacije
+            </Link>
           </div>
 
           <div className="mt-5 text-sm text-[#6f665a]">
@@ -352,6 +413,8 @@ export default async function AdminRezervacijePage({
           </div>
         </div>
 
+        {prikaziGranicu ? <ScrollToToday /> : null}
+
         <div className="overflow-x-auto border border-white/80 bg-white shadow-[0_18px_45px_rgba(0,0,0,0.08)]">
           <table className="w-full min-w-[1450px] border-collapse text-left text-sm">
             <thead>
@@ -361,6 +424,7 @@ export default async function AdminRezervacijePage({
                     href={sortHref({
                       objektId: params.objektId,
                       mjesec: params.mjesec,
+                      prikaziOtkazane: params.prikaziOtkazane,
                       currentSort,
                       currentDir,
                       nextSort: "gost",
@@ -376,6 +440,7 @@ export default async function AdminRezervacijePage({
                     href={sortHref({
                       objektId: params.objektId,
                       mjesec: params.mjesec,
+                      prikaziOtkazane: params.prikaziOtkazane,
                       currentSort,
                       currentDir,
                       nextSort: "objekt",
@@ -392,6 +457,7 @@ export default async function AdminRezervacijePage({
                     href={sortHref({
                       objektId: params.objektId,
                       mjesec: params.mjesec,
+                      prikaziOtkazane: params.prikaziOtkazane,
                       currentSort,
                       currentDir,
                       nextSort: "termin",
@@ -411,6 +477,7 @@ export default async function AdminRezervacijePage({
                     href={sortHref({
                       objektId: params.objektId,
                       mjesec: params.mjesec,
+                      prikaziOtkazane: params.prikaziOtkazane,
                       currentSort,
                       currentDir,
                       nextSort: "placeno",
@@ -426,6 +493,7 @@ export default async function AdminRezervacijePage({
                     href={sortHref({
                       objektId: params.objektId,
                       mjesec: params.mjesec,
+                      prikaziOtkazane: params.prikaziOtkazane,
                       currentSort,
                       currentDir,
                       nextSort: "ostatak",
@@ -441,6 +509,7 @@ export default async function AdminRezervacijePage({
                     href={sortHref({
                       objektId: params.objektId,
                       mjesec: params.mjesec,
+                      prikaziOtkazane: params.prikaziOtkazane,
                       currentSort,
                       currentDir,
                       nextSort: "zavrsna",
@@ -465,10 +534,12 @@ export default async function AdminRezervacijePage({
                   </td>
                 </tr>
               ) : (
-                filtrirane.map((card) => {
+                filtrirane.map((card, index) => {
                   const ukupno = Number(card.iznosUkupno ?? 0);
                   const placeno = card.iznosPlaceno;
                   const ostatak = Math.max(ukupno - placeno, 0);
+
+                  const otkazano = card.status === "OTKAZANO";
 
                   const imeRaw = `${card.ime || ""} ${card.prezime || ""}`.trim();
                   const gostIme = imeRaw || (card.source === "BLOKADA" ? "Booking" : "Gost");
@@ -482,21 +553,42 @@ export default async function AdminRezervacijePage({
                     );
 
                   return (
+                    <Fragment key={card.id}>
+                      {prikaziGranicu && index === granicaIndex ? (
+                        <tr id="sad">
+                          <td
+                            colSpan={10}
+                            className="border-y-2 border-[#c79a57] bg-[#fff6e2] p-2"
+                          >
+                            <div className="flex items-center justify-between px-2 text-xs font-black uppercase tracking-[0.18em] text-[#7a5a22]">
+                              <span>↑ Prošle</span>
+                              <span>Danas</span>
+                              <span>Nadolazeće ↓</span>
+                            </div>
+                          </td>
+                        </tr>
+                      ) : null}
+
                     <tr
-                      key={card.id}
-                      className="border-b border-[#eee3d4] transition hover:bg-[#fcfaf6]"
+                      className={`border-b border-[#eee3d4] transition hover:bg-[#fcfaf6] ${
+                        otkazano ? "bg-[#f5f5f5] opacity-60" : ""
+                      }`}
                     >
                       <td className="p-3">
                         {card.detailHref ? (
                           <Link
                             href={card.detailHref}
-                            className="cursor-pointer font-black text-[#2e2923] hover:text-[#9b6b12]"
+                            className={`cursor-pointer font-black text-[#2e2923] hover:text-[#9b6b12] ${
+                              otkazano ? "line-through" : ""
+                            }`}
                           >
                             {gostIme}
                           </Link>
                         ) : (
                           <span
-                            className={`font-black ${imeRaw ? "text-[#2e2923]" : "italic text-[#9b8a6f]"}`}
+                            className={`font-black ${imeRaw ? "text-[#2e2923]" : "italic text-[#9b8a6f]"} ${
+                              otkazano ? "line-through" : ""
+                            }`}
                           >
                             {gostIme}
                           </span>
@@ -645,6 +737,7 @@ export default async function AdminRezervacijePage({
                         )}
                       </td>
                     </tr>
+                    </Fragment>
                   );
                 })
               )}
