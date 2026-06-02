@@ -18,6 +18,10 @@ type PageParams = Promise<{
   id: string;
 }>;
 
+type SearchParams = Promise<{
+  errBrojOsoba?: string;
+}>;
+
 const resend = new Resend(process.env.RESEND_API_KEY);
 const BCC_EMAIL = process.env.MAIL_BCC || "goran@malinska-stay.hr";
 
@@ -245,10 +249,13 @@ async function osvjeziStatusPlacanja(rezervacijaId: string) {
 
 export default async function RezervacijaDetaljPage({
   params,
+  searchParams,
 }: {
   params: PageParams;
+  searchParams: SearchParams;
 }) {
   const { id } = await params;
+  const sp = await searchParams;
 
   const rezervacija = await prisma.rezervacija.findUnique({
     where: { id },
@@ -987,6 +994,62 @@ export default async function RezervacijaDetaljPage({
     redirect(`/admin/rezervacije/${rezervacijaId}`);
   }
 
+  async function spremiBrojOsoba(formData: FormData) {
+    "use server";
+
+    const rezervacijaId = String(formData.get("rezervacijaId") || "");
+    const brojOsoba = Number.parseInt(
+      String(formData.get("brojOsoba") || "").trim(),
+      10
+    );
+
+    const r = await prisma.rezervacija.findUnique({
+      where: { id: rezervacijaId },
+      include: { jedinica: true },
+    });
+
+    if (!r) {
+      throw new Error("Rezervacija nije pronađena.");
+    }
+
+    const maxKapacitet =
+      (r.jedinica.osnovniKapacitet || 0) + (r.jedinica.dodatniKapacitet || 0);
+
+    // Backend validacija: 1 .. ukupni kapacitet jedinice.
+    if (!Number.isFinite(brojOsoba) || brojOsoba < 1 || brojOsoba > maxKapacitet) {
+      redirect(`/admin/rezervacije/${rezervacijaId}?errBrojOsoba=1`);
+    }
+
+    if (brojOsoba === r.brojOsoba) {
+      redirect(`/admin/rezervacije/${rezervacijaId}`);
+    }
+
+    const staroBrojOsoba = r.brojOsoba;
+
+    await prisma.$transaction(async (tx) => {
+      await tx.rezervacija.update({
+        where: { id: rezervacijaId },
+        data: { brojOsoba },
+      });
+
+      await tx.rezervacijaPromjena.create({
+        data: {
+          rezervacijaId,
+          tip: "BROJ_OSOBA",
+          opis: `Broj osoba promijenjen s ${staroBrojOsoba} na ${brojOsoba}.`,
+          stariPodaci: JSON.stringify({ brojOsoba: staroBrojOsoba }),
+          noviPodaci: JSON.stringify({ brojOsoba }),
+          korisnikIme: "Admin",
+        },
+      });
+    });
+
+    revalidatePath(`/admin/rezervacije/${rezervacijaId}`);
+    revalidatePath("/admin/rezervacije");
+
+    redirect(`/admin/rezervacije/${rezervacijaId}`);
+  }
+
   async function spremiTtlockPristup(formData: FormData) {
     "use server";
 
@@ -1489,7 +1552,47 @@ export default async function RezervacijaDetaljPage({
             <Detail label="Dolazak" value={formatDate(rezervacija.datumOd)} />
             <Detail label="Odlazak" value={formatDate(rezervacija.datumDo)} />
             <Detail label="Noćenja" value={`${rezervacija.brojNocenja}`} />
-            <Detail label="Broj osoba" value={`${rezervacija.brojOsoba}`} />
+            <form action={spremiBrojOsoba} style={{ marginBottom: 8 }}>
+              <input type="hidden" name="rezervacijaId" value={rezervacija.id} />
+              <div className="lm">Broj osoba</div>
+              <div
+                style={{
+                  display: "flex",
+                  gap: 6,
+                  alignItems: "center",
+                  marginTop: 2,
+                }}
+              >
+                <input
+                  className="in"
+                  type="number"
+                  name="brojOsoba"
+                  min={1}
+                  max={
+                    (rezervacija.jedinica.osnovniKapacitet || 0) +
+                    (rezervacija.jedinica.dodatniKapacitet || 0)
+                  }
+                  defaultValue={rezervacija.brojOsoba}
+                  required
+                  style={{ width: 90 }}
+                />
+                <button className="bo" style={{ padding: "4px 12px" }}>
+                  Spremi
+                </button>
+              </div>
+              <div className="lm" style={{ marginTop: 4, opacity: 0.7 }}>
+                Kapacitet: {rezervacija.jedinica.osnovniKapacitet || 0}+
+                {rezervacija.jedinica.dodatniKapacitet || 0}
+              </div>
+              {sp?.errBrojOsoba ? (
+                <div style={{ marginTop: 4, color: "#b42318", fontSize: 12 }}>
+                  Broj osoba mora biti između 1 i{" "}
+                  {(rezervacija.jedinica.osnovniKapacitet || 0) +
+                    (rezervacija.jedinica.dodatniKapacitet || 0)}
+                  .
+                </div>
+              ) : null}
+            </form>
             <Detail
               label="Datum rezerviranja"
               value={formatDateTime(rezervacija.createdAt)}

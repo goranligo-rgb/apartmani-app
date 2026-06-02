@@ -1,5 +1,10 @@
 import { prisma } from "@/lib/prisma";
 import { Resend } from "resend";
+import {
+  osobaRijec,
+  izracunajDodatnuOsoba,
+  dodatnaPosteljinaRecenica,
+} from "@/lib/ciscenje/dodatnaPosteljina";
 
 const resend = new Resend(process.env.RESEND_API_KEY!);
 
@@ -164,6 +169,7 @@ export async function generirajINaPosalji() {
         ? `${formatDate(sljedecaRezervacija.datumOd)}`
         : "Nema najavljenog ulaska";
 
+      // DB Zadatak.opis ostaje stari format (admin tablica ga čita iz baze).
       const opis =
         `Završno čišćenje nakon odlaska gosta. ` +
         `Broj gostiju: ${r.brojOsoba || 0}. ` +
@@ -179,6 +185,18 @@ export async function generirajINaPosalji() {
         prioritet: true,
       });
 
+      // Mail/PDF (prema agenciji): novi tekst + dodatna posteljina za sljedećeg gosta.
+      const dodatnaOsoba = izracunajDodatnuOsoba({
+        sljedecaRezervacija,
+        datumDo: r.datumDo,
+        osnovniKapacitet: r.jedinica.osnovniKapacitet || 0,
+        dodatniKapacitet: r.jedinica.dodatniKapacitet || 0,
+      });
+
+      const opisMail =
+        "Čišćenje nakon odlaska gosta." +
+        (dodatnaOsoba > 0 ? ` ${dodatnaPosteljinaRecenica(dodatnaOsoba)}` : "");
+
       return {
         datum: startOfDay(r.datumDo),
         tip: "ZAVRSNO_CISCENJE" as const,
@@ -188,7 +206,8 @@ export async function generirajINaPosalji() {
         nazivObjekta: r.jedinica.objekt.naziv,
         brojGostiju: r.brojOsoba || 0,
         osnovniKapacitet: r.jedinica.osnovniKapacitet || 0,
-        opis: "Završno čišćenje nakon odlaska gosta.",
+        dodatnaOsoba,
+        opis: opisMail,
         sljedeciUlazak,
         cijena: 0,
       };
@@ -264,8 +283,9 @@ export async function generirajINaPosalji() {
       nazivObjekta: r.jedinica.objekt.naziv,
       brojGostiju: r.brojOsoba || 0,
       osnovniKapacitet: r.jedinica.osnovniKapacitet || 0,
-      opis:
-        "Međučisćenje na sredini boravka: očistiti apartman/kuću, promijeniti posteljinu i ostaviti nove ručnike.",
+      opis: `Međučišćenje - kompletna zamjena posteljine i ručnika za ${
+        r.brojOsoba || 0
+      } ${osobaRijec(r.brojOsoba || 0)}.`,
       sljedeciUlazak: "Gost ostaje u smještaju",
       cijena: 0,
     });
@@ -372,9 +392,12 @@ export async function generirajINaPosalji() {
     : [];
 
   function dodatnaPosteljinaText(s: any) {
-    const brojGostiju = Number(s.brojGostiju || 0);
-    const osnovniKapacitet = Number(s.osnovniKapacitet || 0);
-    const dodatnoOsoba = Math.max(0, brojGostiju - osnovniKapacitet);
+    // Za završno čišćenje koristimo isti X kao u opisu (s.dodatnaOsoba);
+    // za ostale tipove fallback na staru procjenu.
+    const dodatnoOsoba =
+      typeof s.dodatnaOsoba === "number"
+        ? s.dodatnaOsoba
+        : Math.max(0, Number(s.brojGostiju || 0) - Number(s.osnovniKapacitet || 0));
 
     if (dodatnoOsoba <= 0) return "-";
     if (dodatnoOsoba === 1) return "1 dodatna posteljina + ručnici";

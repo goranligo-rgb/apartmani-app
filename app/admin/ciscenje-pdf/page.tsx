@@ -1,5 +1,10 @@
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
+import {
+  osobaRijec,
+  izracunajDodatnuOsoba,
+  dodatnaPosteljinaRecenica,
+} from "@/lib/ciscenje/dodatnaPosteljina";
 
 export const dynamic = "force-dynamic";
 
@@ -175,6 +180,16 @@ export default async function PlanCiscenjaPdfPage({
       )}`
       : "Nema najavljenog ulaska";
 
+    // PDF (prema agenciji): novi tekst + dodatna posteljina za sljedećeg gosta.
+    const dodatnaOsoba = izracunajDodatnuOsoba({
+      sljedecaRezervacija,
+      datumDo: r.datumDo,
+      osnovniKapacitet: r.jedinica.osnovniKapacitet || 0,
+      dodatniKapacitet: r.jedinica.dodatniKapacitet || 0,
+    });
+    const dodatnaRecenica =
+      dodatnaOsoba > 0 ? ` ${dodatnaPosteljinaRecenica(dodatnaOsoba)}` : "";
+
     planItems.push({
       id: `odlazak-${r.id}`,
       datum: startOfDay(r.datumDo),
@@ -183,9 +198,10 @@ export default async function PlanCiscenjaPdfPage({
       jedinica: r.jedinica.naziv,
       gost: guestName(r.gost),
       brojGostiju: r.brojOsoba || "-",
-      opis: brziUlazak
-        ? "BRZI ULAZAK isti dan — očistiti odmah nakon odlaska gosta."
-        : "Završno čišćenje nakon odlaska gosta.",
+      opis:
+        (brziUlazak
+          ? "BRZI ULAZAK isti dan — očistiti odmah nakon odlaska gosta."
+          : "Čišćenje nakon odlaska gosta.") + dodatnaRecenica,
       sljedeciUlazak,
       brziUlazak,
     });
@@ -213,8 +229,9 @@ export default async function PlanCiscenjaPdfPage({
       jedinica: r.jedinica.naziv,
       gost: guestName(r.gost),
       brojGostiju: r.brojOsoba || "-",
-      opis:
-        "Gost ostaje dulje od 7 noći — očistiti apartman/kuću, promijeniti posteljinu i ostaviti nove ručnike.",
+      opis: `Međučišćenje - kompletna zamjena posteljine i ručnika za ${
+        r.brojOsoba || 0
+      } ${osobaRijec(r.brojOsoba || 0)}.`,
       sljedeciUlazak: "Gost ostaje u smještaju",
       brziUlazak: false,
     });
