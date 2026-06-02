@@ -264,6 +264,7 @@ model Rezervacija {
   emailovi EmailLog[]
   promjene RezervacijaPromjena[]
   ttlockSifre RezervacijaTtlockSifra[]
+  whatsappPoruke WhatsappPoruka[]
 
   @@index([jedinicaId])
   @@index([datumOd, datumDo])
@@ -868,6 +869,30 @@ model RezervacijaTtlockSifra {
   @@index([rezervacijaId])
   @@index([bravaId])
   @@index([status])
+}
+
+// Povijest poslanih WhatsApp poruka gostu (check-in flow). Tablica se kreira
+// ručnim SQL-om u Supabase (NE prisma migrate); ovaj model samo opisuje shemu
+// za Prisma Client. Više redaka po rezervaciji (povijest + multi-unit po retku).
+model WhatsappPoruka {
+  id            String   @id @default(cuid())
+  rezervacijaId String
+
+  primatelj    String // E.164 broj na koji je poslano
+  templateSid  String?
+  varijable    Json // {1: ime, 2: objekt, 3: datum, 4: sifra, 5: upute, 6: kontakt}
+  tekstPregled String // čitljiv tekst poruke s ubačenim varijablama
+  twilioSid    String? // Message SID iz Twilio odgovora
+
+  status String // POSLANO / GRESKA
+  greska String?
+
+  poslanoAt DateTime @default(now())
+
+  rezervacija Rezervacija @relation(fields: [rezervacijaId], references: [id], onDelete: Cascade)
+
+  @@index([rezervacijaId])
+  @@index([poslanoAt])
 }
 
 enum TtlockTipOsobe {

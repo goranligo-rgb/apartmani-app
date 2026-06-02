@@ -1,0 +1,313 @@
+import { NextResponse } from "next/server";
+import { StatusRezervacije } from "@prisma/client";
+import { prisma } from "@/lib/prisma";
+import { dodajTtlockSifru } from "@/lib/ttlock";
+import {
+  imaTwilioKonfiguraciju,
+  normalizirajE164,
+  posaljiWhatsappTemplate,
+} from "@/lib/twilio";
+
+export const dynamic = "force-dynamic";
+
+// Vercel cron je u UTC. vercel.json: "0 8 * * *" = 08:00 UTC.
+// Ljeti (CEST, UTC+2) = 10:00 lokalno; zimi (CET, UTC+1) = 09:00 lokalno.
+const CHECKIN_TIME_HOUR = 16; // šifra vrijedi od datuma PRIJAVE 16:00
+const CHECKOUT_TIME_HOUR = 10; // do datuma ODJAVE 10:00
+
+const NEAKTIVNI_STATUSI: StatusRezervacije[] = [
+  StatusRezervacije.OTKAZANO,
+  StatusRezervacije.OBRISANO,
+];
+
+function startOfDay(d: Date): Date {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+}
+
+function addDays(d: Date, days: number): Date {
+  const x = new Date(d);
+  x.setDate(x.getDate() + days);
+  return x;
+}
+
+function setTime(date: Date, hour: number, minute: number): Date {
+  const d = new Date(date);
+  d.setHours(hour, minute, 0, 0);
+  return d;
+}
+
+// Ista logika kao postojeći ručni TTLock flow: zadnje 4 znamenke telefona.
+function generirajSifruIzTelefona(telefon?: string | null): string {
+  const brojevi = String(telefon || "").replace(/\D/g, "");
+  if (brojevi.length >= 4) return brojevi.slice(-4);
+  return String(Math.floor(1000 + Math.random() * 9000));
+}
+
+function formatDatumHr(d: Date): string {
+  return d.toLocaleDateString("hr-HR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  });
+}
+
+export async function GET(request: Request) {
+  // 1) Auth — fail-closed, isto kao /api/cron/ciscenje-tjedni: ako CRON_SECRET
+  //    nije postavljen, odbij sve (umjesto da propustimo "Bearer undefined").
+  //    Vercel cron sam šalje header `Authorization: Bearer ${CRON_SECRET}`.
+  const secret = process.env.CRON_SECRET;
+  if (!secret) {
+    return NextResponse.json(
+      { error: "CRON_SECRET nije konfiguriran na serveru." },
+      { status: 503 }
+    );
+  }
+
+  const authHeader = request.headers.get("authorization");
+  if (authHeader !== `Bearer ${secret}`) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  if (!imaTwilioKonfiguraciju()) {
+    return NextResponse.json({
+      success: true,
+      skipped: true,
+      message:
+        "Twilio/WhatsApp nije konfiguriran (nedostaju env varijable) — preskačem slanje.",
+    });
+  }
+
+  const danaPrije =
+    Number.parseInt(process.env.CHECKIN_DAYS_BEFORE || "3", 10) || 3;
+
+  const danas = startOfDay(new Date());
+  const ciljOd = addDays(danas, danaPrije);
+  const ciljDo = addDays(ciljOd, 1);
+
+  const kontakt = process.env.WHATSAPP_KONTAKT || "Malinska Stay";
+  const upute =
+    process.env.WHATSAPP_UPUTE ||
+    "Ulaz je samostalan putem šifre na bravi. Za sva pitanja slobodno odgovorite na ovu poruku.";
+
+  const rezervacije = await prisma.rezervacija.findMany({
+    where: {
+      izvor: "BOOKING",
+      status: { notIn: NEAKTIVNI_STATUSI },
+      datumOd: { gte: ciljOd, lt: ciljDo },
+    },
+    include: {
+      gost: true,
+      jedinica: {
+        include: {
+          objekt: true,
+          ttlockBrave: { include: { brava: true } },
+        },
+      },
+      // idempotencija: ako već postoji uspješno poslana poruka, preskoči.
+      whatsappPoruke: { where: { status: "POSLANO" }, select: { id: true } },
+    },
+  });
+
+  let poslano = 0;
+  let preskoceno = 0;
+  let greske = 0;
+  const detalji: Array<{ rezervacijaId: string; ishod: string }> = [];
+
+  for (const r of rezervacije) {
+    try {
+      if (r.whatsappPoruke.length > 0) {
+        preskoceno++;
+        detalji.push({ rezervacijaId: r.id, ishod: "VEC_POSLANO" });
+        continue;
+      }
+
+      const e164 = normalizirajE164(r.gost?.telefon);
+      if (!e164) {
+        preskoceno++;
+        detalji.push({ rezervacijaId: r.id, ishod: "NEMA_TELEFONA" });
+        continue;
+      }
+
+      if (r.jedinica.ttlockBrave.length === 0) {
+        preskoceno++;
+        detalji.push({ rezervacijaId: r.id, ishod: "NEMA_BRAVE" });
+        continue;
+      }
+
+      // ── (b) Osiguraj zapise šifre (ne diraj postojeće ako već postoje) ──
+      const sifra = generirajSifruIzTelefona(r.gost?.telefon);
+      const vrijediOd = setTime(r.datumOd, CHECKIN_TIME_HOUR, 0);
+      const vrijediDo = setTime(r.datumDo, CHECKOUT_TIME_HOUR, 0);
+
+      for (const veza of r.jedinica.ttlockBrave) {
+        await prisma.rezervacijaTtlockSifra.upsert({
+          where: {
+            rezervacijaId_bravaId: {
+              rezervacijaId: r.id,
+              bravaId: veza.bravaId,
+            },
+          },
+          update: {}, // ne prepisuj postojeću šifru/prozor
+          create: {
+            rezervacijaId: r.id,
+            bravaId: veza.bravaId,
+            sifra,
+            vrijediOd,
+            vrijediDo,
+            status: "CEKA",
+          },
+        });
+      }
+
+      // ── (c) Push šifre na fizičke brave; sve koje nisu POSLANO ──
+      const sifre = await prisma.rezervacijaTtlockSifra.findMany({
+        where: { rezervacijaId: r.id },
+        include: { brava: true },
+      });
+
+      let pushGreska: string | null = null;
+
+      for (const s of sifre) {
+        if (s.status === "POSLANO") continue;
+        try {
+          const resp: any = await dodajTtlockSifru({
+            lockId: s.brava.lockId,
+            sifra: s.sifra,
+            naziv: `${r.jedinica.naziv} ${r.gost?.ime || "Gost"}`,
+            vrijediOd: s.vrijediOd,
+            vrijediDo: s.vrijediDo,
+          });
+
+          await prisma.rezervacijaTtlockSifra.update({
+            where: { id: s.id },
+            data: {
+              status: "POSLANO",
+              ttlockKeyboardPwdId: resp?.keyboardPwdId
+                ? String(resp.keyboardPwdId)
+                : null,
+              greska: null,
+            },
+          });
+        } catch (err: any) {
+          pushGreska = err?.message || "TTLock push nije uspio.";
+          await prisma.rezervacijaTtlockSifra.update({
+            where: { id: s.id },
+            data: { status: "GRESKA", greska: pushGreska },
+          });
+        }
+      }
+
+      // Provjera: je li baš SVE aktivno (POSLANO) na bravama?
+      const neaktivnih = await prisma.rezervacijaTtlockSifra.count({
+        where: { rezervacijaId: r.id, status: { not: "POSLANO" } },
+      });
+
+      if (pushGreska || neaktivnih > 0) {
+        // Šifra nije aktivna → NE šalji poruku, NE bilježi kao poslano.
+        const poruka = `TTLock push nije uspio — WhatsApp NIJE poslan. ${
+          pushGreska || `${neaktivnih} brava nije aktivirano.`
+        }`.trim();
+
+        console.error(`[whatsapp-checkin] rez ${r.id}: ${poruka}`);
+
+        await prisma.whatsappPoruka.create({
+          data: {
+            rezervacijaId: r.id,
+            primatelj: e164,
+            templateSid: process.env.TWILIO_WHATSAPP_TEMPLATE_SID || null,
+            varijable: {},
+            tekstPregled:
+              "Poruka NIJE poslana — TTLock šifra nije aktivirana na bravi.",
+            status: "GRESKA",
+            greska: poruka,
+          },
+        });
+
+        greske++;
+        detalji.push({ rezervacijaId: r.id, ishod: "PUSH_GRESKA" });
+        continue;
+      }
+
+      // ── (d) Sastavi varijable + čitljiv tekst i pošalji WhatsApp ──
+      const imeGosta = r.gost?.ime || "gost";
+      const objektPun =
+        r.jedinica.vrsta === "KUCA"
+          ? r.jedinica.objekt.naziv
+          : `${r.jedinica.objekt.naziv} – ${r.jedinica.naziv}`;
+      const datumPrijave = formatDatumHr(r.datumOd);
+
+      const varijable: Record<string, string> = {
+        "1": imeGosta,
+        "2": objektPun,
+        "3": datumPrijave,
+        "4": sifra,
+        "5": upute,
+        "6": kontakt,
+      };
+
+      const tekstPregled =
+        `Poštovani ${imeGosta},\n\n` +
+        `dobrodošli u ${objektPun}!\n` +
+        `Datum prijave: ${datumPrijave}\n` +
+        `Šifra za ulaznu bravu: ${sifra}\n\n` +
+        `Upute: ${upute}\n` +
+        `Kontakt: ${kontakt}\n\n` +
+        `Vidimo se uskoro!\nMalinska Stay`;
+
+      const twilio = await posaljiWhatsappTemplate({
+        to: e164,
+        contentVariables: varijable,
+      });
+
+      await prisma.whatsappPoruka.create({
+        data: {
+          rezervacijaId: r.id,
+          primatelj: e164,
+          templateSid: twilio.templateSid,
+          varijable,
+          tekstPregled,
+          twilioSid: twilio.sid,
+          status: "POSLANO",
+        },
+      });
+
+      poslano++;
+      detalji.push({ rezervacijaId: r.id, ishod: "POSLANO" });
+    } catch (err: any) {
+      // Twilio ili neočekivana greška — jedna pala poruka NE ruši batch.
+      const poruka = err?.message || "Nepoznata greška kod slanja.";
+      console.error(`[whatsapp-checkin] rez ${r.id}: ${poruka}`);
+
+      try {
+        await prisma.whatsappPoruka.create({
+          data: {
+            rezervacijaId: r.id,
+            primatelj: normalizirajE164(r.gost?.telefon) || "(nepoznato)",
+            templateSid: process.env.TWILIO_WHATSAPP_TEMPLATE_SID || null,
+            varijable: {},
+            tekstPregled:
+              "Poruka NIJE poslana — greška kod slanja WhatsApp poruke.",
+            status: "GRESKA",
+            greska: poruka,
+          },
+        });
+      } catch (_) {
+        // ako ni log ne uspije, samo nastavi
+      }
+
+      greske++;
+      detalji.push({ rezervacijaId: r.id, ishod: "GRESKA" });
+    }
+  }
+
+  return NextResponse.json({
+    success: true,
+    danaPrije,
+    ciljDatum: ciljOd,
+    pronadeno: rezervacije.length,
+    poslano,
+    preskoceno,
+    greske,
+    detalji,
+  });
+}

@@ -11,6 +11,10 @@
     {
       "path": "/api/cron/ciscenje-tjedni",
       "schedule": "0 * * * *"
+    },
+    {
+      "path": "/api/cron/whatsapp-checkin",
+      "schedule": "0 8 * * *"
     }
   ]
 }
