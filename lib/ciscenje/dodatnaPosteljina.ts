@@ -58,3 +58,51 @@ export function dodatnaPosteljinaRecenica(x: number): string {
   if (!x || x <= 0) return "";
   return `Dodatni ručnici i posteljina za ${x} ${osobaRijec(x)}.`;
 }
+
+/**
+ * Tekst za stupac "Sljedeći ulazak" (mail). Granica je IDENTIČNA onoj iz
+ * izracunajDodatnuOsoba (razmak <= 4 → datum; >= 5 → bez datuma).
+ *
+ * - razmak 0       → "BRZI ULAZAK isti dan" (jeBrziUlazak = true)
+ * - razmak 1       → "Dan poslije (DD.MM.YYYY)"
+ * - razmak 2..4    → "DD.MM.YYYY"
+ * - razmak >= 5    → "—"
+ * - nema sljedeće  → "—"
+ *
+ * formatDate se injektira da lokale ostanu u pozivatelju.
+ */
+export function sljedeciUlazakTekst(params: {
+  sljedecaRezervacija: { datumOd: Date } | null;
+  datumDo: Date;
+  formatDate: (d: Date) => string;
+}): { tekst: string; jeBrziUlazak: boolean } {
+  if (!params.sljedecaRezervacija) {
+    return { tekst: "—", jeBrziUlazak: false };
+  }
+
+  const MS_DAN = 24 * 60 * 60 * 1000;
+  const razmak = Math.round(
+    (startOfDay(params.sljedecaRezervacija.datumOd).getTime() -
+      startOfDay(params.datumDo).getTime()) /
+      MS_DAN
+  );
+
+  if (razmak === 0) {
+    return { tekst: "BRZI ULAZAK isti dan", jeBrziUlazak: true };
+  }
+  if (razmak === 1) {
+    return {
+      tekst: `Dan poslije (${params.formatDate(params.sljedecaRezervacija.datumOd)})`,
+      jeBrziUlazak: false,
+    };
+  }
+  if (razmak >= 2 && razmak <= 4) {
+    return {
+      tekst: params.formatDate(params.sljedecaRezervacija.datumOd),
+      jeBrziUlazak: false,
+    };
+  }
+
+  // razmak >= 5
+  return { tekst: "—", jeBrziUlazak: false };
+}

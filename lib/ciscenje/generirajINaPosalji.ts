@@ -4,6 +4,7 @@ import {
   osobaRijec,
   izracunajDodatnuOsoba,
   dodatnaPosteljinaRecenica,
+  sljedeciUlazakTekst,
 } from "@/lib/ciscenje/dodatnaPosteljina";
 
 const resend = new Resend(process.env.RESEND_API_KEY!);
@@ -25,6 +26,13 @@ function formatDate(d: Date) {
     month: "2-digit",
     year: "numeric",
   });
+}
+
+// Kratki numerički datum "DD.MM.YYYY." za stupac "Sljedeći ulazak" u mailu.
+function formatDatumKratko(d: Date) {
+  const dd = String(d.getDate()).padStart(2, "0");
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  return `${dd}.${mm}.${d.getFullYear()}.`;
 }
 
 function martyBazenZaDan(postavke: any, datum: Date) {
@@ -185,7 +193,7 @@ export async function generirajINaPosalji() {
         prioritet: true,
       });
 
-      // Mail/PDF (prema agenciji): novi tekst + dodatna posteljina za sljedećeg gosta.
+      // Mail (prema agenciji): X za stupac Napomena + tekst za stupac Sljedeći ulazak.
       const dodatnaOsoba = izracunajDodatnuOsoba({
         sljedecaRezervacija,
         datumDo: r.datumDo,
@@ -193,9 +201,14 @@ export async function generirajINaPosalji() {
         dodatniKapacitet: r.jedinica.dodatniKapacitet || 0,
       });
 
-      const opisMail =
-        "Čišćenje nakon odlaska gosta." +
-        (dodatnaOsoba > 0 ? ` ${dodatnaPosteljinaRecenica(dodatnaOsoba)}` : "");
+      const ulazInfo = sljedeciUlazakTekst({
+        sljedecaRezervacija,
+        datumDo: r.datumDo,
+        formatDate: formatDatumKratko,
+      });
+
+      // Opis u mailu je UVIJEK isti; dodatna posteljina ide samo u stupac Napomena.
+      const opisMail = "Čišćenje nakon odlaska gosta.";
 
       return {
         datum: startOfDay(r.datumDo),
@@ -208,7 +221,8 @@ export async function generirajINaPosalji() {
         osnovniKapacitet: r.jedinica.osnovniKapacitet || 0,
         dodatnaOsoba,
         opis: opisMail,
-        sljedeciUlazak,
+        sljedeciUlazak: ulazInfo.tekst,
+        jeBrziUlazak: ulazInfo.jeBrziUlazak,
         cijena: 0,
       };
     })
@@ -399,11 +413,9 @@ export async function generirajINaPosalji() {
         ? s.dodatnaOsoba
         : Math.max(0, Number(s.brojGostiju || 0) - Number(s.osnovniKapacitet || 0));
 
-    if (dodatnoOsoba <= 0) return "-";
-    if (dodatnoOsoba === 1) return "1 dodatna posteljina + ručnici";
-    if (dodatnoOsoba === 2) return "2 dodatne posteljine + ručnici";
+    if (dodatnoOsoba <= 0) return "—";
 
-    return `${dodatnoOsoba} dodatne posteljine + ručnici`;
+    return dodatnaPosteljinaRecenica(dodatnoOsoba);
   }
 
   const html = `
@@ -433,11 +445,7 @@ export async function generirajINaPosalji() {
 
         ${sveStavkeZaMail
           .map((s) => {
-            const smjenaIstiDan =
-              s.sljedeciUlazak &&
-              s.sljedeciUlazak !== "-" &&
-              !String(s.sljedeciUlazak).includes("Nema") &&
-              String(s.sljedeciUlazak).includes(formatDate(s.datum));
+            const smjenaIstiDan = Boolean(s.jeBrziUlazak);
 
             const napomena = dodatnaPosteljinaText(s);
 
