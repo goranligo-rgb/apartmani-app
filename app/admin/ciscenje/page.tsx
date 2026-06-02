@@ -60,6 +60,14 @@ async function spremiPostavke(formData: FormData) {
     martyBazenPetak: !!formData.get("martyBazenPetak"),
     martyBazenSubota: !!formData.get("martyBazenSubota"),
     martyBazenNedjelja: !!formData.get("martyBazenNedjelja"),
+
+    evaStubistePonedjeljak: !!formData.get("evaStubistePonedjeljak"),
+    evaStubisteUtorak: !!formData.get("evaStubisteUtorak"),
+    evaStubisteSrijeda: !!formData.get("evaStubisteSrijeda"),
+    evaStubisteCetvrtak: !!formData.get("evaStubisteCetvrtak"),
+    evaStubistePetak: !!formData.get("evaStubistePetak"),
+    evaStubisteSubota: !!formData.get("evaStubisteSubota"),
+    evaStubisteNedjelja: !!formData.get("evaStubisteNedjelja"),
   };
 
   const postavke = await prisma.ciscenjeMailPostavke.findFirst();
@@ -548,6 +556,52 @@ export default async function CiscenjeAdminPage({
                   name="martyBazenNedjelja"
                   label="Nedjelja"
                   checked={postavke?.martyBazenNedjelja ?? false}
+                />
+              </div>
+            </div>
+
+            <div style={{ ...cardStyle, marginTop: 18 }}>
+              <h2>Stubište Eva</h2>
+
+              <p style={{ color: "#666" }}>
+                Ako ne označiš ništa, stubište se ne šalje agenciji.
+              </p>
+
+              <div style={daysGrid}>
+                <Check
+                  name="evaStubistePonedjeljak"
+                  label="Ponedjeljak"
+                  checked={postavke?.evaStubistePonedjeljak ?? false}
+                />
+                <Check
+                  name="evaStubisteUtorak"
+                  label="Utorak"
+                  checked={postavke?.evaStubisteUtorak ?? false}
+                />
+                <Check
+                  name="evaStubisteSrijeda"
+                  label="Srijeda"
+                  checked={postavke?.evaStubisteSrijeda ?? false}
+                />
+                <Check
+                  name="evaStubisteCetvrtak"
+                  label="Četvrtak"
+                  checked={postavke?.evaStubisteCetvrtak ?? false}
+                />
+                <Check
+                  name="evaStubistePetak"
+                  label="Petak"
+                  checked={postavke?.evaStubistePetak ?? false}
+                />
+                <Check
+                  name="evaStubisteSubota"
+                  label="Subota"
+                  checked={postavke?.evaStubisteSubota ?? false}
+                />
+                <Check
+                  name="evaStubisteNedjelja"
+                  label="Nedjelja"
+                  checked={postavke?.evaStubisteNedjelja ?? false}
                 />
               </div>
 

@@ -3,40 +3,24 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { adminSessionOk } from "@/lib/admin-auth";
+import { getRezervacijeIBlokade } from "@/lib/rezervacije-union";
 
 export const dynamic = "force-dynamic";
 
-type SearchParams = Promise<{
-  saved?: string;
-  init?: string;
-  missing?: string;
-}>;
-
-// Cjenik iz ugovora Adonija 143-2026 (match po Jedinica.naziv).
-const SEED_CJENIK = [
-  { naziv: "Eva 1", cijenaCiscenja: 79, cijenaPosteljina: 20 },
-  { naziv: "Eva 2", cijenaCiscenja: 65, cijenaPosteljina: 20 },
-  { naziv: "Eva 3", cijenaCiscenja: 65, cijenaPosteljina: 20 },
-  { naziv: "Marty 1", cijenaCiscenja: 55, cijenaPosteljina: 20 },
-  { naziv: "Marty 2", cijenaCiscenja: 79, cijenaPosteljina: 20 },
-  { naziv: "Marty 3", cijenaCiscenja: 55, cijenaPosteljina: 20 },
-  { naziv: "Marty 4", cijenaCiscenja: 79, cijenaPosteljina: 20 },
-  { naziv: "Marty 5", cijenaCiscenja: 109, cijenaPosteljina: 35 },
-  { naziv: "House Art", cijenaCiscenja: 139, cijenaPosteljina: 50 },
-];
-
-const DANI = [
-  { key: "Ponedjeljak", label: "Pon" },
-  { key: "Utorak", label: "Uto" },
-  { key: "Srijeda", label: "Sri" },
-  { key: "Cetvrtak", label: "Čet" },
-  { key: "Petak", label: "Pet" },
-  { key: "Subota", label: "Sub" },
-  { key: "Nedjelja", label: "Ned" },
-] as const;
+type SearchParams = Promise<{ saved?: string }>;
 
 function money(v?: number | null) {
   return `${Number(v || 0).toFixed(2)} €`;
+}
+
+function startOfDay(d: Date): Date {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+}
+
+function addDays(d: Date, n: number): Date {
+  const x = new Date(d);
+  x.setDate(x.getDate() + n);
+  return x;
 }
 
 // Vraća number za valjan unos, ili NULL kad je polje prazno / nevaljano /
@@ -57,42 +41,6 @@ async function dohvatiPostavkeId(): Promise<string> {
 }
 
 // ── Server actions ───────────────────────────────────────────────
-
-async function inicijalizirajCjenik() {
-  "use server";
-  if (!(await adminSessionOk())) redirect("/admin");
-
-  const missing: string[] = [];
-
-  for (const item of SEED_CJENIK) {
-    const jed = await prisma.jedinica.findFirst({
-      where: { naziv: item.naziv },
-      select: { id: true },
-    });
-    if (!jed) {
-      missing.push(item.naziv);
-      continue;
-    }
-    await prisma.cjenikCiscenjaJedinice.upsert({
-      where: { jedinicaId: jed.id },
-      update: {
-        cijenaCiscenja: item.cijenaCiscenja,
-        cijenaPosteljina: item.cijenaPosteljina,
-      },
-      create: {
-        jedinicaId: jed.id,
-        cijenaCiscenja: item.cijenaCiscenja,
-        cijenaPosteljina: item.cijenaPosteljina,
-      },
-    });
-  }
-
-  revalidatePath("/admin/cjenik-agencije");
-  const q = missing.length
-    ? `?init=done&missing=${encodeURIComponent(missing.join(","))}`
-    : "?init=done";
-  redirect(`/admin/cjenik-agencije${q}`);
-}
 
 async function spremiCijeneCiscenja(formData: FormData) {
   "use server";
@@ -138,15 +86,14 @@ async function spremiBazen(formData: FormData) {
   "use server";
   if (!(await adminSessionOk())) redirect("/admin");
 
-  const id = await dohvatiPostavkeId();
-  const data: Record<string, unknown> = {};
-  const bazenCijena = parseEur(formData.get("bazenCijena"));
-  if (bazenCijena !== null) data.bazenCijena = bazenCijena; // prazno = ne diraj cijenu
-  for (const d of DANI) {
-    data[`martyBazen${d.key}`] = formData.get(`martyBazen${d.key}`) != null;
+  const cijena = parseEur(formData.get("bazenCijena"));
+  if (cijena !== null) {
+    const id = await dohvatiPostavkeId();
+    await prisma.ciscenjeMailPostavke.update({
+      where: { id },
+      data: { bazenCijena: cijena },
+    });
   }
-
-  await prisma.ciscenjeMailPostavke.update({ where: { id }, data });
   revalidatePath("/admin/cjenik-agencije");
   redirect("/admin/cjenik-agencije?saved=bazen");
 }
@@ -155,15 +102,14 @@ async function spremiStubiste(formData: FormData) {
   "use server";
   if (!(await adminSessionOk())) redirect("/admin");
 
-  const id = await dohvatiPostavkeId();
-  const data: Record<string, unknown> = {};
-  const stubisteCijena = parseEur(formData.get("stubisteCijena"));
-  if (stubisteCijena !== null) data.stubisteCijena = stubisteCijena; // prazno = ne diraj cijenu
-  for (const d of DANI) {
-    data[`evaStubiste${d.key}`] = formData.get(`evaStubiste${d.key}`) != null;
+  const cijena = parseEur(formData.get("stubisteCijena"));
+  if (cijena !== null) {
+    const id = await dohvatiPostavkeId();
+    await prisma.ciscenjeMailPostavke.update({
+      where: { id },
+      data: { stubisteCijena: cijena },
+    });
   }
-
-  await prisma.ciscenjeMailPostavke.update({ where: { id }, data });
   revalidatePath("/admin/cjenik-agencije");
   redirect("/admin/cjenik-agencije?saved=stubiste");
 }
@@ -193,7 +139,7 @@ const PORUKE: Record<string, string> = {
   fiksne: "Fiksne stope spremljene.",
 };
 
-export default async function CjenikCiscenjaPage({
+export default async function CjenikAgencijePage({
   searchParams,
 }: {
   searchParams: SearchParams;
@@ -207,18 +153,110 @@ export default async function CjenikCiscenjaPage({
   });
 
   const postavke = await prisma.ciscenjeMailPostavke.findFirst();
-  const postavkeRec = postavke as Record<string, unknown> | null;
 
   const cjenikPrazan = jedinice.every((j) => !j.cjenikCiscenja);
+  const toast = sp.saved ? PORUKE[sp.saved] : "";
 
-  const toast =
-    (sp.saved && PORUKE[sp.saved]) ||
-    (sp.init === "done"
-      ? sp.missing
-        ? `Cjenik inicijaliziran. Nije pronađeno u bazi: ${decodeURIComponent(sp.missing)}`
-        : "Cjenik inicijaliziran iz ugovora."
-      : "");
+  // ── Projekcija troškova: danas .. 31.12.2026 ─────────────────────
+  const danas = startOfDay(new Date());
+  const krajGodine = new Date(2026, 11, 31, 23, 59, 59, 999);
 
+  const kartice = await getRezervacijeIBlokade({
+    ukljuciOtkazane: false,
+    datumOd: danas,
+    datumDo: krajGodine,
+  });
+
+  type Proj = {
+    zavrsnoCount: number;
+    zavrsnoIznos: number;
+    posteljinaCount: number;
+    posteljinaIznos: number;
+  };
+  const proj = new Map<string, Proj>();
+  const cjenikMap = new Map<string, { ciscenje: number; posteljina: number }>();
+  for (const j of jedinice) {
+    proj.set(j.id, {
+      zavrsnoCount: 0,
+      zavrsnoIznos: 0,
+      posteljinaCount: 0,
+      posteljinaIznos: 0,
+    });
+    cjenikMap.set(j.id, {
+      ciscenje: j.cjenikCiscenja?.cijenaCiscenja ?? 0,
+      posteljina: j.cjenikCiscenja?.cijenaPosteljina ?? 0,
+    });
+  }
+
+  for (const c of kartice) {
+    const p = proj.get(c.jedinica.id);
+    const cijene = cjenikMap.get(c.jedinica.id);
+    if (!p || !cijene) continue;
+
+    const datumDo = startOfDay(c.datumDo);
+    if (datumDo >= danas && datumDo <= krajGodine) {
+      p.zavrsnoCount++;
+      p.zavrsnoIznos += cijene.ciscenje;
+    }
+
+    const nocenja = c.brojNocenja || 0;
+    if (nocenja > 7) {
+      const midstay = addDays(startOfDay(c.datumOd), Math.floor(nocenja / 2));
+      if (midstay >= danas && midstay <= krajGodine) {
+        p.posteljinaCount++;
+        p.posteljinaIznos += cijene.posteljina;
+      }
+    }
+  }
+
+  // Bazen / Stubište: broj dana u rasponu po danu u tjednu (getDay 0 = Nedjelja).
+  const bazenDani = [
+    postavke?.martyBazenNedjelja,
+    postavke?.martyBazenPonedjeljak,
+    postavke?.martyBazenUtorak,
+    postavke?.martyBazenSrijeda,
+    postavke?.martyBazenCetvrtak,
+    postavke?.martyBazenPetak,
+    postavke?.martyBazenSubota,
+  ];
+  const stubisteDani = [
+    postavke?.evaStubisteNedjelja,
+    postavke?.evaStubistePonedjeljak,
+    postavke?.evaStubisteUtorak,
+    postavke?.evaStubisteSrijeda,
+    postavke?.evaStubisteCetvrtak,
+    postavke?.evaStubistePetak,
+    postavke?.evaStubisteSubota,
+  ];
+  let brBazenDana = 0;
+  let brStubisteDana = 0;
+  for (let d = new Date(danas); d <= krajGodine; d = addDays(d, 1)) {
+    const wd = d.getDay();
+    if (bazenDani[wd]) brBazenDana++;
+    if (stubisteDani[wd]) brStubisteDana++;
+  }
+  const bazenIznos = brBazenDana * (postavke?.bazenCijena ?? 0);
+  const stubisteIznos = brStubisteDana * (postavke?.stubisteCijena ?? 0);
+
+  // Grupiranje po objektu (jedinice su već sortirane po objektu).
+  const grupe: {
+    objektId: string;
+    objektNaziv: string;
+    jedinice: typeof jedinice;
+  }[] = [];
+  for (const j of jedinice) {
+    let g = grupe.find((x) => x.objektId === j.objekt.id);
+    if (!g) {
+      g = { objektId: j.objekt.id, objektNaziv: j.objekt.naziv, jedinice: [] };
+      grupe.push(g);
+    }
+    g.jedinice.push(j);
+  }
+
+  let grandTotal = bazenIznos + stubisteIznos;
+  for (const p of proj.values()) grandTotal += p.zavrsnoIznos + p.posteljinaIznos;
+
+  // styles
   const card =
     "border border-white/80 bg-white p-6 shadow-[0_18px_45px_rgba(0,0,0,0.08)]";
   const inputCls =
@@ -227,6 +265,7 @@ export default async function CjenikCiscenjaPage({
     "cursor-pointer border border-[#caa870] bg-[#c79a57] px-5 py-2 text-sm font-black text-white transition hover:brightness-95";
   const th =
     "border-b border-[#e2d8c8] p-2 text-left text-xs font-black uppercase tracking-[0.14em] text-[#7a5a22]";
+  const thR = `${th} text-right`;
 
   return (
     <main
@@ -247,9 +286,10 @@ export default async function CjenikCiscenjaPage({
           </Link>
           <h1 className="mt-4 text-4xl font-black">Cjenik čišćenja</h1>
           <p className="mt-2 text-[#6f665a]">
-            Cijene po jedinici, fiksne stope te dani čišćenja bazena i
-            stubišta. Cijene se snimaju kao trošak u trenutku nastanka (kasnije
-            promjene cjenika ne mijenjaju prošle troškove).
+            Cijene po jedinici i fiksne stope. Cijene se snimaju kao trošak u
+            trenutku nastanka (kasnije promjene cjenika ne mijenjaju prošle
+            troškove). Dani čišćenja bazena i stubišta postavljaju se u
+            &quot;Čišćenje i plan&quot;.
           </p>
 
           {toast ? (
@@ -259,13 +299,121 @@ export default async function CjenikCiscenjaPage({
           ) : null}
 
           {cjenikPrazan ? (
-            <form action={inicijalizirajCjenik} className="mt-4">
-              <button className={btn}>Inicijaliziraj cjenik iz ugovora</button>
-              <span className="ml-3 text-xs text-[#6f665a]">
-                Učitava 9 jedinica iz ugovora 143-2026.
-              </span>
-            </form>
+            <div className="mt-4 border border-[#caa870] bg-[#fff6e2] px-4 py-2 text-sm text-[#7a5a22]">
+              Cijene još nisu upisane. Upiši cijene po sekcijama prema važećem
+              ugovoru s agencijom za čišćenje.
+            </div>
           ) : null}
+        </div>
+
+        {/* Projekcija troškova */}
+        <div className={`mb-6 ${card}`}>
+          <h2 className="text-2xl font-black">Projekcija troškova</h2>
+          <p className="mt-1 text-xs text-[#6f665a]">
+            Raspon: danas – 31.12.2026. Projekcija ne uključuje pranje rubenine
+            (naplata po kg) niti generalno čišćenje (€/sat).
+          </p>
+
+          {grupe.map((g) => {
+            const jeMarty = g.objektNaziv.includes("Marty");
+            const jeEva = g.objektNaziv.includes("Eva");
+            const unitSum = g.jedinice.reduce((s, j) => {
+              const p = proj.get(j.id)!;
+              return s + p.zavrsnoIznos + p.posteljinaIznos;
+            }, 0);
+            const extra = (jeMarty ? bazenIznos : 0) + (jeEva ? stubisteIznos : 0);
+            const objektTotal = unitSum + extra;
+
+            return (
+              <div key={g.objektId} className="mt-5">
+                <div className="font-black text-[#2e2923]">{g.objektNaziv}</div>
+                <div className="overflow-x-auto">
+                  <table className="mt-2 w-full min-w-[640px] text-sm">
+                    <thead>
+                      <tr>
+                        <th className={th}>Stavka</th>
+                        <th className={thR}>Čišćenje (kom)</th>
+                        <th className={thR}>Čišćenje (€)</th>
+                        <th className={thR}>Posteljina (kom)</th>
+                        <th className={thR}>Posteljina (€)</th>
+                        <th className={thR}>Ukupno (€)</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {g.jedinice.map((j) => {
+                        const p = proj.get(j.id)!;
+                        const uk = p.zavrsnoIznos + p.posteljinaIznos;
+                        return (
+                          <tr key={j.id} className="border-b border-[#eee3d4]">
+                            <td className="p-2 font-black">{j.naziv}</td>
+                            <td className="p-2 text-right">{p.zavrsnoCount}</td>
+                            <td className="p-2 text-right">
+                              {money(p.zavrsnoIznos)}
+                            </td>
+                            <td className="p-2 text-right">
+                              {p.posteljinaCount}
+                            </td>
+                            <td className="p-2 text-right">
+                              {money(p.posteljinaIznos)}
+                            </td>
+                            <td className="p-2 text-right font-black">
+                              {money(uk)}
+                            </td>
+                          </tr>
+                        );
+                      })}
+
+                      {jeMarty ? (
+                        <tr className="border-b border-[#eee3d4]">
+                          <td className="p-2 font-black">Bazen Marty</td>
+                          <td className="p-2 text-right">{brBazenDana}</td>
+                          <td className="p-2 text-right">{money(bazenIznos)}</td>
+                          <td className="p-2 text-right">—</td>
+                          <td className="p-2 text-right">—</td>
+                          <td className="p-2 text-right font-black">
+                            {money(bazenIznos)}
+                          </td>
+                        </tr>
+                      ) : null}
+
+                      {jeEva ? (
+                        <tr className="border-b border-[#eee3d4]">
+                          <td className="p-2 font-black">Stubište Eva</td>
+                          <td className="p-2 text-right">{brStubisteDana}</td>
+                          <td className="p-2 text-right">
+                            {money(stubisteIznos)}
+                          </td>
+                          <td className="p-2 text-right">—</td>
+                          <td className="p-2 text-right">—</td>
+                          <td className="p-2 text-right font-black">
+                            {money(stubisteIznos)}
+                          </td>
+                        </tr>
+                      ) : null}
+
+                      <tr className="bg-[#f8f3ea]">
+                        <td className="p-2 font-black" colSpan={5}>
+                          Ukupno {g.objektNaziv}
+                        </td>
+                        <td className="p-2 text-right font-black">
+                          {money(objektTotal)}
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            );
+          })}
+
+          <div className="mt-6 flex items-center justify-between border border-[#caa870] bg-[#fff6e2] px-4 py-3">
+            <span className="text-sm font-black uppercase tracking-[0.14em] text-[#7a5a22]">
+              Ukupna projekcija
+            </span>
+            <span className="text-2xl font-black text-[#2e2923]">
+              {money(grandTotal)}
+            </span>
+          </div>
         </div>
 
         {/* 1. Završno čišćenje po jedinici */}
@@ -278,7 +426,7 @@ export default async function CjenikCiscenjaPage({
             <thead>
               <tr>
                 <th className={th}>Jedinica</th>
-                <th className={`${th} text-right`}>Cijena (€)</th>
+                <th className={thR}>Cijena (€)</th>
               </tr>
             </thead>
             <tbody>
@@ -319,7 +467,7 @@ export default async function CjenikCiscenjaPage({
             <thead>
               <tr>
                 <th className={th}>Jedinica</th>
-                <th className={`${th} text-right`}>Cijena (€)</th>
+                <th className={thR}>Cijena (€)</th>
               </tr>
             </thead>
             <tbody>
@@ -362,21 +510,9 @@ export default async function CjenikCiscenjaPage({
               defaultValue={postavke?.bazenCijena ?? 25}
             />
           </div>
-          <div className="mt-4 text-sm font-black text-[#7a5a22]">
-            Dani čišćenja
-          </div>
-          <div className="mt-2 flex flex-wrap gap-3">
-            {DANI.map((d) => (
-              <label key={d.key} className="flex items-center gap-1 text-sm">
-                <input
-                  type="checkbox"
-                  name={`martyBazen${d.key}`}
-                  defaultChecked={Boolean(postavkeRec?.[`martyBazen${d.key}`])}
-                />
-                {d.label}
-              </label>
-            ))}
-          </div>
+          <p className="mt-2 text-xs text-[#6f665a]">
+            Dani čišćenja se postavljaju u &quot;Čišćenje i plan&quot;.
+          </p>
           <button className={`mt-4 ${btn}`}>Spremi</button>
         </form>
 
@@ -394,21 +530,9 @@ export default async function CjenikCiscenjaPage({
               defaultValue={postavke?.stubisteCijena ?? 10}
             />
           </div>
-          <div className="mt-4 text-sm font-black text-[#7a5a22]">
-            Dani čišćenja
-          </div>
-          <div className="mt-2 flex flex-wrap gap-3">
-            {DANI.map((d) => (
-              <label key={d.key} className="flex items-center gap-1 text-sm">
-                <input
-                  type="checkbox"
-                  name={`evaStubiste${d.key}`}
-                  defaultChecked={Boolean(postavkeRec?.[`evaStubiste${d.key}`])}
-                />
-                {d.label}
-              </label>
-            ))}
-          </div>
+          <p className="mt-2 text-xs text-[#6f665a]">
+            Dani čišćenja se postavljaju u &quot;Čišćenje i plan&quot;.
+          </p>
           <button className={`mt-4 ${btn}`}>Spremi</button>
         </form>
 
@@ -445,11 +569,6 @@ export default async function CjenikCiscenjaPage({
           </div>
           <button className={`mt-4 ${btn}`}>Spremi</button>
         </form>
-
-        <p className="pb-10 text-xs text-[#6f665a]">
-          Ukupno jedinica: {jedinice.length} · primjer cijene čišćenja:{" "}
-          {money(jedinice[0]?.cjenikCiscenja?.cijenaCiscenja)}
-        </p>
       </div>
     </main>
   );
