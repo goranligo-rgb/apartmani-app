@@ -139,6 +139,7 @@ model Objekt {
   jedinice Jedinica[]
   racuni   Racun[]
   slike    SlikaObjekta[]
+  troskovi Trosak[]
 
   @@index([naziv])
 }
@@ -178,6 +179,8 @@ model Jedinica {
 
   cijeneCiscenja CijenaCiscenjaAgencije[]
   stavkeCiscenja CiscenjeStavka[]
+  cjenikCiscenja CjenikCiscenjaJedinice?
+  troskovi       Trosak[]
 
   slike SlikaObjekta[]
 
@@ -313,6 +316,7 @@ model Zadatak {
 
   jedinica    Jedinica     @relation(fields: [jedinicaId], references: [id], onDelete: Cascade)
   rezervacija Rezervacija? @relation(fields: [rezervacijaId], references: [id], onDelete: SetNull)
+  trosak      Trosak?
 
   @@index([jedinicaId])
   @@index([datum])
@@ -607,8 +611,80 @@ model CiscenjeMailPostavke {
 
   brojDanaUnaprijed Int @default(7)
 
+  // Cjenik (Faza 1 — sustav troškova Adonija): fiksne stope + dani Stubište Eva.
+  rubeninaCijenaPoKg    Float @default(3.30)
+  generalnoCijenaPoSatu Float @default(18.00)
+  stubisteCijena        Float @default(10.00)
+  bazenCijena           Float @default(25.00)
+
+  evaStubistePonedjeljak Boolean @default(false)
+  evaStubisteUtorak      Boolean @default(false)
+  evaStubisteSrijeda     Boolean @default(false)
+  evaStubisteCetvrtak    Boolean @default(false)
+  evaStubistePetak       Boolean @default(false)
+  evaStubisteSubota      Boolean @default(false)
+  evaStubisteNedjelja    Boolean @default(false)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+enum KategorijaTroska {
+  CISCENJE
+  POSTELJINA
+  BAZEN
+  STUBISTE
+  RUBENINA
+  GENERALNO
+  IZVANREDNO
+}
+
+enum IzvorTroska {
+  AUTO
+  RUCNO
+}
+
+model CjenikCiscenjaJedinice {
+  id               String @id @default(cuid())
+  jedinicaId       String @unique
+  cijenaCiscenja   Float  @default(0)
+  cijenaPosteljina Float  @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  jedinica Jedinica @relation(fields: [jedinicaId], references: [id], onDelete: Cascade)
+}
+
+model Trosak {
+  id              String           @id @default(cuid())
+  datum           DateTime
+  kategorija      KategorijaTroska
+  izvor           IzvorTroska
+  jedinicaId      String?
+  objektId        String?
+  zadatakId       String?          @unique
+  opis            String?
+  kolicina        Float?
+  jedinicnaCijena Float?
+  iznos           Float
+  storniran       Boolean          @default(false)
+  stornoRazlog    String?
+  stornoAt        DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  jedinica Jedinica? @relation(fields: [jedinicaId], references: [id], onDelete: SetNull)
+  objekt   Objekt?   @relation(fields: [objektId], references: [id], onDelete: SetNull)
+  zadatak  Zadatak?  @relation(fields: [zadatakId], references: [id], onDelete: SetNull)
+
+  @@index([datum])
+  @@index([kategorija])
+  @@index([izvor])
+  @@index([jedinicaId])
+  @@index([objektId])
+  @@index([storniran])
 }
 
 model Placanje {

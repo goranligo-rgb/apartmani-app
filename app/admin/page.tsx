@@ -193,6 +193,13 @@ export default async function AdminPage() {
       badge: agencija?.email ? "Spremno" : "Postavi",
     },
     {
+      title: "Cjenik čišćenja",
+      opis: "Cijene po jedinici, fiksne stope, dani čišćenja bazena i stubišta.",
+      href: "/admin/cjenik-agencije",
+      icon: "💶",
+      badge: "Troškovi",
+    },
+    {
       title: "Gosti",
       opis: "Pregled gostiju, država, oznaka i povijesti boravaka.",
       href: "/admin/gosti",
