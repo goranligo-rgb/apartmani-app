@@ -11,6 +11,8 @@ import {
   odaberiJezikMaila,
   formatDateZaMail,
 } from "@/lib/mailovi";
+import { imaInfobipKonfiguraciju, posaljiSmsInfobip } from "@/lib/infobip";
+import { normalizirajE164 } from "@/lib/twilio";
 
 export const dynamic = "force-dynamic";
 
@@ -158,6 +160,13 @@ function setTime(date: Date, hour: number, minute: number) {
   return d;
 }
 
+// Kratak datum DD.MM. (bez godine) — za SMS predložak.
+function formatDanMjesec(d: Date) {
+  const dan = String(d.getDate()).padStart(2, "0");
+  const mjesec = String(d.getMonth() + 1).padStart(2, "0");
+  return `${dan}.${mjesec}.`;
+}
+
 function parseTime(value?: string | null) {
   const [h, m] = String(value || "").split(":").map(Number);
   return {
@@ -280,6 +289,9 @@ export default async function RezervacijaDetaljPage({
       emailovi: {
         orderBy: { createdAt: "desc" },
       },
+      whatsappPoruke: {
+        orderBy: { poslanoAt: "desc" },
+      },
       promjene: {
         orderBy: { createdAt: "desc" },
       },
@@ -340,6 +352,66 @@ export default async function RezervacijaDetaljPage({
 
   const ttlockIzlaz =
     ttlockPrva?.vrijediDo || setTime(rezervacija.datumDo, 10, 0);
+
+  // ── SMS panel: preduvjeti + predispunjen predložak ─────────────────────
+  const infobipOk = imaInfobipKonfiguraciju();
+  const imaSifru = rezervacija.ttlockSifre.length > 0;
+
+  const smsUpute =
+    process.env.WHATSAPP_UPUTE || "Ulaz samostalno sifrom na bravi.";
+  const smsKontakt = process.env.KONTAKT_TEL || "+385 98 700 415";
+  const eCheckinLink = (rezervacija.eCheckinLink || "").trim();
+
+  // Predložak koristi PRAVU šifru iz baze (ttlockSifre[0].sifra), ne page
+  // fallback ttlockSifra (koji izvodi šifru iz telefona kad zapisa nema).
+  // Fallback ostaje samo za prikaz dok šifra ne postoji — tad je gumb disabled.
+  const smsSifra = ttlockPrva?.sifra || ttlockSifra;
+
+  const smsPredlozak =
+    `Pozdrav ${rezervacija.gost?.ime || "goste"}! ` +
+    `Hvala sto ste odabrali ${rezervacija.jedinica.objekt.naziv}. ` +
+    `Prijava ${formatDanMjesec(rezervacija.datumOd)} od 16h, ` +
+    `odjava ${formatDanMjesec(rezervacija.datumDo)} do 10h. ` +
+    `Sifra za glavni ulaz i apartman: ${smsSifra}. ` +
+    `${smsUpute} ` +
+    (eCheckinLink
+      ? `Molimo obavezno popunite prijavu prije dolaska: ${eCheckinLink} `
+      : "") +
+    `Kontakt: ${smsKontakt}`;
+
+  // ── Spojeni log komunikacije (EMAIL + SMS/WHATSAPP), sortirano po vremenu ─
+  type LogStavka = {
+    id: string;
+    kanal: "EMAIL" | "SMS" | "WHATSAPP";
+    naslov: string;
+    podnaslov: string;
+    status: string;
+    greska?: string | null;
+    vrijeme: Date;
+  };
+
+  const logKomunikacije: LogStavka[] = [
+    ...rezervacija.emailovi.map((e) => ({
+      id: `email-${e.id}`,
+      kanal: "EMAIL" as const,
+      naslov: e.subject,
+      podnaslov: `${e.to} · ${e.tip}`,
+      status: e.status,
+      greska: e.greska,
+      vrijeme: e.createdAt,
+    })),
+    ...rezervacija.whatsappPoruke.map((p) => ({
+      id: `wa-${p.id}`,
+      kanal: (p.kanal === "WHATSAPP" ? "WHATSAPP" : "SMS") as
+        | "SMS"
+        | "WHATSAPP",
+      naslov: p.tekstPregled,
+      podnaslov: p.primatelj,
+      status: p.status,
+      greska: p.greska,
+      vrijeme: p.poslanoAt,
+    })),
+  ].sort((a, b) => b.vrijeme.getTime() - a.vrijeme.getTime());
 
   async function odbijRezervaciju(formData: FormData) {
     "use server";
@@ -733,6 +805,104 @@ export default async function RezervacijaDetaljPage({
     revalidatePath(`/admin/rezervacije/${rezervacijaId}`);
     revalidatePath("/admin/rezervacije/naplata");
 
+    redirect(`/admin/rezervacije/${rezervacijaId}`);
+  }
+
+  async function spremiECheckinLink(formData: FormData) {
+    "use server";
+
+    const rezervacijaId = String(formData.get("rezervacijaId") || "");
+    if (!rezervacijaId) return;
+
+    const link = String(formData.get("eCheckinLink") || "").trim();
+
+    await prisma.rezervacija.update({
+      where: { id: rezervacijaId },
+      data: { eCheckinLink: link || null },
+    });
+
+    revalidatePath(`/admin/rezervacije/${rezervacijaId}`);
+    redirect(`/admin/rezervacije/${rezervacijaId}`);
+  }
+
+  async function posaljiSmsGostu(formData: FormData) {
+    "use server";
+
+    const rezervacijaId = String(formData.get("rezervacijaId") || "");
+    const tekst = String(formData.get("tekst") || "").trim();
+
+    if (!rezervacijaId) throw new Error("Nedostaje ID rezervacije.");
+    if (!tekst) throw new Error("Tekst SMS-a je prazan.");
+
+    if (!imaInfobipKonfiguraciju()) {
+      throw new Error("Infobip nije konfiguriran — SMS se ne može poslati.");
+    }
+
+    const r = await prisma.rezervacija.findUnique({
+      where: { id: rezervacijaId },
+      include: {
+        gost: true,
+        ttlockSifre: { select: { id: true } },
+      },
+    });
+
+    if (!r) throw new Error("Rezervacija nije pronađena.");
+
+    // Ručno slanje NE provjerava TTLock push status (admin zna što radi), ALI
+    // šifra mora postojati — inače nema što poslati. Fallback iz telefona se
+    // koristi samo za prikaz, ne za stvarno slanje.
+    if (r.ttlockSifre.length === 0) {
+      throw new Error(
+        "Za ovu rezervaciju još nije generirana šifra. Prvo spremi šifru u TTLock pristupu."
+      );
+    }
+
+    // Normaliziraj u E.164 (doda + ako fali, sredi format). Infobip interno
+    // skida + za svoj format, ali u bazu spremamo e164 — isti format kao cron.
+    const e164 = normalizirajE164(r.gost?.telefon);
+    if (!e164) throw new Error("Neispravan broj telefona.");
+
+    let status: "POSLANO" | "GRESKA" = "GRESKA";
+    let greska: string | null = null;
+    let messageId: string | null = null;
+
+    try {
+      const infobip = await posaljiSmsInfobip({ to: e164, text: tekst });
+      messageId = infobip.messageId;
+      status = "POSLANO";
+    } catch (error: any) {
+      greska = error?.message || "Greška kod slanja SMS-a.";
+    }
+
+    await prisma.whatsappPoruka.create({
+      data: {
+        rezervacijaId,
+        kanal: "SMS",
+        primatelj: e164,
+        templateSid: null,
+        varijable: {},
+        tekstPregled: tekst,
+        twilioSid: messageId,
+        status,
+        greska,
+      },
+    });
+
+    await prisma.rezervacijaPromjena.create({
+      data: {
+        rezervacijaId,
+        tip: "SMS_POSLAN",
+        opis:
+          status === "POSLANO"
+            ? "Ručno poslan SMS gostu."
+            : "Ručni SMS gostu nije poslan (greška).",
+        razlog: greska,
+        noviPodaci: JSON.stringify({ status, messageId, greska }),
+        korisnikIme: "Admin",
+      },
+    });
+
+    revalidatePath(`/admin/rezervacije/${rezervacijaId}`);
     redirect(`/admin/rezervacije/${rezervacijaId}`);
   }
 
@@ -1807,6 +1977,92 @@ export default async function RezervacijaDetaljPage({
           </Card>
         </section>
 
+        <section className="row" style={{ marginBottom: 12 }}>
+          <Card title="eCheckin link">
+            <form action={spremiECheckinLink}>
+              <input type="hidden" name="rezervacijaId" value={rezervacija.id} />
+
+              <Field label="Link na prijavu gosta (eCheckin)">
+                <input
+                  className="in"
+                  name="eCheckinLink"
+                  type="url"
+                  defaultValue={rezervacija.eCheckinLink || ""}
+                  placeholder="https://..."
+                />
+              </Field>
+
+              <div style={{ fontSize: 11, color: "#6f665a", marginBottom: 8 }}>
+                Spremljeni link automatski se uvrsti u predložak SMS-a.
+              </div>
+
+              <button className="bg" style={{ width: "100%" }}>
+                Spremi eCheckin link
+              </button>
+            </form>
+          </Card>
+
+          <Card title="Pošalji SMS gostu">
+            <form action={posaljiSmsGostu}>
+              <input type="hidden" name="rezervacijaId" value={rezervacija.id} />
+
+              <Field label="Tekst SMS-a (editabilno)">
+                <textarea
+                  className="in"
+                  name="tekst"
+                  rows={7}
+                  defaultValue={smsPredlozak}
+                  style={{ fontFamily: "inherit", lineHeight: 1.5 }}
+                />
+              </Field>
+
+              {!infobipOk && (
+                <div
+                  style={{
+                    marginBottom: 8,
+                    border: "1px solid #fca5a5",
+                    background: "#fef2f2",
+                    padding: "6px 8px",
+                    fontSize: 11,
+                    fontWeight: 600,
+                    color: "#991b1b",
+                  }}
+                >
+                  Infobip nije konfiguriran — slanje onemogućeno.
+                </div>
+              )}
+
+              {infobipOk && !imaSifru && (
+                <div
+                  style={{
+                    marginBottom: 8,
+                    border: "1px solid #ead7b6",
+                    background: "#fff9ef",
+                    padding: "6px 8px",
+                    fontSize: 11,
+                    fontWeight: 600,
+                    color: "#7a5a22",
+                  }}
+                >
+                  Nema generirane šifre — prvo je spremi u TTLock pristupu.
+                </div>
+              )}
+
+              <button
+                className="bg"
+                style={{
+                  width: "100%",
+                  opacity: infobipOk && imaSifru ? 1 : 0.5,
+                  cursor: infobipOk && imaSifru ? "pointer" : "not-allowed",
+                }}
+                disabled={!infobipOk || !imaSifru}
+              >
+                Pošalji SMS
+              </button>
+            </form>
+          </Card>
+        </section>
+
         {predlozenoZaStorno && (
           <section className="mb-6 border-2 border-red-400 bg-red-50 p-5 text-red-800 shadow-[0_14px_35px_rgba(0,0,0,0.08)]">
             <div className="text-sm font-black uppercase tracking-[0.16em]">
@@ -2199,44 +2455,78 @@ export default async function RezervacijaDetaljPage({
           </Card>
         </section>
 
-        {/* Row 6: EMAIL LOG + POVIJEST */}
+        {/* Row 6: LOG KOMUNIKACIJE + POVIJEST */}
         <section className="row" style={{ marginBottom: 12 }}>
-          <Card title="Email log">
-            {rezervacija.emailovi.length === 0 ? (
-              <Empty text="Nema zapisa o emailovima." />
+          <Card title="Log komunikacije">
+            {logKomunikacije.length === 0 ? (
+              <Empty text="Nema zabilježene komunikacije." />
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                {rezervacija.emailovi.map((e) => (
-                  <div
-                    key={e.id}
-                    style={{
-                      border: "1px solid #e8dcc4",
-                      background: "#fcfaf6",
-                      padding: "8px 10px",
-                      fontSize: 12,
-                    }}
-                  >
-                    <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", gap: 6 }}>
-                      <div>
-                        <div style={{ fontWeight: 600, color: "#2f261d" }}>{e.subject}</div>
-                        <div style={{ fontSize: 11, color: "#6f665a" }}>
-                          {e.to} · {e.tip}
+                {logKomunikacije.map((s) => {
+                  const kanalBoja =
+                    s.kanal === "EMAIL"
+                      ? { bg: "#eff6ff", border: "#93c5fd", text: "#1e40af" }
+                      : s.kanal === "WHATSAPP"
+                        ? { bg: "#ecfdf5", border: "#6ee7b7", text: "#047857" }
+                        : { bg: "#fef9c3", border: "#fde047", text: "#854d0e" };
+
+                  return (
+                    <div
+                      key={s.id}
+                      style={{
+                        border: "1px solid #e8dcc4",
+                        background: "#fcfaf6",
+                        padding: "8px 10px",
+                        fontSize: 12,
+                      }}
+                    >
+                      <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", gap: 6 }}>
+                        <div style={{ minWidth: 0, flex: 1 }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                            <span
+                              style={{
+                                border: `1px solid ${kanalBoja.border}`,
+                                background: kanalBoja.bg,
+                                color: kanalBoja.text,
+                                padding: "1px 6px",
+                                fontSize: 10,
+                                fontWeight: 700,
+                                letterSpacing: "0.04em",
+                              }}
+                            >
+                              {s.kanal}
+                            </span>
+                            <span
+                              style={{
+                                fontWeight: 600,
+                                color: "#2f261d",
+                                overflow: "hidden",
+                                textOverflow: "ellipsis",
+                                whiteSpace: "nowrap",
+                              }}
+                            >
+                              {s.naslov}
+                            </span>
+                          </div>
+                          <div style={{ fontSize: 11, color: "#6f665a", marginTop: 2 }}>
+                            {s.podnaslov}
+                          </div>
                         </div>
+                        <span className={s.status === "POSLANO" ? "gr" : "rd"}>{s.status}</span>
                       </div>
-                      <span className={e.status === "POSLANO" ? "gr" : "rd"}>{e.status}</span>
-                    </div>
 
-                    {e.greska && (
-                      <div style={{ marginTop: 4, background: "#fef2f2", padding: 6, fontSize: 11, color: "#991b1b" }}>
-                        {e.greska}
+                      {s.greska && (
+                        <div style={{ marginTop: 4, background: "#fef2f2", padding: 6, fontSize: 11, color: "#991b1b" }}>
+                          {s.greska}
+                        </div>
+                      )}
+
+                      <div style={{ marginTop: 4, fontSize: 10, color: "#9b7a4c" }}>
+                        {formatDateTime(s.vrijeme)}
                       </div>
-                    )}
-
-                    <div style={{ marginTop: 4, fontSize: 10, color: "#9b7a4c" }}>
-                      {formatDateTime(e.createdAt)}
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </Card>

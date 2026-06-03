@@ -248,6 +248,7 @@ model Rezervacija {
   blokadaId            String? @unique // veza na BlokadaVanjskogKalendara (samo za izvor=BOOKING)
   bookingIcalUid       String? @unique // iCal UID iz BlokadaVanjskogKalendara.uid (stabilan kroz iCal sync)
   napomena             String?
+  eCheckinLink         String? // link na vanjsku eCheckin/prijava-gosta formu (ručni unos)
   automatskoCiscenje   Boolean @default(true)
   automatskaPosteljina Boolean @default(true)
 
@@ -954,11 +955,12 @@ model WhatsappPoruka {
   id            String   @id @default(cuid())
   rezervacijaId String
 
+  kanal        String   @default("SMS") // SMS / WHATSAPP — kojim je kanalom poslano
   primatelj    String // E.164 broj na koji je poslano
   templateSid  String?
   varijable    Json // {1: ime, 2: objekt, 3: datum, 4: sifra, 5: upute, 6: kontakt}
   tekstPregled String // čitljiv tekst poruke s ubačenim varijablama
-  twilioSid    String? // Message SID iz Twilio odgovora
+  twilioSid    String? // Message/Provider ID iz odgovora (Infobip messageId / Twilio SID)
 
   status String // POSLANO / GRESKA
   greska String?
@@ -969,6 +971,7 @@ model WhatsappPoruka {
 
   @@index([rezervacijaId])
   @@index([poslanoAt])
+  @@index([kanal])
 }
 
 enum TtlockTipOsobe {

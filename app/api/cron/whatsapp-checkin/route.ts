@@ -208,6 +208,7 @@ export async function GET(request: Request) {
         await prisma.whatsappPoruka.create({
           data: {
             rezervacijaId: r.id,
+            kanal: "SMS",
             primatelj: e164,
             templateSid: null,
             varijable: {},
@@ -242,6 +243,7 @@ export async function GET(request: Request) {
       await prisma.whatsappPoruka.create({
         data: {
           rezervacijaId: r.id,
+          kanal: "SMS",
           primatelj: e164,
           templateSid: null,
           varijable: {},
@@ -262,6 +264,7 @@ export async function GET(request: Request) {
         await prisma.whatsappPoruka.create({
           data: {
             rezervacijaId: r.id,
+            kanal: "SMS",
             primatelj: normalizirajE164(r.gost?.telefon) || "(nepoznato)",
             templateSid: null,
             varijable: {},
