@@ -23,6 +23,17 @@ export function imaTwilioKonfiguraciju(): boolean {
 }
 
 /**
+ * Jesu li sve obavezne Twilio SMS env varijable postavljene.
+ */
+export function imaTwilioSmsKonfiguraciju(): boolean {
+  return Boolean(
+    process.env.TWILIO_ACCOUNT_SID &&
+      process.env.TWILIO_AUTH_TOKEN &&
+      process.env.TWILIO_SMS_FROM
+  );
+}
+
+/**
  * Normalizira broj u E.164 (+<country><number>). Booking brojevi su pohranjeni
  * kao pune međunarodne znamenke (npr. "385912345678"), pa dodajemo "+".
  * Vraća null ako broj nije upotrebljiv.
@@ -85,4 +96,45 @@ export async function posaljiWhatsappTemplate(params: {
   }
 
   return { sid: String(json.sid || ""), from, templateSid };
+}
+
+/**
+ * Šalje obični SMS preko istog Twilio računa (Basic auth). Baca Error na neuspjeh.
+ * `to` mora biti E.164 (npr. "+385912345678"); `From` je TWILIO_SMS_FROM.
+ */
+export async function posaljiSms(params: {
+  to: string;
+  body: string;
+}): Promise<{ sid: string; from: string }> {
+  const accountSid = env("TWILIO_ACCOUNT_SID");
+  const authToken = env("TWILIO_AUTH_TOKEN");
+  const from = env("TWILIO_SMS_FROM");
+
+  const body = new URLSearchParams();
+  body.set("To", params.to);
+  body.set("From", from);
+  body.set("Body", params.body);
+
+  const res = await fetch(`${TWILIO_BASE_URL}/Accounts/${accountSid}/Messages.json`, {
+    method: "POST",
+    headers: {
+      Authorization:
+        "Basic " + Buffer.from(`${accountSid}:${authToken}`).toString("base64"),
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
+    body,
+    cache: "no-store",
+  });
+
+  const json: any = await res.json().catch(() => ({}));
+
+  if (!res.ok || json.status === "failed" || json.error_code) {
+    throw new Error(
+      json.message ||
+        json.error_message ||
+        `Twilio greška (HTTP ${res.status})`
+    );
+  }
+
+  return { sid: String(json.sid || ""), from };
 }

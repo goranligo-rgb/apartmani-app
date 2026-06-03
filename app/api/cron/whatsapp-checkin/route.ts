@@ -2,11 +2,8 @@ import { NextResponse } from "next/server";
 import { StatusRezervacije } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { dodajTtlockSifru } from "@/lib/ttlock";
-import {
-  imaTwilioKonfiguraciju,
-  normalizirajE164,
-  posaljiWhatsappTemplate,
-} from "@/lib/twilio";
+import { normalizirajE164 } from "@/lib/twilio";
+import { imaInfobipKonfiguraciju, posaljiSmsInfobip } from "@/lib/infobip";
 
 export const dynamic = "force-dynamic";
 
@@ -43,12 +40,11 @@ function generirajSifruIzTelefona(telefon?: string | null): string {
   return String(Math.floor(1000 + Math.random() * 9000));
 }
 
-function formatDatumHr(d: Date): string {
-  return d.toLocaleDateString("hr-HR", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  });
+// Kratak format DD.MM. (npr. "06.06.") za SMS — bez godine, štedi znakove.
+function formatDatumKratko(d: Date): string {
+  const day = String(d.getDate()).padStart(2, "0");
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  return `${day}.${month}.`;
 }
 
 export async function GET(request: Request) {
@@ -68,12 +64,12 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  if (!imaTwilioKonfiguraciju()) {
+  if (!imaInfobipKonfiguraciju()) {
     return NextResponse.json({
       success: true,
       skipped: true,
       message:
-        "Twilio/WhatsApp nije konfiguriran (nedostaju env varijable) — preskačem slanje.",
+        "Infobip SMS nije konfiguriran (nedostaju env varijable) — preskačem slanje.",
     });
   }
 
@@ -84,10 +80,9 @@ export async function GET(request: Request) {
   const ciljOd = addDays(danas, danaPrije);
   const ciljDo = addDays(ciljOd, 1);
 
-  const kontakt = process.env.WHATSAPP_KONTAKT || "Malinska Stay";
   const upute =
-    process.env.WHATSAPP_UPUTE ||
-    "Ulaz je samostalan putem šifre na bravi. Za sva pitanja slobodno odgovorite na ovu poruku.";
+    process.env.WHATSAPP_UPUTE || "Ulaz samostalno sifrom na bravi.";
+  const kontakt = process.env.KONTAKT_TEL || "+385 98 700 415";
 
   const rezervacije = await prisma.rezervacija.findMany({
     where: {
@@ -204,7 +199,7 @@ export async function GET(request: Request) {
 
       if (pushGreska || neaktivnih > 0) {
         // Šifra nije aktivna → NE šalji poruku, NE bilježi kao poslano.
-        const poruka = `TTLock push nije uspio — WhatsApp NIJE poslan. ${
+        const poruka = `TTLock push nije uspio — SMS NIJE poslan. ${
           pushGreska || `${neaktivnih} brava nije aktivirano.`
         }`.trim();
 
@@ -214,7 +209,7 @@ export async function GET(request: Request) {
           data: {
             rezervacijaId: r.id,
             primatelj: e164,
-            templateSid: process.env.TWILIO_WHATSAPP_TEMPLATE_SID || null,
+            templateSid: null,
             varijable: {},
             tekstPregled:
               "Poruka NIJE poslana — TTLock šifra nije aktivirana na bravi.",
@@ -228,45 +223,30 @@ export async function GET(request: Request) {
         continue;
       }
 
-      // ── (d) Sastavi varijable + čitljiv tekst i pošalji WhatsApp ──
+      // ── (d) Sastavi SMS tekst i pošalji (Infobip) ──
       const imeGosta = r.gost?.ime || "gost";
-      const objektPun =
-        r.jedinica.vrsta === "KUCA"
-          ? r.jedinica.objekt.naziv
-          : `${r.jedinica.objekt.naziv} – ${r.jedinica.naziv}`;
-      const datumPrijave = formatDatumHr(r.datumOd);
+      const objekt = r.jedinica.objekt.naziv; // Marty / Eva / House Art
+      const datumUlaska = formatDatumKratko(r.datumOd);
+      const datumIzlaska = formatDatumKratko(r.datumDo);
 
-      const varijable: Record<string, string> = {
-        "1": imeGosta,
-        "2": objektPun,
-        "3": datumPrijave,
-        "4": sifra,
-        "5": upute,
-        "6": kontakt,
-      };
+      // SMS bez dijakritike (GSM-7 → 160 znakova/segment). Ista šifra otvara
+      // glavni ulaz i apartman (TTLock push to već gura na obje brave).
+      const smsTekst =
+        `Pozdrav ${imeGosta}! Hvala sto ste odabrali ${objekt}. ` +
+        `Prijava ${datumUlaska} od 16h, odjava ${datumIzlaska} do 10h. ` +
+        `Sifra za glavni ulaz i apartman: ${sifra}. ` +
+        `${upute} Kontakt: ${kontakt}`;
 
-      const tekstPregled =
-        `Poštovani ${imeGosta},\n\n` +
-        `dobrodošli u ${objektPun}!\n` +
-        `Datum prijave: ${datumPrijave}\n` +
-        `Šifra za ulaznu bravu: ${sifra}\n\n` +
-        `Upute: ${upute}\n` +
-        `Kontakt: ${kontakt}\n\n` +
-        `Vidimo se uskoro!\nMalinska Stay`;
-
-      const twilio = await posaljiWhatsappTemplate({
-        to: e164,
-        contentVariables: varijable,
-      });
+      const infobip = await posaljiSmsInfobip({ to: e164, text: smsTekst });
 
       await prisma.whatsappPoruka.create({
         data: {
           rezervacijaId: r.id,
           primatelj: e164,
-          templateSid: twilio.templateSid,
-          varijable,
-          tekstPregled,
-          twilioSid: twilio.sid,
+          templateSid: null,
+          varijable: {},
+          tekstPregled: smsTekst,
+          twilioSid: infobip.messageId, // polje zadržava ime; sadrži Infobip messageId
           status: "POSLANO",
         },
       });
@@ -274,7 +254,7 @@ export async function GET(request: Request) {
       poslano++;
       detalji.push({ rezervacijaId: r.id, ishod: "POSLANO" });
     } catch (err: any) {
-      // Twilio ili neočekivana greška — jedna pala poruka NE ruši batch.
+      // Infobip ili neočekivana greška — jedna pala poruka NE ruši batch.
       const poruka = err?.message || "Nepoznata greška kod slanja.";
       console.error(`[whatsapp-checkin] rez ${r.id}: ${poruka}`);
 
@@ -283,10 +263,9 @@ export async function GET(request: Request) {
           data: {
             rezervacijaId: r.id,
             primatelj: normalizirajE164(r.gost?.telefon) || "(nepoznato)",
-            templateSid: process.env.TWILIO_WHATSAPP_TEMPLATE_SID || null,
+            templateSid: null,
             varijable: {},
-            tekstPregled:
-              "Poruka NIJE poslana — greška kod slanja WhatsApp poruke.",
+            tekstPregled: "Poruka NIJE poslana — greška kod slanja SMS-a.",
             status: "GRESKA",
             greska: poruka,
           },
