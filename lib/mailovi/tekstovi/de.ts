@@ -229,6 +229,14 @@ export const de: MailTekstovi = {
     labelRokUplate: "Zahlungsfrist:",
     napomena:
       "Sobald die Zahlung auf unserem Konto sichtbar ist, senden wir Ihnen die Reservierungsbestätigung und die Rechnung.",
+    button: (tip) =>
+      tip === "AKONTACIJA"
+        ? "Anzahlung mit Karte zahlen"
+        : tip === "RAZLIKA"
+          ? "Differenz mit Karte zahlen"
+          : "Restbetrag mit Karte zahlen",
+    akoGumbNeRadi:
+      "Falls der Button nicht funktioniert, kopieren Sie diesen Link in Ihren Browser:",
     zavrsetak: "Mit freundlichen Grüßen,<br/><strong>Malinska Stay</strong>",
   },
 

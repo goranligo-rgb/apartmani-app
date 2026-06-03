@@ -185,6 +185,9 @@ export interface MailTekstovi {
     labelIznosZaUplatu: string;
     labelRokUplate: string;
     napomena: string;
+    // Gumb za kartično plaćanje (create-payment link) — tekst ovisi o tipu.
+    button: (tip: "AKONTACIJA" | "RAZLIKA" | "OSTATAK") => string;
+    akoGumbNeRadi: string;
     zavrsetak: string;
   };
 

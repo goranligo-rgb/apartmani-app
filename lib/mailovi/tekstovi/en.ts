@@ -229,6 +229,13 @@ export const en: MailTekstovi = {
     labelRokUplate: "Payment deadline:",
     napomena:
       "Once the payment is visible on our account, we will send you the reservation confirmation and invoice.",
+    button: (tip) =>
+      tip === "AKONTACIJA"
+        ? "Pay deposit by card"
+        : tip === "RAZLIKA"
+          ? "Pay difference by card"
+          : "Pay balance by card",
+    akoGumbNeRadi: "If the button does not work, copy this link into your browser:",
     zavrsetak: "Kind regards,<br/><strong>Malinska Stay</strong>",
   },
 

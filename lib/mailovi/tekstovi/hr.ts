@@ -233,6 +233,13 @@ export const hr: MailTekstovi = {
     labelRokUplate: "Rok uplate:",
     napomena:
       "Nakon što uplata bude vidljiva na našem računu, poslat ćemo vam potvrdu rezervacije i račun.",
+    button: (tip) =>
+      tip === "AKONTACIJA"
+        ? "Plati akontaciju karticom"
+        : tip === "RAZLIKA"
+          ? "Plati razliku karticom"
+          : "Plati ostatak karticom",
+    akoGumbNeRadi: "Ako gumb ne radi, kopirajte ovaj link u preglednik:",
     zavrsetak: "Lijep pozdrav,<br/><strong>Malinska Stay</strong>",
   },
 

@@ -32,6 +32,28 @@ function getMailFrom() {
   return process.env.MAIL_FROM || "Malinska Stay <rezervacije@malinska-stay.hr>";
 }
 
+// Bazni URL za payment linkove. Ista logika kao u nova/page.tsx i create-payment
+// ruti: PostavkeNaplate.appUrl → NEXT_PUBLIC_APP_URL → VERCEL_URL → localhost.
+// Na produkciji je VERCEL_URL uvijek postavljen (a appUrl bi trebao biti
+// https://malinska-stay.hr), pa localhost nikad ne ispadne u produkciji.
+async function getAppUrl() {
+  const postavke = await prisma.postavkeNaplate.findFirst({
+    orderBy: { createdAt: "asc" },
+  });
+
+  if (postavke?.appUrl) return postavke.appUrl.replace(/\/$/, "");
+
+  if (process.env.NEXT_PUBLIC_APP_URL) {
+    return process.env.NEXT_PUBLIC_APP_URL.replace(/\/$/, "");
+  }
+
+  if (process.env.VERCEL_URL) {
+    return `https://${process.env.VERCEL_URL}`.replace(/\/$/, "");
+  }
+
+  return "http://localhost:3000";
+}
+
 const UI_COLORS = {
   slobodno: "rgba(134,239,172,0.46)",
   slobodnoBorder: "rgba(34,197,94,0.65)",
@@ -672,7 +694,7 @@ export default async function RezervacijaDetaljPage({
 
     const rokUplateAkontacije = rokRaw ? parseDateOnly(rokRaw) : null;
 
-    await prisma.placanje.create({
+    const placanje = await prisma.placanje.create({
       data: {
         rezervacijaId,
         tip,
@@ -691,6 +713,12 @@ export default async function RezervacijaDetaljPage({
         rokUplateAkontacije,
       },
     });
+
+    // Link na kartično plaćanje. Ista ruta kao poziv-za-plaćanje: na klik
+    // create-payment otvori (ili reuse) važeću Stripe sesiju; istekli link
+    // se sam regenerira. nacinPlacanja ostaje TEKUCI_RACUN dok gost ne klikne.
+    const baseUrl = await getAppUrl();
+    const paymentLink = `${baseUrl}/api/rezervacije/create-payment?placanjeId=${placanje.id}`;
 
     const jezik = odaberiJezikMaila(r.gost?.jezik);
     const t = dohvatiPrijevode(jezik).zahtjevZaUplatu;
@@ -753,6 +781,18 @@ export default async function RezervacijaDetaljPage({
                 <div style="padding:16px;background:#fff6e2;border:1px solid #c79a57;color:#7a5a22;">
                   ${t.napomena}
                 </div>
+
+                <p style="margin:26px 0;">
+                  <a href="${paymentLink}"
+                     style="background:#c79a57;color:#ffffff;padding:15px 24px;text-decoration:none;font-weight:bold;display:inline-block;">
+                    ${t.button(tip)}
+                  </a>
+                </p>
+
+                <p style="font-size:13px;color:#6f665a;">
+                  ${t.akoGumbNeRadi}<br/>
+                  <a href="${paymentLink}" style="color:#7a5a22;">${paymentLink}</a>
+                </p>
 
                 <p style="margin-top:28px;">
                   ${t.zavrsetak}
