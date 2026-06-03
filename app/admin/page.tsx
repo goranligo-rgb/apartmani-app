@@ -200,6 +200,13 @@ export default async function AdminPage() {
       badge: "Troškovi",
     },
     {
+      title: "Troškovi",
+      opis: "Pregled mjesečnih troškova i ručni unosi.",
+      href: "/admin/troskovi",
+      icon: "💰",
+      badge: "Troškovi",
+    },
+    {
       title: "Gosti",
       opis: "Pregled gostiju, država, oznaka i povijesti boravaka.",
       href: "/admin/gosti",
