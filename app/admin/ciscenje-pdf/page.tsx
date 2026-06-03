@@ -64,6 +64,20 @@ function martyBazenZaDan(postavke: any, datum: Date) {
   ][day];
 }
 
+function evaStubisteZaDan(postavke: any, datum: Date) {
+  const day = datum.getDay();
+
+  return [
+    postavke?.evaStubisteNedjelja,
+    postavke?.evaStubistePonedjeljak,
+    postavke?.evaStubisteUtorak,
+    postavke?.evaStubisteSrijeda,
+    postavke?.evaStubisteCetvrtak,
+    postavke?.evaStubistePetak,
+    postavke?.evaStubisteSubota,
+  ][day];
+}
+
 type PlanItem = {
   id: string;
   datum: Date;
@@ -264,6 +278,45 @@ export default async function PlanCiscenjaPdfPage({
           gost: "-",
           brojGostiju: "-",
           opis: "Čišćenje bazena i okoliša.",
+          sljedeciUlazak: "-",
+          brziUlazak: false,
+        });
+      }
+
+      d = addDays(d, 1);
+    }
+  }
+
+  const prvaEvaJedinica = await prisma.jedinica.findFirst({
+    where: {
+      objekt: {
+        naziv: {
+          contains: "Eva",
+        },
+      },
+    },
+    include: {
+      objekt: true,
+    },
+    orderBy: {
+      sortOrder: "asc",
+    },
+  });
+
+  if (postavke && prvaEvaJedinica) {
+    let d = new Date(danas);
+
+    while (d <= doDatuma) {
+      if (evaStubisteZaDan(postavke, d)) {
+        planItems.push({
+          id: `stubiste-${d.toISOString()}`,
+          datum: new Date(d),
+          tip: "DODATNO_CISCENJE",
+          objekt: prvaEvaJedinica.objekt.naziv,
+          jedinica: "Stubište Eva",
+          gost: "-",
+          brojGostiju: "-",
+          opis: "Čišćenje stubišta zajedničkih prostorija",
           sljedeciUlazak: "-",
           brziUlazak: false,
         });

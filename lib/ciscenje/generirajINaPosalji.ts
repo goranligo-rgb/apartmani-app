@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { Resend } from "resend";
+import { KategorijaTroska, IzvorTroska } from "@prisma/client";
 import {
   osobaRijec,
   izracunajDodatnuOsoba,
@@ -46,6 +47,20 @@ function martyBazenZaDan(postavke: any, datum: Date) {
     postavke.martyBazenCetvrtak,
     postavke.martyBazenPetak,
     postavke.martyBazenSubota,
+  ][day];
+}
+
+function evaStubisteZaDan(postavke: any, datum: Date) {
+  const day = datum.getDay();
+
+  return [
+    postavke.evaStubisteNedjelja,
+    postavke.evaStubistePonedjeljak,
+    postavke.evaStubisteUtorak,
+    postavke.evaStubisteSrijeda,
+    postavke.evaStubisteCetvrtak,
+    postavke.evaStubistePetak,
+    postavke.evaStubisteSubota,
   ][day];
 }
 
@@ -128,6 +143,55 @@ async function findOrCreateZadatak(data: {
   });
 }
 
+async function upsertTrosak(params: {
+  zadatakId: string;
+  kategorija: KategorijaTroska;
+  jedinicaId: string | null;
+  objektId: string | null;
+  datum: Date;
+  iznos: number;
+}) {
+  // Idempotentno po zadatakId; NE dira stornirane (ručno korigirane) AUTO troškove.
+  // Try/catch po svakom upisu — greška u trošku NE smije srušiti slanje maila.
+  try {
+    const postoji = await prisma.trosak.findUnique({
+      where: { zadatakId: params.zadatakId },
+    });
+
+    if (postoji?.storniran) return;
+
+    if (postoji) {
+      await prisma.trosak.update({
+        where: { zadatakId: params.zadatakId },
+        data: {
+          kategorija: params.kategorija,
+          jedinicaId: params.jedinicaId,
+          objektId: params.objektId,
+          datum: params.datum,
+          iznos: params.iznos,
+        },
+      });
+    } else {
+      await prisma.trosak.create({
+        data: {
+          zadatakId: params.zadatakId,
+          izvor: IzvorTroska.AUTO,
+          kategorija: params.kategorija,
+          jedinicaId: params.jedinicaId,
+          objektId: params.objektId,
+          datum: params.datum,
+          iznos: params.iznos,
+        },
+      });
+    }
+  } catch (err) {
+    console.error(
+      `[troskovi] zadatak ${params.zadatakId} (${params.kategorija}):`,
+      err
+    );
+  }
+}
+
 export async function generirajINaPosalji() {
   const agencija = await prisma.ciscenjeAgencija.findFirst();
   const postavke = await prisma.ciscenjeMailPostavke.findFirst();
@@ -142,6 +206,13 @@ export async function generirajINaPosalji() {
 
   const danas = startOfDay(new Date());
   const doDatuma = addDays(danas, postavke.brojDanaUnaprijed || 7);
+
+  // Faza 2A — troškovi. Flag gata SAMO kreiranje Trosak zapisa (NE generiranje
+  // zadataka / mail). Cjenik se učita jednom kao mapa po jedinicaId; jedinica bez
+  // cjenika → iznos 0 (snapshot dok korisnik ne upiše cijene).
+  const troskoviEnabled = process.env.TROSKOVI_ENABLED === "true";
+  const cjenikRows = await prisma.cjenikCiscenjaJedinice.findMany();
+  const cjenikMap = new Map(cjenikRows.map((c) => [c.jedinicaId, c]));
 
   const rezervacijeZaOdlazak = await prisma.rezervacija.findMany({
     where: {
@@ -192,6 +263,17 @@ export async function generirajINaPosalji() {
         opis,
         prioritet: true,
       });
+
+      if (troskoviEnabled) {
+        await upsertTrosak({
+          zadatakId: zadatak.id,
+          kategorija: "CISCENJE",
+          jedinicaId: r.jedinicaId,
+          objektId: r.jedinica.objekt.id,
+          datum: startOfDay(r.datumDo),
+          iznos: cjenikMap.get(r.jedinicaId)?.cijenaCiscenja ?? 0,
+        });
+      }
 
       // Mail (prema agenciji): X za stupac Napomena + tekst za stupac Sljedeći ulazak.
       const dodatnaOsoba = izracunajDodatnuOsoba({
@@ -288,6 +370,17 @@ export async function generirajINaPosalji() {
       prioritet: true,
     });
 
+    if (troskoviEnabled) {
+      await upsertTrosak({
+        zadatakId: zadatak.id,
+        kategorija: "POSTELJINA",
+        jedinicaId: r.jedinicaId,
+        objektId: r.jedinica.objekt.id,
+        datum: datumMedjuciscenja,
+        iznos: cjenikMap.get(r.jedinicaId)?.cijenaPosteljina ?? 0,
+      });
+    }
+
     stavkeMedjuciscenje.push({
       datum: new Date(datumMedjuciscenja),
       tip: "MEDJUCISCENJE_I_POSTELJINA" as const,
@@ -337,6 +430,17 @@ export async function generirajINaPosalji() {
           prioritet: false,
         });
 
+        if (troskoviEnabled) {
+          await upsertTrosak({
+            zadatakId: zadatak.id,
+            kategorija: "BAZEN",
+            jedinicaId: prvaJedinica.id,
+            objektId: prvaJedinica.objekt.id,
+            datum: startOfDay(d),
+            iznos: postavke.bazenCijena ?? 0,
+          });
+        }
+
         stavkeBazen.push({
           datum: new Date(d),
           tip: "DODATNO_CISCENJE" as const,
@@ -356,10 +460,78 @@ export async function generirajINaPosalji() {
     }
   }
 
+  // Stubište Eva — paralela s Marty bazenom (settings dani; default sve OFF →
+  // ništa dok korisnik ne označi dane u /admin/ciscenje). Vezano na prvu Eva jedinicu.
+  const prvaEvaJedinica = await prisma.jedinica.findFirst({
+    where: {
+      objekt: {
+        naziv: {
+          contains: "Eva",
+        },
+      },
+    },
+    include: {
+      objekt: true,
+    },
+    orderBy: {
+      sortOrder: "asc",
+    },
+  });
+
+  const stavkeStubiste: any[] = [];
+
+  if (prvaEvaJedinica) {
+    let d = danas;
+
+    while (d <= doDatuma) {
+      if (evaStubisteZaDan(postavke, d)) {
+        const opis = "Čišćenje stubišta zajedničkih prostorija";
+
+        const zadatak = await findOrCreateZadatak({
+          jedinicaId: prvaEvaJedinica.id,
+          rezervacijaId: null,
+          datum: startOfDay(d),
+          tip: "DODATNO_CISCENJE",
+          naslov: "Stubište Eva",
+          opis,
+          prioritet: false,
+        });
+
+        if (troskoviEnabled) {
+          await upsertTrosak({
+            zadatakId: zadatak.id,
+            kategorija: "STUBISTE",
+            jedinicaId: prvaEvaJedinica.id,
+            objektId: prvaEvaJedinica.objekt.id,
+            datum: startOfDay(d),
+            iznos: postavke.stubisteCijena ?? 0,
+          });
+        }
+
+        stavkeStubiste.push({
+          datum: new Date(d),
+          tip: "DODATNO_CISCENJE" as const,
+          jedinicaId: prvaEvaJedinica.id,
+          zadatakId: zadatak.id,
+          nazivJedinice: "Stubište Eva",
+          nazivObjekta: prvaEvaJedinica.objekt.naziv,
+          brojGostiju: 0,
+          osnovniKapacitet: 0,
+          opis,
+          sljedeciUlazak: "-",
+          cijena: 0,
+        });
+      }
+
+      d = addDays(d, 1);
+    }
+  }
+
   const sveStavkeZaMail = [
     ...stavkeApartmani,
     ...stavkeMedjuciscenje,
     ...stavkeBazen,
+    ...stavkeStubiste,
   ].sort((a, b) => a.datum.getTime() - b.datum.getTime());
 
   if (sveStavkeZaMail.length === 0) {
