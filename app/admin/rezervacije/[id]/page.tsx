@@ -13,6 +13,7 @@ import {
 } from "@/lib/mailovi";
 import { imaInfobipKonfiguraciju, posaljiSmsInfobip } from "@/lib/infobip";
 import { normalizirajE164 } from "@/lib/twilio";
+import { sastaviCheckinSms } from "@/lib/smsCheckin";
 
 export const dynamic = "force-dynamic";
 
@@ -357,27 +358,25 @@ export default async function RezervacijaDetaljPage({
   const infobipOk = imaInfobipKonfiguraciju();
   const imaSifru = rezervacija.ttlockSifre.length > 0;
 
-  const smsUpute =
-    process.env.WHATSAPP_UPUTE || "Ulaz samostalno sifrom na bravi.";
   const smsKontakt = process.env.KONTAKT_TEL || "+385 98 700 415";
-  const eCheckinLink = (rezervacija.eCheckinLink || "").trim();
 
   // Predložak koristi PRAVU šifru iz baze (ttlockSifre[0].sifra), ne page
   // fallback ttlockSifra (koji izvodi šifru iz telefona kad zapisa nema).
   // Fallback ostaje samo za prikaz dok šifra ne postoji — tad je gumb disabled.
   const smsSifra = ttlockPrva?.sifra || ttlockSifra;
 
-  const smsPredlozak =
-    `Pozdrav ${rezervacija.gost?.ime || "goste"}! ` +
-    `Hvala sto ste odabrali ${rezervacija.jedinica.objekt.naziv}. ` +
-    `Prijava ${formatDanMjesec(rezervacija.datumOd)} od 16h, ` +
-    `odjava ${formatDanMjesec(rezervacija.datumDo)} do 10h. ` +
-    `Sifra za glavni ulaz i apartman: ${smsSifra}. ` +
-    `${smsUpute} ` +
-    (eCheckinLink
-      ? `Molimo obavezno popunite prijavu prije dolaska: ${eCheckinLink} `
-      : "") +
-    `Kontakt: ${smsKontakt}`;
+  // Predispunjeno na jeziku gosta (i dalje editabilno u textarea). eCheckin
+  // red se izostavlja ako rezervacija nema spremljen link.
+  const smsPredlozak = sastaviCheckinSms({
+    jezik: rezervacija.gost?.jezik,
+    ime: rezervacija.gost?.ime || "goste",
+    objekt: rezervacija.jedinica.objekt.naziv,
+    datumUlaska: formatDanMjesec(rezervacija.datumOd),
+    datumIzlaska: formatDanMjesec(rezervacija.datumDo),
+    sifra: smsSifra,
+    kontakt: smsKontakt,
+    eCheckinLink: rezervacija.eCheckinLink,
+  });
 
   // ── Spojeni log komunikacije (EMAIL + SMS/WHATSAPP), sortirano po vremenu ─
   type LogStavka = {

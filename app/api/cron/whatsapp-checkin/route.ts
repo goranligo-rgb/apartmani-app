@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { dodajTtlockSifru } from "@/lib/ttlock";
 import { normalizirajE164 } from "@/lib/twilio";
 import { imaInfobipKonfiguraciju, posaljiSmsInfobip } from "@/lib/infobip";
+import { sastaviCheckinSms } from "@/lib/smsCheckin";
 
 export const dynamic = "force-dynamic";
 
@@ -80,8 +81,6 @@ export async function GET(request: Request) {
   const ciljOd = addDays(danas, danaPrije);
   const ciljDo = addDays(ciljOd, 1);
 
-  const upute =
-    process.env.WHATSAPP_UPUTE || "Ulaz samostalno sifrom na bravi.";
   const kontakt = process.env.KONTAKT_TEL || "+385 98 700 415";
 
   const rezervacije = await prisma.rezervacija.findMany({
@@ -224,19 +223,20 @@ export async function GET(request: Request) {
         continue;
       }
 
-      // ── (d) Sastavi SMS tekst i pošalji (Infobip) ──
-      const imeGosta = r.gost?.ime || "gost";
-      const objekt = r.jedinica.objekt.naziv; // Marty / Eva / House Art
-      const datumUlaska = formatDatumKratko(r.datumOd);
-      const datumIzlaska = formatDatumKratko(r.datumDo);
-
-      // SMS bez dijakritike (GSM-7 → 160 znakova/segment). Ista šifra otvara
-      // glavni ulaz i apartman (TTLock push to već gura na obje brave).
-      const smsTekst =
-        `Pozdrav ${imeGosta}! Hvala sto ste odabrali ${objekt}. ` +
-        `Prijava ${datumUlaska} od 16h, odjava ${datumIzlaska} do 10h. ` +
-        `Sifra za glavni ulaz i apartman: ${sifra}. ` +
-        `${upute} Kontakt: ${kontakt}`;
+      // ── (d) Sastavi SMS tekst (po jeziku gosta) i pošalji (Infobip) ──
+      // Ista šifra otvara glavni ulaz i apartman (TTLock push to već gura na
+      // obje brave). Tekst je ASCII (GSM-7); eCheckin red se izostavlja ako
+      // rezervacija nema spremljen link.
+      const smsTekst = sastaviCheckinSms({
+        jezik: r.gost?.jezik,
+        ime: r.gost?.ime || "gost",
+        objekt: r.jedinica.objekt.naziv, // pun naziv: "Apartments Eva" / "Luxury Apartments Marty" / "House Art"
+        datumUlaska: formatDatumKratko(r.datumOd),
+        datumIzlaska: formatDatumKratko(r.datumDo),
+        sifra,
+        kontakt,
+        eCheckinLink: r.eCheckinLink,
+      });
 
       const infobip = await posaljiSmsInfobip({ to: e164, text: smsTekst });
 
