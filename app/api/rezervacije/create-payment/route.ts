@@ -29,7 +29,7 @@ function money(value?: number | null) {
 async function getPostavkeNaplate() {
   return prisma.postavkeNaplate.findFirst({
     orderBy: {
-      updatedAt: "desc",
+      createdAt: "asc",
     },
   });
 }

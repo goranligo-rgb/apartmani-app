@@ -3,8 +3,9 @@ import { revalidatePath } from "next/cache";
 
 export default async function PostavkeRezervacija() {
   const postavke =
-    (await prisma.postavkeNaplate.findFirst()) ||
-    (await prisma.postavkeNaplate.create({ data: {} }));
+    (await prisma.postavkeNaplate.findFirst({
+      orderBy: { createdAt: "asc" },
+    })) || (await prisma.postavkeNaplate.create({ data: {} }));
 
   async function spremi(formData: FormData) {
     "use server";

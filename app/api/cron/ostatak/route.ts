@@ -17,7 +17,7 @@ function getMailFrom() {
 async function getAppUrl() {
   const postavke = await prisma.postavkeNaplate.findFirst({
     orderBy: {
-      updatedAt: "desc",
+      createdAt: "asc",
     },
   });
 
@@ -57,7 +57,7 @@ export async function GET() {
   try {
     const postavke = await prisma.postavkeNaplate.findFirst({
       orderBy: {
-        updatedAt: "desc",
+        createdAt: "asc",
       },
     });
 

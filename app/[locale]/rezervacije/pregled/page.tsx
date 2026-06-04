@@ -130,7 +130,7 @@ export default async function PregledRezervacijePage(props: {
 
   const postavke = await prisma.postavkeNaplate.findFirst({
     orderBy: {
-      updatedAt: "desc",
+      createdAt: "asc",
     },
   });
 
