@@ -29,6 +29,8 @@ export type ZajednickiSadrzaj = {
   kucniRedNaslov: string;
   kucniRedEyebrow: string;
 
+  pergolaNaslov: string;
+
   plazeNaslov: string;
   plazeEyebrow: string;
   plaze: { kljuc: string; naziv: string; opis: string }[];
@@ -37,6 +39,7 @@ export type ZajednickiSadrzaj = {
   gastroNaslov: string;
   gastroEyebrow: string;
   gastroKartice: VodicKartica[];
+  gastroLink: VodicLink;
 
   krkNaslov: string;
   krkEyebrow: string;
@@ -86,7 +89,7 @@ export const ZAJEDNICKO: Record<VodicJezik, ZajednickiSadrzaj> = {
 
     kontaktiNaslov: "Važni kontakti",
     kontaktiEyebrow: "UVIJEK SMO VAM NA RASPOLAGANJU",
-    domacicaLabela: "VAŠA DOMAĆICA",
+    domacicaLabela: "Vaša domaćica",
     domacicaKanali: "poziv · SMS · WhatsApp",
     hitni: [
       { naziv: "Hitna pomoć", broj: "112" },
@@ -98,14 +101,16 @@ export const ZAJEDNICKO: Record<VodicJezik, ZajednickiSadrzaj> = {
     kucniRedNaslov: "Kućni red",
     kucniRedEyebrow: "ZA UGODAN BORAVAK SVIH GOSTIJU",
 
+    pergolaNaslov: "Relax zona pergole",
+
     plazeNaslov: "Plaže u Malinskoj",
     plazeEyebrow: "SVE NA PJEŠAČKOJ UDALJENOSTI ILI KRATKOJ VOŽNJI",
     plaze: [
-      { kljuc: "rupa", naziv: "Rupa", opis: "Pješčano dno, idealna za obitelji s djecom, u samom centru." },
-      { kljuc: "portic", naziv: "Portić", opis: "Mala šljunčana uvala, mirnija atmosfera." },
-      { kljuc: "maestral", naziv: "Maestral", opis: "Uređena plaža uz šetnicu, blizina kafića." },
-      { kljuc: "ribarsko", naziv: "Ribarsko selo", opis: "Slikovita uvala uz tradicijsko naselje." },
-      { kljuc: "haludovo", naziv: "Haludovo", opis: "Prostrana plaža sjeverno od centra." },
+      { kljuc: "rupa", naziv: "Plaža Rupa", opis: "Pješčano dno, idealna za obitelji s djecom, u samom centru." },
+      { kljuc: "portic", naziv: "Plaža Portić", opis: "Mala šljunčana uvala, mirnija atmosfera." },
+      { kljuc: "maestral", naziv: "Plaža Maestral", opis: "Uređena plaža uz šetnicu, blizina kafića." },
+      { kljuc: "ribarsko", naziv: "Plaža Ribarsko selo", opis: "Slikovita uvala uz tradicijsko naselje." },
+      { kljuc: "haludovo", naziv: "Plaža Haludovo", opis: "Prostrana plaža sjeverno od centra." },
       { kljuc: "rova", naziv: "Rova & Vrtača", opis: "Mirne uvale u smjeru Rove, 15-ak min šetnje obalom." },
     ],
     plazeLink: { tekst: "visitmalinska.com → sve plaže s kartom", url: "https://visitmalinska.com" },
@@ -115,15 +120,22 @@ export const ZAJEDNICKO: Record<VodicJezik, ZajednickiSadrzaj> = {
     gastroKartice: [
       {
         naziv: "Restorani u Malinskoj",
-        opis: "Od konoba s domaćom kuhinjom do restorana uz more — kompletna ponuda na jednom mjestu.",
-        link: { tekst: "visitmalinska.com → gastronomija", url: "https://visitmalinska.com" },
+        opis: "Od konoba s domaćom kuhinjom do restorana uz more.",
       },
       {
         naziv: "Naša preporuka",
-        opis: "Slobodno nas pitajte — rado ćemo Vam preporučiti restoran po Vašem ukusu i rezervirati stol.",
-        link: { tekst: `${IME} · ${TEL}`, url: `tel:${TEL.replace(/\s/g, "")}` },
+        opisRedovi: [
+          "**ROVA Bistro & Beach bar** — restoran u masliniku na samoj plaži Rova",
+          "**Pizzeria Mandrać** — u uvali Rova",
+          "**Restoran Mulino** — uz marinu i hotel Malin",
+          "**Primorska Koliba** — uz plažu Draga",
+        ],
       },
     ],
+    gastroLink: {
+      tekst: "visitmalinska.com → gastronomija",
+      url: "https://www.visitmalinska.com/malinska-za-sve/gastronomija/",
+    },
 
     krkNaslov: "Što posjetiti na Krku",
     krkEyebrow: "IZLETI I ATRAKCIJE",
@@ -131,12 +143,15 @@ export const ZAJEDNICKO: Record<VodicJezik, ZajednickiSadrzaj> = {
       {
         naziv: "Špilja Biserujka",
         opis: "Najpoznatija krčka špilja, 15-ak minuta vožnje — idealan kratki izlet.",
-        link: { tekst: "spilja-biserujka.com.hr", url: "https://spilja-biserujka.com.hr" },
+        link: { tekst: "spilja-biserujka.com.hr", url: "https://www.spilja-biserujka.com.hr" },
       },
       {
-        naziv: "Atrakcije na otoku",
-        opis: "Grad Krk, Vrbnik, Košljun, plaže Stara Baška... — pregled svega što vrijedi vidjeti.",
-        link: { tekst: "mare-vrbnik.com → što vidjeti na Krku", url: "https://mare-vrbnik.com" },
+        naziv: "Atrakcije na Krku",
+        opis: "Grad Krk, Vrbnik, Košljun, Stara Baška…",
+        link: {
+          tekst: "mare-vrbnik.com → što vidjeti na Krku",
+          url: "https://www.mare-vrbnik.com/hr/blog/atrakcije/sto-vidjeti-na-krku-za-vrijeme-odmora",
+        },
       },
     ],
 
@@ -145,20 +160,28 @@ export const ZAJEDNICKO: Record<VodicJezik, ZajednickiSadrzaj> = {
     transportKartice: [
       {
         naziv: "Taxi",
-        opis: "Lokalni taxi prijevoz dostupan na poziv.",
-        link: { tekst: "g.co/kgs/9t2NTT", url: "https://g.co/kgs/9t2NTT" },
+        opis: "Lokalni taxi prijevoz dostupan na poziv:",
+        linkovi: [
+          { tekst: "Taxi Krk", url: "https://taxikrk.com/" },
+          { tekst: "Diviz Taxi", url: "https://diviz.hr/taxi-krk/" },
+          { tekst: "Taxi-Krk.net", url: "https://taxi-krk.net/" },
+          { tekst: "Golden Taxi", url: "https://golden-taxi-krk.hr/" },
+        ],
       },
       {
         naziv: "Turistički vlak",
         opis: "Vozi kroz Malinsku u sezoni — zabavan način razgledavanja.",
-        link: { tekst: "raspored: visitmalinska.com", url: "https://visitmalinska.com" },
+        link: {
+          tekst: "Ruta i raspored vlakića",
+          url: "https://www.visitmalinska.com/wp-content/uploads/2025/06/rsz_vlakic1.png",
+        },
       },
     ],
 
     komunalnoNaslov: "Komunalne usluge",
     komunalnoEyebrow: "ODVAJANJE OTPADA",
     otpadUvod:
-      "Molimo odvajajte otpad. Odlažite ga u predviđene kante u ograđenom spremištu u dvorištu:",
+      "Molimo Vas da otpad odvajate i odlažete u predviđene kante u ograđenom spremištu u dvorištu:",
     otpadVrste: [
       { naziv: "Biootpad", boja: OTPAD_BOJE.bio },
       { naziv: "Plastika, metal i najlon", boja: OTPAD_BOJE.plastika },
@@ -190,7 +213,7 @@ export const ZAJEDNICKO: Record<VodicJezik, ZajednickiSadrzaj> = {
 
     kontaktiNaslov: "Important contacts",
     kontaktiEyebrow: "WE ARE ALWAYS AT YOUR DISPOSAL",
-    domacicaLabela: "YOUR HOST",
+    domacicaLabela: "Your host",
     domacicaKanali: "call · SMS · WhatsApp",
     hitni: [
       { naziv: "Emergency", broj: "112" },
@@ -201,6 +224,8 @@ export const ZAJEDNICKO: Record<VodicJezik, ZajednickiSadrzaj> = {
 
     kucniRedNaslov: "House rules",
     kucniRedEyebrow: "FOR A PLEASANT STAY FOR ALL GUESTS",
+
+    pergolaNaslov: "Pergola relax zone",
 
     plazeNaslov: "Beaches in Malinska",
     plazeEyebrow: "ALL WITHIN WALKING DISTANCE OR A SHORT DRIVE",
@@ -219,15 +244,22 @@ export const ZAJEDNICKO: Record<VodicJezik, ZajednickiSadrzaj> = {
     gastroKartice: [
       {
         naziv: "Restaurants in Malinska",
-        opis: "From taverns with local cuisine to seaside restaurants — the full offer in one place.",
-        link: { tekst: "visitmalinska.com → dining", url: "https://visitmalinska.com" },
+        opis: "From taverns with local cuisine to seaside restaurants.",
       },
       {
         naziv: "Our recommendation",
-        opis: "Just ask us — we will gladly recommend a restaurant to your taste and book a table.",
-        link: { tekst: `${IME} · ${TEL}`, url: `tel:${TEL.replace(/\s/g, "")}` },
+        opisRedovi: [
+          "**ROVA Bistro & Beach bar** — a restaurant in an olive grove right on Rova beach",
+          "**Pizzeria Mandrać** — in Rova cove",
+          "**Restoran Mulino** — by the marina and Hotel Malin",
+          "**Primorska Koliba** — by Draga beach",
+        ],
       },
     ],
+    gastroLink: {
+      tekst: "visitmalinska.com → dining",
+      url: "https://www.visitmalinska.com/malinska-za-sve/gastronomija/",
+    },
 
     krkNaslov: "What to visit on Krk",
     krkEyebrow: "TRIPS AND ATTRACTIONS",
@@ -235,12 +267,15 @@ export const ZAJEDNICKO: Record<VodicJezik, ZajednickiSadrzaj> = {
       {
         naziv: "Biserujka Cave",
         opis: "The most famous cave on Krk, about a 15-minute drive — an ideal short trip.",
-        link: { tekst: "spilja-biserujka.com.hr", url: "https://spilja-biserujka.com.hr" },
+        link: { tekst: "spilja-biserujka.com.hr", url: "https://www.spilja-biserujka.com.hr" },
       },
       {
-        naziv: "Island attractions",
-        opis: "Krk town, Vrbnik, Košljun, the beaches of Stara Baška... — an overview of everything worth seeing.",
-        link: { tekst: "mare-vrbnik.com → what to see on Krk", url: "https://mare-vrbnik.com" },
+        naziv: "Attractions on Krk",
+        opis: "Krk town, Vrbnik, Košljun, Stara Baška…",
+        link: {
+          tekst: "mare-vrbnik.com → what to see on Krk",
+          url: "https://www.mare-vrbnik.com/hr/blog/atrakcije/sto-vidjeti-na-krku-za-vrijeme-odmora",
+        },
       },
     ],
 
@@ -249,20 +284,28 @@ export const ZAJEDNICKO: Record<VodicJezik, ZajednickiSadrzaj> = {
     transportKartice: [
       {
         naziv: "Taxi",
-        opis: "Local taxi service available on call.",
-        link: { tekst: "g.co/kgs/9t2NTT", url: "https://g.co/kgs/9t2NTT" },
+        opis: "Local taxi service available on call:",
+        linkovi: [
+          { tekst: "Taxi Krk", url: "https://taxikrk.com/" },
+          { tekst: "Diviz Taxi", url: "https://diviz.hr/taxi-krk/" },
+          { tekst: "Taxi-Krk.net", url: "https://taxi-krk.net/" },
+          { tekst: "Golden Taxi", url: "https://golden-taxi-krk.hr/" },
+        ],
       },
       {
         naziv: "Tourist train",
         opis: "Runs through Malinska in season — a fun way to sightsee.",
-        link: { tekst: "schedule: visitmalinska.com", url: "https://visitmalinska.com" },
+        link: {
+          tekst: "Train route and schedule",
+          url: "https://www.visitmalinska.com/wp-content/uploads/2025/06/rsz_vlakic1.png",
+        },
       },
     ],
 
     komunalnoNaslov: "Municipal services",
     komunalnoEyebrow: "WASTE SEPARATION",
     otpadUvod:
-      "Please separate your waste. Dispose of it in the designated bins in the enclosed storage in the yard:",
+      "Please separate and dispose of your waste in the designated bins in the enclosed storage in the yard:",
     otpadVrste: [
       { naziv: "Biowaste", boja: OTPAD_BOJE.bio },
       { naziv: "Plastic, metal and nylon", boja: OTPAD_BOJE.plastika },
@@ -294,7 +337,7 @@ export const ZAJEDNICKO: Record<VodicJezik, ZajednickiSadrzaj> = {
 
     kontaktiNaslov: "Wichtige Kontakte",
     kontaktiEyebrow: "WIR SIND IMMER FÜR SIE DA",
-    domacicaLabela: "IHRE GASTGEBERIN",
+    domacicaLabela: "Ihre Gastgeberin",
     domacicaKanali: "Anruf · SMS · WhatsApp",
     hitni: [
       { naziv: "Notruf", broj: "112" },
@@ -305,6 +348,8 @@ export const ZAJEDNICKO: Record<VodicJezik, ZajednickiSadrzaj> = {
 
     kucniRedNaslov: "Hausordnung",
     kucniRedEyebrow: "FÜR EINEN ANGENEHMEN AUFENTHALT ALLER GÄSTE",
+
+    pergolaNaslov: "Pergola-Relax-Zone",
 
     plazeNaslov: "Strände in Malinska",
     plazeEyebrow: "ALLE FUSSLÄUFIG ODER MIT KURZER FAHRT ERREICHBAR",
@@ -323,15 +368,22 @@ export const ZAJEDNICKO: Record<VodicJezik, ZajednickiSadrzaj> = {
     gastroKartice: [
       {
         naziv: "Restaurants in Malinska",
-        opis: "Von Tavernen mit lokaler Küche bis zu Restaurants am Meer — das komplette Angebot an einem Ort.",
-        link: { tekst: "visitmalinska.com → Gastronomie", url: "https://visitmalinska.com" },
+        opis: "Von Tavernen mit lokaler Küche bis zu Restaurants am Meer.",
       },
       {
         naziv: "Unsere Empfehlung",
-        opis: "Fragen Sie uns einfach — wir empfehlen Ihnen gerne ein Restaurant nach Ihrem Geschmack und reservieren einen Tisch.",
-        link: { tekst: `${IME} · ${TEL}`, url: `tel:${TEL.replace(/\s/g, "")}` },
+        opisRedovi: [
+          "**ROVA Bistro & Beach bar** — ein Restaurant im Olivenhain direkt am Strand Rova",
+          "**Pizzeria Mandrać** — in der Bucht Rova",
+          "**Restoran Mulino** — an der Marina und dem Hotel Malin",
+          "**Primorska Koliba** — am Strand Draga",
+        ],
       },
     ],
+    gastroLink: {
+      tekst: "visitmalinska.com → Gastronomie",
+      url: "https://www.visitmalinska.com/malinska-za-sve/gastronomija/",
+    },
 
     krkNaslov: "Was man auf Krk besuchen kann",
     krkEyebrow: "AUSFLÜGE UND SEHENSWÜRDIGKEITEN",
@@ -339,12 +391,15 @@ export const ZAJEDNICKO: Record<VodicJezik, ZajednickiSadrzaj> = {
       {
         naziv: "Höhle Biserujka",
         opis: "Die bekannteste Höhle auf Krk, etwa 15 Minuten Fahrt — ein idealer Kurzausflug.",
-        link: { tekst: "spilja-biserujka.com.hr", url: "https://spilja-biserujka.com.hr" },
+        link: { tekst: "spilja-biserujka.com.hr", url: "https://www.spilja-biserujka.com.hr" },
       },
       {
-        naziv: "Sehenswürdigkeiten der Insel",
-        opis: "Die Stadt Krk, Vrbnik, Košljun, die Strände von Stara Baška... — ein Überblick über alles Sehenswerte.",
-        link: { tekst: "mare-vrbnik.com → was man auf Krk sehen kann", url: "https://mare-vrbnik.com" },
+        naziv: "Sehenswürdigkeiten auf Krk",
+        opis: "Die Stadt Krk, Vrbnik, Košljun, Stara Baška…",
+        link: {
+          tekst: "mare-vrbnik.com → was man auf Krk sehen kann",
+          url: "https://www.mare-vrbnik.com/hr/blog/atrakcije/sto-vidjeti-na-krku-za-vrijeme-odmora",
+        },
       },
     ],
 
@@ -353,20 +408,28 @@ export const ZAJEDNICKO: Record<VodicJezik, ZajednickiSadrzaj> = {
     transportKartice: [
       {
         naziv: "Taxi",
-        opis: "Lokaler Taxidienst auf Anruf verfügbar.",
-        link: { tekst: "g.co/kgs/9t2NTT", url: "https://g.co/kgs/9t2NTT" },
+        opis: "Lokaler Taxidienst auf Anruf verfügbar:",
+        linkovi: [
+          { tekst: "Taxi Krk", url: "https://taxikrk.com/" },
+          { tekst: "Diviz Taxi", url: "https://diviz.hr/taxi-krk/" },
+          { tekst: "Taxi-Krk.net", url: "https://taxi-krk.net/" },
+          { tekst: "Golden Taxi", url: "https://golden-taxi-krk.hr/" },
+        ],
       },
       {
         naziv: "Touristenbahn",
         opis: "Fährt in der Saison durch Malinska — eine unterhaltsame Art der Besichtigung.",
-        link: { tekst: "Fahrplan: visitmalinska.com", url: "https://visitmalinska.com" },
+        link: {
+          tekst: "Route und Fahrplan der Bahn",
+          url: "https://www.visitmalinska.com/wp-content/uploads/2025/06/rsz_vlakic1.png",
+        },
       },
     ],
 
     komunalnoNaslov: "Kommunale Dienste",
     komunalnoEyebrow: "ABFALLTRENNUNG",
     otpadUvod:
-      "Bitte trennen Sie den Abfall. Entsorgen Sie ihn in den vorgesehenen Behältern im umzäunten Lager im Hof:",
+      "Bitte trennen und entsorgen Sie den Abfall in den vorgesehenen Behältern im umzäunten Lager im Hof:",
     otpadVrste: [
       { naziv: "Bioabfall", boja: OTPAD_BOJE.bio },
       { naziv: "Plastik, Metall und Nylon", boja: OTPAD_BOJE.plastika },

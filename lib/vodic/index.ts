@@ -1,17 +1,14 @@
-// Vodič dobrodošlice po objektu — JEDAN izvor sadržaja za (a) welcome mail HTML
-// i (b) welcome web stranicu. Sadržaj je strukturirani podaci (sekcije), pa ga
-// renderiraju dva renderera (mail string + React) iz iste `Vodic` strukture.
+// Vodič dobrodošlice po objektu — JEDAN izvor sadržaja za (a) welcome web
+// stranicu i (b) welcome mail HTML. Sadržaj je strukturirani podaci (sekcije),
+// pa ga renderiraju dva renderera iz iste `Vodic` strukture.
 //
-// Jezik: HR/EN/DE, biran iz Gost.jezik / locale-a istim mehanizmom kao mailovi
-// (vodicJezik → hr/en/de, sve ostalo fallback "en").
+// Jezik: HR/EN/DE (vodicJezik → hr/en/de, ostalo fallback "en").
 //
-// Sadržaj se sastoji od:
-//  - ZAJEDNICKO: dijelovi isti za sve objekte (kontakti, plaže, gastro, Krk,
-//    transport, otpad, naslovi sekcija) — lib/vodic/zajednicko.ts
-//  - SADRZAJ[slug]: objekt-specifično (hero uvod, WiFi, kućni red, najbliže
-//    plaže) — lib/vodic/sadrzaj/*.ts
-// `dohvatiVodic(slug, locale)` spaja oba u potpuno razriješen `Vodic` na ciljnom
-// jeziku, pa renderer ne mora znati ništa o dijeljenju sadržaja.
+// Sastav: ZAJEDNICKO (isto za sve objekte) + SADRZAJ[slug] (objekt-specifično:
+// hero uvod, WiFi, kućni red, opcionalni override-i: redoslijed plaža, opis
+// Rove, gastro preporuka, pergola sekcija). `dohvatiVodic` spaja u razriješen
+// `Vodic`. Override-i su opcionalni → objekt bez njih koristi zajedničke
+// vrijednosti (npr. Eva).
 
 import { type ObjektSlug, OBJEKTI_PODACI } from "@/lib/objekti";
 import { ZAJEDNICKO, type ZajednickiSadrzaj } from "./zajednicko";
@@ -26,7 +23,9 @@ export type VodicLink = { tekst: string; url: string };
 export type VodicKartica = {
   naziv: string;
   opis?: string;
+  opisRedovi?: string[]; // više redaka, svaki u svom retku (npr. preporuka restorana)
   link?: VodicLink;
+  linkovi?: VodicLink[]; // više linkova u retku (npr. taxi)
   badge?: string; // npr. "NAJBLIŽE VAMA"; prazno = bez badge-a
 };
 
@@ -34,11 +33,15 @@ export type VodicHitni = { naziv: string; broj: string };
 
 export type VodicOtpadVrsta = { naziv: string; boja: string }; // boja = hex za točkicu
 
-// Sekcije su discriminated union po `tip` — renderer (PR2/PR4) granat će po tipu.
+// Ikone uz naslove sekcija (renderer crta SVG po ovom ključu).
+export type IkonaKljuc = "telefon" | "info" | "pin" | "vilica" | "pergola";
+
+// Sekcije su discriminated union po `tip`.
 export type VodicSekcija =
   | {
       tip: "kontakti";
       broj: number;
+      ikona: IkonaKljuc;
       naslov: string;
       eyebrow: string;
       domacica: { labela: string; ime: string; telefon: string; kanali: string };
@@ -47,21 +50,32 @@ export type VodicSekcija =
   | {
       tip: "pravila";
       broj: number;
+      ikona: IkonaKljuc;
       naslov: string;
       eyebrow: string;
       stavke: string[];
     }
   | {
+      tip: "pergola";
+      broj: number;
+      ikona: IkonaKljuc;
+      naslov: string;
+      odlomci: string[];
+      slika: string;
+    }
+  | {
       tip: "kartice";
       broj: number;
+      ikona: IkonaKljuc;
       naslov: string;
       eyebrow: string;
       kartice: VodicKartica[];
-      link?: VodicLink; // npr. "visitmalinska.com → sve plaže s kartom"
+      link?: VodicLink; // npr. zlatni banner "sve plaže s kartom"
     }
   | {
       tip: "otpad";
       broj: number;
+      ikona: IkonaKljuc;
       naslov: string;
       eyebrow: string;
       uvod: string;
@@ -86,16 +100,20 @@ export type Vodic = {
   outro: { gornji: string; naslov: string; potpis: string };
 };
 
-// Per-jezik objekt-specifični tekst.
+// Per-jezik objekt-specifični tekst. Override-i (rovaOpis, gastroPreporuka,
+// pergola) su opcionalni — ako ih nema, koriste se zajedničke vrijednosti.
 export type ObjektTekst = {
   heroUvod: string;
   kucniRed: string[];
+  rovaOpis?: string; // override opisa plaže "Rova & Vrtača"
+  pergola?: string[]; // odlomci sekcije "Relax zona pergole" (samo objekti s pergolom)
 };
 
-// Cijeli objekt-specifičan zapis (jezično-neovisni dijelovi + tekst po jeziku).
 export type ObjektSadrzaj = {
   wifi: { mreza: string; lozinka: string };
-  najblizePlaze: string[]; // ključevi plaža (zajednicko.plaze[].kljuc) koji dobiju badge
+  najblizePlaze: string[]; // ključevi plaža (zajednicko.plaze[].kljuc) koje dobiju badge
+  plazeRedoslijed?: string[]; // ključevi plaža u željenom redoslijedu; bez ovog → redoslijed iz zajednicko
+  pergolaSlika?: string; // putanja na skicu pergole; uz ObjektTekst.pergola aktivira sekciju
   tekst: Record<VodicJezik, ObjektTekst>;
 };
 
@@ -105,15 +123,12 @@ const SADRZAJ: Record<ObjektSlug, ObjektSadrzaj> = {
   "house-art": houseArt,
 };
 
-// Locale (8 mogućih) → jezik vodiča (hr/en/de). Sve izvan hr/de → "en",
-// identično mailovima (odaberiJezikMaila).
 export function vodicJezik(jezik: string | null | undefined): VodicJezik {
   if (jezik === "hr") return "hr";
   if (jezik === "de") return "de";
   return "en";
 }
 
-// Spoji zajednički + objekt-specifičan sadržaj u potpuno razriješen Vodic.
 export function dohvatiVodic(
   slug: ObjektSlug,
   jezikInput: string | null | undefined
@@ -124,16 +139,24 @@ export function dohvatiVodic(
   const ot = o.tekst[jezik];
   const podaci = OBJEKTI_PODACI[slug];
 
-  const plazeKartice: VodicKartica[] = z.plaze.map((p) => ({
-    naziv: p.naziv,
-    opis: p.opis,
-    badge: o.najblizePlaze.includes(p.kljuc) ? z.badgeNajblize : undefined,
-  }));
+  // Plaže: redoslijed iz objekta (ako zadan) inače zajednički; opis Rove se
+  // može override-ati po objektu; badge prema najblizePlaze.
+  const plazePoKljucu = new Map(z.plaze.map((p) => [p.kljuc, p]));
+  const redoslijed = o.plazeRedoslijed ?? z.plaze.map((p) => p.kljuc);
+  const plazeKartice: VodicKartica[] = redoslijed
+    .map((kljuc) => plazePoKljucu.get(kljuc))
+    .filter((p): p is NonNullable<typeof p> => Boolean(p))
+    .map((p) => ({
+      naziv: p.naziv,
+      opis: p.kljuc === "rova" && ot.rovaOpis ? ot.rovaOpis : p.opis,
+      badge: o.najblizePlaze.includes(p.kljuc) ? z.badgeNajblize : undefined,
+    }));
 
   const sekcije: VodicSekcija[] = [
     {
       tip: "kontakti",
       broj: 1,
+      ikona: "telefon",
       naslov: z.kontaktiNaslov,
       eyebrow: z.kontaktiEyebrow,
       domacica: {
@@ -147,13 +170,30 @@ export function dohvatiVodic(
     {
       tip: "pravila",
       broj: 2,
+      ikona: "info",
       naslov: z.kucniRedNaslov,
       eyebrow: z.kucniRedEyebrow,
       stavke: ot.kucniRed,
     },
+  ];
+
+  // Pergola — samo objekti koji imaju i sliku i tekst (Marty).
+  if (o.pergolaSlika && ot.pergola && ot.pergola.length > 0) {
+    sekcije.push({
+      tip: "pergola",
+      broj: 3,
+      ikona: "pergola",
+      naslov: z.pergolaNaslov,
+      odlomci: ot.pergola,
+      slika: o.pergolaSlika,
+    });
+  }
+
+  sekcije.push(
     {
       tip: "kartice",
-      broj: 3,
+      broj: 4,
+      ikona: "pin",
       naslov: z.plazeNaslov,
       eyebrow: z.plazeEyebrow,
       kartice: plazeKartice,
@@ -161,36 +201,41 @@ export function dohvatiVodic(
     },
     {
       tip: "kartice",
-      broj: 4,
+      broj: 5,
+      ikona: "vilica",
       naslov: z.gastroNaslov,
       eyebrow: z.gastroEyebrow,
       kartice: z.gastroKartice,
+      link: z.gastroLink,
     },
     {
       tip: "kartice",
-      broj: 5,
+      broj: 6,
+      ikona: "pin",
       naslov: z.krkNaslov,
       eyebrow: z.krkEyebrow,
       kartice: z.krkKartice,
     },
     {
       tip: "kartice",
-      broj: 6,
+      broj: 7,
+      ikona: "info",
       naslov: z.transportNaslov,
       eyebrow: z.transportEyebrow,
       kartice: z.transportKartice,
     },
     {
       tip: "otpad",
-      broj: 7,
+      broj: 8,
+      ikona: "info",
       naslov: z.komunalnoNaslov,
       eyebrow: z.komunalnoEyebrow,
       uvod: z.otpadUvod,
       vrste: z.otpadVrste,
       napomena: z.otpadNapomena,
       link: z.otpadLink,
-    },
-  ];
+    }
+  );
 
   return {
     slug,
