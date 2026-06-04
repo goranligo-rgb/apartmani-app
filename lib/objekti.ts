@@ -73,6 +73,26 @@ export const OBJEKTI_PODACI: Record<ObjektSlug, ObjektPodaci> = {
   },
 };
 
+// Mapiraj puni naziv objekta iz baze (Objekt.naziv) na URL slug. Koristi se za
+// welcome stranice / linkove (npr. "Apartments Eva" → "eva"). Vraća null ako
+// naziv ne odgovara nijednom poznatom objektu.
+export function nazivToSlug(naziv: string | null | undefined): ObjektSlug | null {
+  const n = String(naziv || "").trim().toLowerCase();
+  if (!n) return null;
+
+  // Točni nazivi iz baze (seed): "Apartments Eva", "Luxury Apartments Marty",
+  // "House Art". Prvo egzaktno, pa fuzzy kao zaštita od sitnih izmjena naziva.
+  if (n === "apartments eva") return "eva";
+  if (n === "luxury apartments marty") return "marty";
+  if (n === "house art") return "house-art";
+
+  if (n.includes("house art")) return "house-art";
+  if (n.includes("marty")) return "marty";
+  if (n.includes("eva")) return "eva";
+
+  return null;
+}
+
 const OG_LOCALE: Record<Locale, string> = {
   hr: "hr_HR",
   en: "en_US",
