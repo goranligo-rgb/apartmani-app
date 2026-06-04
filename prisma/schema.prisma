@@ -843,6 +843,10 @@ model PostavkeNaplate {
 
   danaPrijeDolaskaPunaNaplata Int @default(30)
 
+  // Koliko dana prije dolaska cron šalje welcome mail / check-in SMS.
+  mailDanaPrije Int @default(5)
+  smsDanaPrije  Int @default(3)
+
   appUrl String?
 
   automatskiOtkaziBezAkontacije    Boolean @default(true)

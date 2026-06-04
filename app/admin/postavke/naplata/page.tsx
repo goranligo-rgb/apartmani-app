@@ -56,6 +56,9 @@ export default async function AdminPostavkeNaplataPage({
       formData.get("danaPrijeDolaskaPunaNaplata") || 30
     );
 
+    const mailDanaPrije = Number(formData.get("mailDanaPrije") || 5);
+    const smsDanaPrije = Number(formData.get("smsDanaPrije") || 3);
+
     const tekstPozivaAkontacije = String(
       formData.get("tekstPozivaAkontacije") || ""
     ).trim();
@@ -98,6 +101,14 @@ export default async function AdminPostavkeNaplataPage({
       throw new Error("Broj dana za punu naplatu nije ispravan.");
     }
 
+    if (!Number.isFinite(mailDanaPrije) || mailDanaPrije < 0) {
+      throw new Error("Broj dana za welcome mail nije ispravan.");
+    }
+
+    if (!Number.isFinite(smsDanaPrije) || smsDanaPrije < 0) {
+      throw new Error("Broj dana za SMS nije ispravan.");
+    }
+
     await prisma.postavkeNaplate.update({
       where: { id },
       data: {
@@ -105,6 +116,8 @@ export default async function AdminPostavkeNaplataPage({
         danaPrijeDolaskaSlanjeOstatka,
         danaPrijeDolaskaMoraBitiPlaceno,
         danaPrijeDolaskaPunaNaplata,
+        mailDanaPrije,
+        smsDanaPrije,
         appUrl: String(formData.get("appUrl") || "").trim() || null,
         automatskiOtkaziBezAkontacije: boolFromForm(
           formData.get("automatskiOtkaziBezAkontacije")
@@ -228,6 +241,36 @@ export default async function AdminPostavkeNaplataPage({
                 type="number"
                 min={0}
                 defaultValue={postavke.danaPrijeDolaskaMoraBitiPlaceno}
+                className="w-full border border-[#d8c8aa] bg-white px-3 py-3 text-[#2e2923] outline-none"
+                required
+              />
+            </Field>
+          </div>
+
+          <div className="mt-5 grid gap-4 md:grid-cols-2">
+            <Field
+              label="Welcome mail - dana prije dolaska"
+              help="Koliko dana prije dolaska cron šalje welcome mail gostu."
+            >
+              <input
+                name="mailDanaPrije"
+                type="number"
+                min={0}
+                defaultValue={postavke.mailDanaPrije}
+                className="w-full border border-[#d8c8aa] bg-white px-3 py-3 text-[#2e2923] outline-none"
+                required
+              />
+            </Field>
+
+            <Field
+              label="SMS - dana prije dolaska"
+              help="Koliko dana prije dolaska cron šalje check-in SMS gostu."
+            >
+              <input
+                name="smsDanaPrije"
+                type="number"
+                min={0}
+                defaultValue={postavke.smsDanaPrije}
                 className="w-full border border-[#d8c8aa] bg-white px-3 py-3 text-[#2e2923] outline-none"
                 required
               />
