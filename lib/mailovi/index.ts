@@ -205,16 +205,22 @@ export interface MailTekstovi {
     zavrsetak: string;
   };
 
-  // 11. Welcome mail prije dolaska — pozdrav + cijeli vodič dobrodošlice.
+  // 11. Welcome mail prije dolaska — kratki tekstualni mail (mailWrapper pattern).
   dobrodoslica: {
     subject: (nazivObjekta: string) => string;
+    mailNaslov: string; // naslov u tamnom zaglavlju ("Dobro došli!")
     pozdrav: (ime: string) => string;
-    uvodPara: string; // uvodni odlomak (editabilan u adminu)
+    najava: string; // uvodni redak (editabilan u adminu); "Vaš odmor je vrlo blizu…"
+    uvodPara: string; // (zadržano) dugi uvodni odlomak — koristi welcome web stranica
     sifraUvod: string; // naslov retka sa šifrom
     sifraNapomena: string; // objašnjenje formata *1234#
+    labelDolazak: string; // "Dolazak"
+    labelOdjava: string; // "Odjava"
     eCheckinUvod: string; // rečenica iznad eCheckin linka
     webUvod: string; // tekst iznad gumba na web vodič
-    webGumb: string; // tekst gumba na web vodič
+    webGumb: (nazivObjekta: string) => string; // tekst gumba ("Vaš vodič — {naziv}")
+    potpisPozdrav: string; // "Srdačan pozdrav,"
+    potpisIme: string; // "Kristina · Malinska Stay"
   };
 }
 

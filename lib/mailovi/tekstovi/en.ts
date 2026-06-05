@@ -258,13 +258,20 @@ export const en: MailTekstovi = {
   dobrodoslica: {
     subject: (nazivObjekta) =>
       `Welcome to ${nazivObjekta} — everything you need for your stay`,
+    mailNaslov: "Welcome!",
     pozdrav: (ime) => `Dear ${ime},`,
+    najava: "Your holiday with us is very close — we look forward to your arrival!",
     uvodPara:
       "we look forward to your arrival! Below you will find everything you need for a pleasant and carefree stay, access contacts, house rules and recommendations for beaches, restaurants and trips.",
     sifraUvod: "Entry code",
     sifraNapomena: "Enter it exactly as shown — with the asterisk and the hash.",
+    labelDolazak: "Arrival",
+    labelOdjava: "Departure",
     eCheckinUvod: "Please complete your registration before arrival at this link:",
-    webUvod: "All information is also available online:",
-    webGumb: "Open the digital guide",
+    webUvod:
+      "All information about your stay — instructions, house rules, recommendations for beaches, restaurants and trips — is prepared for you here:",
+    webGumb: (nazivObjekta) => `Your guide — ${nazivObjekta}`,
+    potpisPozdrav: "Warm regards,",
+    potpisIme: "Kristina · Malinska Stay",
   },
 };

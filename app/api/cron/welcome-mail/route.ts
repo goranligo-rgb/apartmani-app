@@ -2,8 +2,9 @@ import { NextResponse } from "next/server";
 import { StatusRezervacije } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { sendMail } from "@/lib/mail";
-import { welcomeMailFromPage } from "@/lib/vodic/mailFromPage";
-import { vodicJezik } from "@/lib/vodic";
+import { renderWelcomeMail } from "@/lib/vodic/welcomeMail";
+import { welcomeUrl } from "@/lib/vodic/mail";
+import { vodicJezik, OBJEKT_BOJA } from "@/lib/vodic";
 import { dohvatiPrijevode } from "@/lib/mailovi";
 import { nazivToSlug } from "@/lib/objekti";
 
@@ -97,7 +98,8 @@ export async function GET(request: Request) {
         select: { id: true },
       },
       // UVJET ŠIFRE: bez TTLock šifre mail se NE šalje (cron pokušava opet sutra).
-      ttlockSifre: { select: { id: true }, take: 1 },
+      // Vrijednost šifre ide u mail (čita se s rezervacije, TTLock se ne dira).
+      ttlockSifre: { select: { sifra: true }, orderBy: { createdAt: "asc" }, take: 1 },
     },
   });
 
@@ -137,17 +139,21 @@ export async function GET(request: Request) {
         continue;
       }
 
-      // Mail = DOSLOVNO renderirana welcome stranica (?t=rezervacija) → mehanička
-      // obrada. Ime, šifra (čita se s rezervacije, TTLock se ne dira), eCheckin i
-      // datumi dolaze sa stranice. Isti mail kao admin gumb (bez uvod override).
+      // Jednostavni welcome mail (mailWrapper pattern) — isti kao admin gumb,
+      // bez uvod override (default "najava"). Šifra/eCheckin/datumi s rezervacije.
       const jezik = vodicJezik(r.gost.jezik);
       const tekst = dohvatiPrijevode(jezik).dobrodoslica;
       const subject = tekst.subject(r.jedinica.objekt.naziv);
-      const html = await welcomeMailFromPage({
-        appUrl,
-        slug,
+      const html = renderWelcomeMail({
         jezik,
-        t: r.id,
+        ime: r.gost.ime || "goste",
+        nazivObjekta: r.jedinica.objekt.naziv,
+        sifra: r.ttlockSifre[0]?.sifra || null,
+        eCheckinLink: r.eCheckinLink,
+        datumOd: r.datumOd,
+        datumDo: r.datumDo,
+        vodicUrl: welcomeUrl(appUrl, jezik, slug, r.id),
+        boja: OBJEKT_BOJA[slug],
       });
 
       let mailStatus: "POSLANO" | "GRESKA" = "GRESKA";

@@ -14,8 +14,9 @@ import {
 import { imaInfobipKonfiguraciju, posaljiSmsInfobip } from "@/lib/infobip";
 import { sendMail } from "@/lib/mail";
 import { nazivToSlug } from "@/lib/objekti";
-import { vodicJezik } from "@/lib/vodic";
-import { welcomeMailFromPage } from "@/lib/vodic/mailFromPage";
+import { vodicJezik, OBJEKT_BOJA } from "@/lib/vodic";
+import { welcomeUrl } from "@/lib/vodic/mail";
+import { renderWelcomeMail } from "@/lib/vodic/welcomeMail";
 import { normalizirajE164 } from "@/lib/twilio";
 import { sastaviCheckinSms } from "@/lib/smsCheckin";
 
@@ -412,7 +413,7 @@ export default async function RezervacijaDetaljPage({
   // ── Welcome mail panel: default jezik = jezik gosta, editabilan uvod ──────
   const welcomeJezikDefault = odaberiJezikMaila(rezervacija.gost?.jezik);
   const welcomeUvodDefault =
-    dohvatiPrijevode(welcomeJezikDefault).dobrodoslica.uvodPara;
+    dohvatiPrijevode(welcomeJezikDefault).dobrodoslica.najava;
   const imaEmail = Boolean(rezervacija.gost?.email);
   const imaWelcomeSlug = nazivToSlug(rezervacija.jedinica.objekt.naziv) !== null;
 
@@ -975,6 +976,9 @@ export default async function RezervacijaDetaljPage({
       include: {
         gost: true,
         jedinica: { include: { objekt: true } },
+        // Šifra se SAMO ČITA s rezervacije (TTLock se ne dira); red se izostavi
+        // ako šifre nema.
+        ttlockSifre: { orderBy: { createdAt: "asc" }, take: 1 },
       },
     });
 
@@ -988,17 +992,19 @@ export default async function RezervacijaDetaljPage({
     const t = dohvatiPrijevode(jezik).dobrodoslica;
     const appUrl = await getAppUrl();
 
-    // Mail = DOSLOVNO renderirana welcome stranica (?t=rezervacija) → mehanička
-    // obrada. Ime, šifra (čita se s rezervacije, TTLock se ne dira), eCheckin i
-    // datumi dolaze sa stranice. Editabilan uvod se prosljeđuje stranici (?uvod=)
-    // samo ako ga je admin promijenio; inače stranica koristi standardni uvod.
-    const uvodOverride = uvodPara && uvodPara !== t.uvodPara ? uvodPara : null;
-    const html = await welcomeMailFromPage({
-      appUrl,
-      slug,
+    // Jednostavni welcome mail (mailWrapper pattern). Editabilan uvod iz textarea
+    // ide direktno u tekst maila (zamjenjuje "najava" redak); prazno → standardni.
+    const html = renderWelcomeMail({
       jezik,
-      t: rezervacijaId,
-      uvod: uvodOverride,
+      ime: r.gost.ime || "goste",
+      nazivObjekta: r.jedinica.objekt.naziv,
+      sifra: r.ttlockSifre[0]?.sifra || null,
+      eCheckinLink: r.eCheckinLink,
+      datumOd: r.datumOd,
+      datumDo: r.datumDo,
+      vodicUrl: welcomeUrl(appUrl, jezik, slug, rezervacijaId),
+      boja: OBJEKT_BOJA[slug],
+      uvodOverride: uvodPara || null,
     });
 
     const subject = t.subject(r.jedinica.objekt.naziv);

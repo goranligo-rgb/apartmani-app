@@ -262,13 +262,20 @@ export const hr: MailTekstovi = {
   dobrodoslica: {
     subject: (nazivObjekta) =>
       `Dobrodošli u ${nazivObjekta} — sve informacije za Vaš boravak`,
+    mailNaslov: "Dobro došli!",
     pozdrav: (ime) => `Dobar dan ${ime},`,
+    najava: "Vaš odmor kod nas je vrlo blizu — radujemo se Vašem dolasku!",
     uvodPara:
       "radujemo se Vašem dolasku! U nastavku smo pripremili sve informacije za ugodan i bezbrižan boravak, pristupne kontakte, kućni red te preporuke za plaže, restorane i izlete.",
     sifraUvod: "Šifra za ulaz",
     sifraNapomena: "Unesite je točno kako je prikazano — sa zvjezdicom i ljestvama.",
+    labelDolazak: "Dolazak",
+    labelOdjava: "Odjava",
     eCheckinUvod: "Molimo popunite prijavu prije dolaska:",
-    webUvod: "Sve informacije dostupne su i online:",
-    webGumb: "Otvori digitalni vodič",
+    webUvod:
+      "Sve informacije o boravku — upute, kućni red, preporuke za plaže, restorane i izlete — pripremili smo Vam ovdje:",
+    webGumb: (nazivObjekta) => `Vaš vodič — ${nazivObjekta}`,
+    potpisPozdrav: "Srdačan pozdrav,",
+    potpisIme: "Kristina · Malinska Stay",
   },
 };
