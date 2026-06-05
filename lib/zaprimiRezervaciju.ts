@@ -8,6 +8,8 @@ import {
   formatDateZaMail,
   money,
 } from "@/lib/mailovi";
+import { imaInfobipKonfiguraciju, posaljiSmsInfobip } from "@/lib/infobip";
+import { kratkaJedinica } from "@/lib/smsIzvjestaj";
 
 // ── Zaprimanje rezervacije nakon uspješne Stripe autorizacije kartice ──
 //
@@ -256,6 +258,32 @@ export async function zaprimiAutoriziranuRezervaciju(args: {
     }
   } catch (mailError) {
     console.error("[zaprimiRezervaciju] Greška kod slanja admin maila:", mailError);
+  }
+
+  // ── SMS vlasnici: "Nova rezervacija ceka potvrdu" (izvanredna obavijest) ──
+  // Zaseban try/catch — neuspjeh SMS-a NIKAD ne utječe na rezervaciju, payment
+  // flow ni mailove. Šalje se samo ako je VLASNIK_SMS_BROJ postavljen i Infobip
+  // konfiguriran. Naslanja se na isti count===1 + dedup kao admin mail → 1 SMS.
+  try {
+    const vlasnikBroj = (process.env.VLASNIK_SMS_BROJ || "").trim();
+    if (vlasnikBroj && imaInfobipKonfiguraciju()) {
+      const ddmm = (d: Date) =>
+        `${String(d.getDate()).padStart(2, "0")}.${String(
+          d.getMonth() + 1
+        ).padStart(2, "0")}.`;
+      const jedinicaOznaka = kratkaJedinica(r.jedinica.naziv, r.jedinica.vrsta);
+      const prezime = (r.gost?.prezime || r.gost?.ime || "Gost").trim();
+      const tekst =
+        `Nova rezervacija ceka potvrdu: ${jedinicaOznaka}, ${prezime}, ` +
+        `${ddmm(r.datumOd)}-${ddmm(r.datumDo)} ` +
+        `Molimo provjeru i potvrdu gostu.`;
+      await posaljiSmsInfobip({ to: vlasnikBroj, text: tekst });
+    }
+  } catch (smsError) {
+    console.error(
+      "[zaprimiRezervaciju] Greška kod slanja SMS-a vlasnici:",
+      smsError
+    );
   }
 
   // ── Mail gostu: "Rezervacija je zaprimljena" ──
