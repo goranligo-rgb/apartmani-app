@@ -14,6 +14,12 @@ function addDays(d: Date, days: number) {
   return x;
 }
 
+function dolazakTekst(dana: number) {
+  if (dana <= 0) return "danas";
+  if (dana === 1) return "sutra";
+  return `za ${dana} dana`;
+}
+
 function money(value?: number | null) {
   return `${Number(value || 0).toFixed(2)} €`;
 }
@@ -98,6 +104,15 @@ export default async function AdminPage() {
     },
     include: { gost: true, jedinica: { include: { objekt: true } } },
     orderBy: { datumOd: "asc" },
+  });
+  // Hitni (dolazak <= 2 dana) idu na vrh s jačim tekstom; ostali (3+) ispod.
+  const welcomeHitni = welcomeMailUpozorenja.filter((r) => {
+    const d = daysUntil(r.datumOd);
+    return d !== null && d <= 2;
+  });
+  const welcomeOstali = welcomeMailUpozorenja.filter((r) => {
+    const d = daysUntil(r.datumOd);
+    return d === null || d >= 3;
   });
 
   const rezervacijeAktivne = await prisma.rezervacija.findMany({
@@ -398,41 +413,85 @@ export default async function AdminPage() {
               </p>
             </div>
 
-            <div className="grid gap-3">
-              {welcomeMailUpozorenja.map((r) => (
-                <Link
-                  key={r.id}
-                  href={`/admin/rezervacije/${r.id}`}
-                  className="block border border-[#e2b3ad] bg-white p-4 transition hover:bg-[#fff0ee]"
-                >
-                  <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                    <div>
-                      <div className="text-lg font-black text-[#2e2923]">
-                        {r.gost?.ime} {r.gost?.prezime}
+            {welcomeHitni.length > 0 && (
+              <div className="mb-3 grid gap-3">
+                {welcomeHitni.map((r) => {
+                  const dana = daysUntil(r.datumOd) ?? 0;
+                  return (
+                    <Link
+                      key={r.id}
+                      href={`/admin/rezervacije/${r.id}`}
+                      className="block border-2 border-[#c0473d] bg-[#ffe9e6] p-4 transition hover:bg-[#ffdedb]"
+                    >
+                      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                        <div>
+                          <div className="text-lg font-black text-[#2e2923]">
+                            {r.gost?.ime} {r.gost?.prezime}
+                          </div>
+
+                          <div className="mt-1 text-sm text-[#6f665a]">
+                            {r.jedinica?.objekt?.naziv} · {r.jedinica?.naziv}
+                          </div>
+
+                          <div className="mt-1 text-sm font-black text-[#9b1f15]">
+                            Gost dolazi {dolazakTekst(dana)} — kreiraj šifru i
+                            pošalji welcome
+                          </div>
+                        </div>
+
+                        <div className="text-left md:text-right">
+                          <div className="text-sm font-bold text-[#9b3f36]">
+                            Dolazak: {r.datumOd.toLocaleDateString("hr-HR")}
+                          </div>
+
+                          <div className="mt-1 text-xs font-black uppercase tracking-[0.16em] text-[#9b1f15]">
+                            Otvori →
+                          </div>
+                        </div>
+                      </div>
+                    </Link>
+                  );
+                })}
+              </div>
+            )}
+
+            {welcomeOstali.length > 0 && (
+              <div className="grid gap-3">
+                {welcomeOstali.map((r) => (
+                  <Link
+                    key={r.id}
+                    href={`/admin/rezervacije/${r.id}`}
+                    className="block border border-[#e2b3ad] bg-white p-4 transition hover:bg-[#fff0ee]"
+                  >
+                    <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                      <div>
+                        <div className="text-lg font-black text-[#2e2923]">
+                          {r.gost?.ime} {r.gost?.prezime}
+                        </div>
+
+                        <div className="mt-1 text-sm text-[#6f665a]">
+                          {r.jedinica?.objekt?.naziv} · {r.jedinica?.naziv}
+                        </div>
+
+                        <div className="mt-1 text-sm font-bold text-[#9b3f36]">
+                          Dolazak: {r.datumOd.toLocaleDateString("hr-HR")}
+                        </div>
                       </div>
 
-                      <div className="mt-1 text-sm text-[#6f665a]">
-                        {r.jedinica?.objekt?.naziv} · {r.jedinica?.naziv}
-                      </div>
+                      <div className="text-left md:text-right">
+                        <div className="text-sm font-black text-[#9b3f36]">
+                          Welcome mail nije poslan — nedostaje TTLock šifra
+                        </div>
 
-                      <div className="mt-1 text-sm font-bold text-[#9b3f36]">
-                        Dolazak: {r.datumOd.toLocaleDateString("hr-HR")}
+                        <div className="mt-1 text-xs font-black uppercase tracking-[0.16em] text-[#9b3f36]">
+                          Otvori →
+                        </div>
                       </div>
                     </div>
-
-                    <div className="text-left md:text-right">
-                      <div className="text-sm font-black text-[#9b3f36]">
-                        Welcome mail nije poslan — nedostaje TTLock šifra
-                      </div>
-
-                      <div className="mt-1 text-xs font-black uppercase tracking-[0.16em] text-[#9b3f36]">
-                        Otvori →
-                      </div>
-                    </div>
-                  </div>
-                </Link>
-              ))}
-            </div>
+                  </Link>
+                ))}
+              </div>
+            )}
           </section>
         )}
 
