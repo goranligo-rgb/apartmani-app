@@ -6,14 +6,18 @@ import { getTranslations, setRequestLocale } from "next-intl/server";
 import { Poppins } from "next/font/google";
 import { Link } from "@/i18n/navigation";
 import { routing } from "@/i18n/routing";
-import { OBJEKTI_PODACI, type ObjektSlug } from "@/lib/objekti";
+import { prisma } from "@/lib/prisma";
+import { OBJEKTI_PODACI, nazivToSlug, type ObjektSlug } from "@/lib/objekti";
 import {
   dohvatiVodic,
+  vodicJezik,
   type IkonaKljuc,
+  type VodicJezik,
   type VodicKartica,
   type VodicLink,
   type VodicSekcija,
 } from "@/lib/vodic";
+import { dohvatiPrijevode } from "@/lib/mailovi";
 
 const poppins = Poppins({
   subsets: ["latin", "latin-ext"],
@@ -109,6 +113,41 @@ const DIZAJN: Record<ObjektSlug, Dizajn> = {
   },
 };
 
+// Personalizirani prikaz (uz ?t=): labele i format datuma po jeziku vodiča.
+const DATUM_LOCALE: Record<VodicJezik, string> = {
+  hr: "hr-HR",
+  en: "en-GB",
+  de: "de-DE",
+};
+const DATUM_LABELE: Record<VodicJezik, { dolazak: string; odjava: string }> = {
+  hr: { dolazak: "Dolazak", odjava: "Odjava" },
+  en: { dolazak: "Arrival", odjava: "Departure" },
+  de: { dolazak: "Anreise", odjava: "Abreise" },
+};
+
+// Personalizirani eyebrow (CSS radi uppercase). Bez t → ostaje vodic.hero.eyebrow.
+// HR bez "Dragi" (rod) — samo ime; EN/DE zadržavaju pozdrav.
+const EYEBROW_PERS: Record<VodicJezik, (ime: string) => string> = {
+  hr: (ime) => `${ime},`,
+  en: (ime) => `Dear ${ime},`,
+  de: (ime) => `Hallo ${ime},`,
+};
+
+// Rečenica zahvale na početku uvodnog odlomka (uz ?t=).
+const HVALA: Record<VodicJezik, (naziv: string) => string> = {
+  hr: (naziv) => `Hvala što ste odabrali ${naziv}. `,
+  en: (naziv) => `Thank you for choosing ${naziv}. `,
+  de: (naziv) => `Vielen Dank, dass Sie sich für ${naziv} entschieden haben. `,
+};
+
+function formatDatum(d: Date, jezik: VodicJezik): string {
+  return d.toLocaleDateString(DATUM_LOCALE[jezik], {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  });
+}
+
 export function generateStaticParams() {
   return routing.locales.flatMap((locale) =>
     SLUGS.map((slug) => ({ locale, slug }))
@@ -131,8 +170,10 @@ export async function generateMetadata({
 
 export default async function WelcomePage({
   params,
+  searchParams,
 }: {
   params: Promise<{ locale: string; slug: string }>;
+  searchParams: Promise<{ t?: string }>;
 }) {
   const { locale, slug } = await params;
 
@@ -143,9 +184,45 @@ export default async function WelcomePage({
 
   const tBack = await getTranslations("Common");
   const vodic = dohvatiVodic(slug, locale);
+  const jezik = vodicJezik(locale);
   const d = DIZAJN[slug];
   const boja = d.boja;
   const naziv = vodic.punNaziv;
+
+  // Personalizirani prikaz: ?t={rezervacijaId}. Šifra se SAMO ČITA s rezervacije
+  // (TTLock se ne dira). Validira se da rezervacija pripada objektu iz sluga;
+  // inače se t ignorira i prikazuje opća stranica. Prisma upit → dinamički render.
+  const { t } = await searchParams;
+  let pers: {
+    ime: string;
+    sifra: string | null;
+    eCheckinLink: string | null;
+    datumOd: Date;
+    datumDo: Date;
+  } | null = null;
+
+  if (t) {
+    const r = await prisma.rezervacija.findUnique({
+      where: { id: t },
+      include: {
+        gost: true,
+        jedinica: { include: { objekt: true } },
+        ttlockSifre: { orderBy: { createdAt: "asc" } },
+      },
+    });
+    if (r && nazivToSlug(r.jedinica.objekt.naziv) === slug) {
+      pers = {
+        ime: r.gost?.ime || "",
+        sifra: r.ttlockSifre[0]?.sifra || null,
+        eCheckinLink: r.eCheckinLink || null,
+        datumOd: r.datumOd,
+        datumDo: r.datumDo,
+      };
+    }
+  }
+
+  const dob = dohvatiPrijevode(locale).dobrodoslica;
+  const datLab = DATUM_LABELE[jezik];
 
   // Sekcije razvrstane na "listove" kao u PDF-u.
   const byBroj = (n: number) => vodic.sekcije.find((s) => s.broj === n);
@@ -180,7 +257,9 @@ export default async function WelcomePage({
               className="mt-[4em] text-[1.45em] uppercase tracking-[0.35em]"
               style={{ color: GOLD }}
             >
-              {vodic.hero.eyebrow}
+              {pers && pers.ime
+                ? EYEBROW_PERS[jezik](pers.ime)
+                : vodic.hero.eyebrow}
             </p>
             <h1
               className="mt-[0.4em] text-[3.3em] font-medium tracking-wide"
@@ -189,8 +268,55 @@ export default async function WelcomePage({
               {vodic.hero.naslov}
             </h1>
             <p className="mx-auto mt-[3em] max-w-[80%] text-[1.05em]" style={{ color: MUTED }}>
+              {pers ? HVALA[jezik](naziv) : ""}
               {vodic.hero.uvod}
             </p>
+
+            {/* Personalizirano (uz ?t=) — isti diskretni format kao WiFi, bez okvira */}
+            {pers && (
+              <div className="mt-[3em] space-y-[0.3em] text-[1.1em]" style={{ color: MUTED }}>
+                {pers.sifra && (
+                  <>
+                    <div>
+                      {dob.sifraUvod}:{" "}
+                      <b className="font-medium" style={{ color: boja }}>
+                        *{pers.sifra}#
+                      </b>
+                    </div>
+                    <div className="text-[0.7em]" style={{ color: "#9a9a9a" }}>
+                      {dob.sifraNapomena}
+                    </div>
+                  </>
+                )}
+                {pers.eCheckinLink && (
+                  <div className="mt-[0.9em]">
+                    {dob.eCheckinUvod}{" "}
+                    <b className="font-medium" style={{ color: boja }}>
+                      <a
+                        href={pers.eCheckinLink}
+                        target="_blank"
+                        rel="noreferrer"
+                        style={{ color: boja, textDecoration: "none" }}
+                      >
+                        {pers.eCheckinLink.replace(/^https?:\/\//, "")}
+                      </a>
+                    </b>
+                  </div>
+                )}
+                <div className="mt-[0.9em]">
+                  {datLab.dolazak}:{" "}
+                  <b className="font-medium" style={{ color: boja }}>
+                    {formatDatum(pers.datumOd, jezik)}
+                  </b>
+                  {" · "}
+                  {datLab.odjava}:{" "}
+                  <b className="font-medium" style={{ color: boja }}>
+                    {formatDatum(pers.datumDo, jezik)}
+                  </b>
+                </div>
+              </div>
+            )}
+
             <div className="mt-[3em] space-y-[0.3em] text-[1.1em]" style={{ color: MUTED }}>
               <div>
                 {vodic.wifi.mrezaLabela} (Wi-Fi):{" "}

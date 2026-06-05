@@ -254,4 +254,18 @@ export const de: MailTekstovi = {
     vrijediZa: "Der Code ist gültig für:",
     zavrsetak: "Mit freundlichen Grüßen,<br/>Malinska Stay",
   },
+
+  // 11. DOBRODOSLICA — Welcome-Mail vor der Anreise (Reiseführer)
+  dobrodoslica: {
+    subject: (nazivObjekta) =>
+      `Willkommen bei ${nazivObjekta} — alle Informationen für Ihren Aufenthalt`,
+    pozdrav: (ime) => `Hallo ${ime},`,
+    uvodPara:
+      "wir freuen uns auf Ihre Ankunft! Nachstehend finden Sie alle Informationen für einen angenehmen und sorglosen Aufenthalt — Zugang, Kontakte, Hausordnung sowie Empfehlungen für Strände, Restaurants und Ausflüge.",
+    sifraUvod: "Zugangscode",
+    sifraNapomena: "Geben Sie ihn genau wie angezeigt ein — mit Sternchen und Raute.",
+    eCheckinUvod: "Bitte füllen Sie die Anmeldung vor der Ankunft unter diesem Link aus:",
+    webUvod: "Alle Informationen sind auch online verfügbar:",
+    webGumb: "Digitalen Reiseführer öffnen",
+  },
 };

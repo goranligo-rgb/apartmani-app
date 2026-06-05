@@ -204,6 +204,18 @@ export interface MailTekstovi {
     vrijediZa: string;
     zavrsetak: string;
   };
+
+  // 11. Welcome mail prije dolaska — pozdrav + cijeli vodič dobrodošlice.
+  dobrodoslica: {
+    subject: (nazivObjekta: string) => string;
+    pozdrav: (ime: string) => string;
+    uvodPara: string; // uvodni odlomak (editabilan u adminu)
+    sifraUvod: string; // naslov retka sa šifrom
+    sifraNapomena: string; // objašnjenje formata *1234#
+    eCheckinUvod: string; // rečenica iznad eCheckin linka
+    webUvod: string; // tekst iznad gumba na web vodič
+    webGumb: string; // tekst gumba na web vodič
+  };
 }
 
 // BUNDLE: svi jezici. Tipiziran kao Record<MailJezik, MailTekstovi> pa
