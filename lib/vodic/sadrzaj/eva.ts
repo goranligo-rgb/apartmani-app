@@ -10,9 +10,9 @@ export const eva: ObjektSadrzaj = {
   tekst: {
     hr: {
       heroUvod:
-        "Apartments Eva prvi je objekt grupe Malinska Stay — obiteljskog brenda naše vlasnice Kristine. Apartmani se nalaze u neposrednoj blizini centra Malinske, odmah iznad gradske tržnice, ali u mirnom dijelu naselja. Dvorište nudi zaštićeni parking za najmanje 3 automobila, a svaki apartman ima vlastitu relax zonu u dvorištu.",
+        "Apartments Eva prvi je objekt grupe Malinska Stay — obiteljskog brenda naše vlasnice Kristine. Apartmani se nalaze u neposrednoj blizini centra Malinske, odmah iznad gradske tržnice, ali u mirnom dijelu naselja. Dvorište nudi zaštićeni parking za jedan automobil po apartmanu, a svaki apartman ima vlastitu relax zonu u dvorištu sa zajedničkim roštiljem.",
       kucniRed: [
-        "**Prijava** gostiju je prema dogovoru s domaćinima, dok je **odjava do 10:00 sati** ujutro.",
+        "**Prijava** gostiju je **od 16:00 h**, dok je **odjava do 10:00 sati** ujutro.",
         "Prilikom odjave molimo apartman ostaviti urednim, a eventualna oštećenja prijaviti domaćinima.",
         "Osobe koje nisu prijavljene kao gosti apartmana ne mogu boraviti u apartmanu.",
         "Sve kućanske aparate koristite prema pravilima korištenja.",
@@ -26,9 +26,9 @@ export const eva: ObjektSadrzaj = {
     },
     en: {
       heroUvod:
-        "Apartments Eva is the first property of the Malinska Stay group — the family brand of our owner Kristina. The apartments are located right next to the centre of Malinska, just above the town market, yet in a quiet part of the neighbourhood. The yard offers protected parking for at least 3 cars, and each apartment has its own relax zone in the yard.",
+        "Apartments Eva is the first property of the Malinska Stay group — the family brand of our owner Kristina. The apartments are located right next to the centre of Malinska, just above the town market, yet in a quiet part of the neighbourhood. The courtyard offers secure parking for one car per apartment, and each apartment has its own relax area in the courtyard with a shared barbecue.",
       kucniRed: [
-        "**Check-in** for guests is by arrangement with the hosts, while **check-out is by 10:00** in the morning.",
+        "**Check-in** for guests is **from 4:00 PM**, while **check-out is by 10:00** in the morning.",
         "On check-out, please leave the apartment tidy and report any damage to the hosts.",
         "Persons not registered as guests of the apartment may not stay in the apartment.",
         "Use all household appliances according to their instructions.",
@@ -42,9 +42,9 @@ export const eva: ObjektSadrzaj = {
     },
     de: {
       heroUvod:
-        "Apartments Eva ist das erste Objekt der Gruppe Malinska Stay — der Familienmarke unserer Eigentümerin Kristina. Die Apartments befinden sich in unmittelbarer Nähe des Zentrums von Malinska, direkt oberhalb des Marktes, jedoch in einem ruhigen Teil des Ortes. Der Hof bietet geschützte Parkplätze für mindestens 3 Autos, und jedes Apartment hat seine eigene Relax-Zone im Hof.",
+        "Apartments Eva ist das erste Objekt der Gruppe Malinska Stay — der Familienmarke unserer Eigentümerin Kristina. Die Apartments befinden sich in unmittelbarer Nähe des Zentrums von Malinska, direkt oberhalb des Marktes, jedoch in einem ruhigen Teil des Ortes. Der Hof bietet einen gesicherten Parkplatz für ein Auto pro Apartment, und jedes Apartment hat seinen eigenen Relax-Bereich im Hof mit gemeinsamem Grill.",
       kucniRed: [
-        "Die **Anmeldung** der Gäste erfolgt nach Absprache mit den Gastgebern, während der **Check-out bis 10:00 Uhr** morgens ist.",
+        "Die **Anmeldung** der Gäste ist **ab 16:00 Uhr**, während der **Check-out bis 10:00 Uhr** morgens ist.",
         "Bitte hinterlassen Sie das Apartment beim Check-out ordentlich und melden Sie etwaige Schäden den Gastgebern.",
         "Personen, die nicht als Gäste des Apartments angemeldet sind, dürfen sich nicht im Apartment aufhalten.",
         "Verwenden Sie alle Haushaltsgeräte gemäß den Nutzungshinweisen.",

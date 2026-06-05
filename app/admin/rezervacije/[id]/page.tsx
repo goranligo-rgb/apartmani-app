@@ -12,6 +12,10 @@ import {
   formatDateZaMail,
 } from "@/lib/mailovi";
 import { imaInfobipKonfiguraciju, posaljiSmsInfobip } from "@/lib/infobip";
+import { sendMail } from "@/lib/mail";
+import { nazivToSlug } from "@/lib/objekti";
+import { vodicJezik } from "@/lib/vodic";
+import { welcomeMailFromPage } from "@/lib/vodic/mailFromPage";
 import { normalizirajE164 } from "@/lib/twilio";
 import { sastaviCheckinSms } from "@/lib/smsCheckin";
 
@@ -399,6 +403,13 @@ export default async function RezervacijaDetaljPage({
     kontakt: smsKontakt,
     eCheckinLink: rezervacija.eCheckinLink,
   });
+
+  // ── Welcome mail panel: default jezik = jezik gosta, editabilan uvod ──────
+  const welcomeJezikDefault = odaberiJezikMaila(rezervacija.gost?.jezik);
+  const welcomeUvodDefault =
+    dohvatiPrijevode(welcomeJezikDefault).dobrodoslica.uvodPara;
+  const imaEmail = Boolean(rezervacija.gost?.email);
+  const imaWelcomeSlug = nazivToSlug(rezervacija.jedinica.objekt.naziv) !== null;
 
   // ── Spojeni log komunikacije (EMAIL + SMS/WHATSAPP), sortirano po vremenu ─
   type LogStavka = {
@@ -937,6 +948,87 @@ export default async function RezervacijaDetaljPage({
             : "Ručni SMS gostu nije poslan (greška).",
         razlog: greska,
         noviPodaci: JSON.stringify({ status, messageId, greska }),
+        korisnikIme: "Admin",
+      },
+    });
+
+    revalidatePath(`/admin/rezervacije/${rezervacijaId}`);
+    redirect(`/admin/rezervacije/${rezervacijaId}`);
+  }
+
+  async function posaljiWelcomeMail(formData: FormData) {
+    "use server";
+
+    const rezervacijaId = String(formData.get("rezervacijaId") || "");
+    const jezikRaw = String(formData.get("jezik") || "");
+    const uvodPara = String(formData.get("uvodPara") || "").trim();
+
+    if (!rezervacijaId) throw new Error("Nedostaje ID rezervacije.");
+
+    const r = await prisma.rezervacija.findUnique({
+      where: { id: rezervacijaId },
+      include: {
+        gost: true,
+        jedinica: { include: { objekt: true } },
+      },
+    });
+
+    if (!r) throw new Error("Rezervacija nije pronađena.");
+    if (!r.gost?.email) throw new Error("Gost nema upisanu email adresu.");
+
+    const slug = nazivToSlug(r.jedinica.objekt.naziv);
+    if (!slug) throw new Error("Za ovaj objekt ne postoji welcome vodič.");
+
+    const jezik = vodicJezik(jezikRaw || r.gost?.jezik);
+    const t = dohvatiPrijevode(jezik).dobrodoslica;
+    const appUrl = await getAppUrl();
+
+    // Mail = DOSLOVNO renderirana welcome stranica (?t=rezervacija) → mehanička
+    // obrada. Ime, šifra (čita se s rezervacije, TTLock se ne dira), eCheckin i
+    // datumi dolaze sa stranice. Editabilan uvod se prosljeđuje stranici (?uvod=)
+    // samo ako ga je admin promijenio; inače stranica koristi standardni uvod.
+    const uvodOverride = uvodPara && uvodPara !== t.uvodPara ? uvodPara : null;
+    const html = await welcomeMailFromPage({
+      appUrl,
+      slug,
+      jezik,
+      t: rezervacijaId,
+      uvod: uvodOverride,
+    });
+
+    const subject = t.subject(r.jedinica.objekt.naziv);
+
+    let mailStatus: "POSLANO" | "GRESKA" = "GRESKA";
+    let mailGreska: string | null = null;
+    try {
+      const res = await sendMail({ to: r.gost.email, subject, html });
+      if (res.ok) mailStatus = "POSLANO";
+      else mailGreska = res.error || "Greška kod slanja maila.";
+    } catch (error: any) {
+      mailGreska = error?.message || "Greška kod slanja maila.";
+    }
+
+    await prisma.emailLog.create({
+      data: {
+        rezervacijaId,
+        to: r.gost.email,
+        subject,
+        tip: "DOBRODOSLICA",
+        status: mailStatus,
+        greska: mailGreska,
+      },
+    });
+
+    await prisma.rezervacijaPromjena.create({
+      data: {
+        rezervacijaId,
+        tip: "WELCOME_MAIL",
+        opis:
+          mailStatus === "POSLANO"
+            ? "Poslan welcome mail (vodič)."
+            : "Welcome mail nije poslan (greška).",
+        razlog: mailGreska,
+        noviPodaci: JSON.stringify({ jezik, mailStatus, mailGreska }),
         korisnikIme: "Admin",
       },
     });
@@ -2097,6 +2189,85 @@ export default async function RezervacijaDetaljPage({
                 disabled={!infobipOk || !imaSifru}
               >
                 Pošalji SMS
+              </button>
+            </form>
+          </Card>
+        </section>
+
+        <section className="row" style={{ marginBottom: 12 }}>
+          <Card title="Pošalji welcome mail">
+            <form action={posaljiWelcomeMail}>
+              <input type="hidden" name="rezervacijaId" value={rezervacija.id} />
+
+              <Field label="Jezik">
+                <select
+                  className="in"
+                  name="jezik"
+                  defaultValue={welcomeJezikDefault}
+                >
+                  <option value="hr">Hrvatski</option>
+                  <option value="en">English</option>
+                  <option value="de">Deutsch</option>
+                </select>
+              </Field>
+
+              <Field label="Uvodni tekst (editabilno)">
+                <textarea
+                  className="in"
+                  name="uvodPara"
+                  rows={4}
+                  defaultValue={welcomeUvodDefault}
+                  style={{ fontFamily: "inherit", lineHeight: 1.5 }}
+                />
+              </Field>
+
+              <div style={{ fontSize: 11, color: "#6f665a", marginBottom: 8 }}>
+                Mail nosi cijeli vodič dobrodošlice + šifru (ako postoji) i
+                eCheckin link. Šifra se čita s rezervacije, ne generira se.
+              </div>
+
+              {!imaEmail && (
+                <div
+                  style={{
+                    marginBottom: 8,
+                    border: "1px solid #fca5a5",
+                    background: "#fef2f2",
+                    padding: "6px 8px",
+                    fontSize: 11,
+                    fontWeight: 600,
+                    color: "#991b1b",
+                  }}
+                >
+                  Gost nema email adresu — slanje onemogućeno.
+                </div>
+              )}
+
+              {imaEmail && !imaWelcomeSlug && (
+                <div
+                  style={{
+                    marginBottom: 8,
+                    border: "1px solid #ead7b6",
+                    background: "#fff9ef",
+                    padding: "6px 8px",
+                    fontSize: 11,
+                    fontWeight: 600,
+                    color: "#7a5a22",
+                  }}
+                >
+                  Za ovaj objekt ne postoji welcome vodič.
+                </div>
+              )}
+
+              <button
+                className="bg"
+                style={{
+                  width: "100%",
+                  opacity: imaEmail && imaWelcomeSlug ? 1 : 0.5,
+                  cursor: imaEmail && imaWelcomeSlug ? "pointer" : "not-allowed",
+                }}
+                disabled={!imaEmail || !imaWelcomeSlug}
+              >
+                Pošalji welcome mail
               </button>
             </form>
           </Card>

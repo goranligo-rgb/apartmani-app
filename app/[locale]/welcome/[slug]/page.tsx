@@ -126,18 +126,20 @@ const DATUM_LABELE: Record<VodicJezik, { dolazak: string; odjava: string }> = {
 };
 
 // Personalizirani eyebrow (CSS radi uppercase). Bez t → ostaje vodic.hero.eyebrow.
-// HR bez "Dragi" (rod) — samo ime; EN/DE zadržavaju pozdrav.
+// Personaliziran pozdrav u eyebrowu (CSS radi uppercase). HR "Dobar dan" je
+// rodno neutralno; EN/DE zadržavaju svoje.
 const EYEBROW_PERS: Record<VodicJezik, (ime: string) => string> = {
-  hr: (ime) => `${ime},`,
+  hr: (ime) => `Dobar dan ${ime},`,
   en: (ime) => `Dear ${ime},`,
   de: (ime) => `Hallo ${ime},`,
 };
 
-// Rečenica zahvale na početku uvodnog odlomka (uz ?t=).
+// Rečenica zahvale na početku uvodnog odlomka (uz ?t=). Završava zarezom jer se
+// nastavlja u uvodni odlomak (dob.uvodPara počinje malim slovom: "radujemo se…").
 const HVALA: Record<VodicJezik, (naziv: string) => string> = {
-  hr: (naziv) => `Hvala što ste odabrali ${naziv}. `,
-  en: (naziv) => `Thank you for choosing ${naziv}. `,
-  de: (naziv) => `Vielen Dank, dass Sie sich für ${naziv} entschieden haben. `,
+  hr: (naziv) => `Hvala što ste odabrali ${naziv}, `,
+  en: (naziv) => `Thank you for choosing ${naziv}, `,
+  de: (naziv) => `Vielen Dank, dass Sie sich für ${naziv} entschieden haben, `,
 };
 
 function formatDatum(d: Date, jezik: VodicJezik): string {
@@ -173,7 +175,7 @@ export default async function WelcomePage({
   searchParams,
 }: {
   params: Promise<{ locale: string; slug: string }>;
-  searchParams: Promise<{ t?: string }>;
+  searchParams: Promise<{ t?: string; uvod?: string }>;
 }) {
   const { locale, slug } = await params;
 
@@ -192,7 +194,7 @@ export default async function WelcomePage({
   // Personalizirani prikaz: ?t={rezervacijaId}. Šifra se SAMO ČITA s rezervacije
   // (TTLock se ne dira). Validira se da rezervacija pripada objektu iz sluga;
   // inače se t ignorira i prikazuje opća stranica. Prisma upit → dinamički render.
-  const { t } = await searchParams;
+  const { t, uvod } = await searchParams;
   let pers: {
     ime: string;
     sifra: string | null;
@@ -223,6 +225,13 @@ export default async function WelcomePage({
 
   const dob = dohvatiPrijevode(locale).dobrodoslica;
   const datLab = DATUM_LABELE[jezik];
+  // Uvodni odlomak: override (?uvod= iz admin maila) ako postoji, inače standardni.
+  // Render je čisti tekst (React escape, bez dangerouslySetInnerHTML); uz to
+  // ograničavamo duljinu — predugačak override (> 600 zn.) se ignorira.
+  const UVOD_MAX = 600;
+  const uvodCist = uvod?.trim();
+  const uvodPara =
+    uvodCist && uvodCist.length <= UVOD_MAX ? uvodCist : dob.uvodPara;
 
   // Sekcije razvrstane na "listove" kao u PDF-u.
   const byBroj = (n: number) => vodic.sekcije.find((s) => s.broj === n);
@@ -268,7 +277,7 @@ export default async function WelcomePage({
               {vodic.hero.naslov}
             </h1>
             <p className="mx-auto mt-[3em] max-w-[80%] text-[1.05em]" style={{ color: MUTED }}>
-              {pers ? HVALA[jezik](naziv) : ""}
+              {pers ? `${HVALA[jezik](naziv)}${uvodPara} ` : ""}
               {vodic.hero.uvod}
             </p>
 

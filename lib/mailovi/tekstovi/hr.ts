@@ -264,7 +264,7 @@ export const hr: MailTekstovi = {
       `Dobrodošli u ${nazivObjekta} — sve informacije za Vaš boravak`,
     pozdrav: (ime) => `Dobar dan ${ime},`,
     uvodPara:
-      "radujemo se Vašem dolasku! U nastavku smo pripremili sve informacije za ugodan i bezbrižan boravak — pristup, kontakte, kućni red te preporuke za plaže, restorane i izlete.",
+      "radujemo se Vašem dolasku! U nastavku smo pripremili sve informacije za ugodan i bezbrižan boravak, pristupne kontakte, kućni red te preporuke za plaže, restorane i izlete.",
     sifraUvod: "Šifra za ulaz",
     sifraNapomena: "Unesite je točno kako je prikazano — sa zvjezdicom i ljestvama.",
     eCheckinUvod: "Molimo popunite prijavu prije dolaska:",

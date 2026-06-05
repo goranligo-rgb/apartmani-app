@@ -18,6 +18,36 @@ import { houseArt } from "./sadrzaj/house-art";
 
 export type VodicJezik = "hr" | "en" | "de";
 
+// Primarna boja objekta (welcome web + mail). Isti hex kao DIZAJN u page.tsx.
+export const OBJEKT_BOJA: Record<ObjektSlug, string> = {
+  eva: "#2A4B7C",
+  marty: "#6A572B",
+  "house-art": "#34349B",
+};
+
+// Logo objekta (putanja u /public). Za mail se prefiksira appUrl-om.
+export const OBJEKT_LOGO: Record<ObjektSlug, string> = {
+  eva: "/vodic/logos/eva_logo.png",
+  marty: "/vodic/logos/marty_logo.png",
+  "house-art": "/vodic/logos/house-art_logo.png",
+};
+
+// Dekoracije objekta (iste slike kao DIZAJN u page.tsx). U mailu se koriste kao
+// inline <img> na 3 mjesta (vrh / između sekcija / iznad outra).
+export const OBJEKT_DEKOR: Record<ObjektSlug, string[]> = {
+  eva: [
+    "/vodic/dekor/cvijet_tl.png",
+    "/vodic/dekor/cvijet_r.png",
+    "/vodic/dekor/cvijet_br.png",
+  ],
+  marty: ["/vodic/dekor/ivy_br.png"],
+  "house-art": ["/vodic/dekor/splash_tr.png", "/vodic/dekor/splash_bl.png"],
+};
+
+// Tekstura podloge (krem). Za mail apsolutni URL; klijenti koji režu bg-image
+// vide krem fallback.
+export const TEKSTURA_PUTANJA = "/vodic/eva_assets/tekstura_light.png";
+
 export type VodicLink = { tekst: string; url: string };
 
 export type VodicKartica = {

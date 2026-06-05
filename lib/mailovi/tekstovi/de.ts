@@ -261,7 +261,7 @@ export const de: MailTekstovi = {
       `Willkommen bei ${nazivObjekta} — alle Informationen für Ihren Aufenthalt`,
     pozdrav: (ime) => `Hallo ${ime},`,
     uvodPara:
-      "wir freuen uns auf Ihre Ankunft! Nachstehend finden Sie alle Informationen für einen angenehmen und sorglosen Aufenthalt — Zugang, Kontakte, Hausordnung sowie Empfehlungen für Strände, Restaurants und Ausflüge.",
+      "wir freuen uns auf Ihre Ankunft! Nachstehend finden Sie alle Informationen für einen angenehmen und sorglosen Aufenthalt, Zugangskontakte, Hausordnung sowie Empfehlungen für Strände, Restaurants und Ausflüge.",
     sifraUvod: "Zugangscode",
     sifraNapomena: "Geben Sie ihn genau wie angezeigt ein — mit Sternchen und Raute.",
     eCheckinUvod: "Bitte füllen Sie die Anmeldung vor der Ankunft unter diesem Link aus:",

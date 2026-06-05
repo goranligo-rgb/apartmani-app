@@ -76,7 +76,7 @@ const TEL = "+385 98 700 415";
 export const ZAJEDNICKO: Record<VodicJezik, ZajednickiSadrzaj> = {
   hr: {
     heroEyebrow: "DRAGI GOSTI,",
-    heroNaslov: "DOBRODOŠLI!",
+    heroNaslov: "DOBRO DOŠLI!",
 
     wifiNaslov: "WI-FI PRISTUP",
     wifiMrezaLabela: "Mreža",
@@ -113,7 +113,7 @@ export const ZAJEDNICKO: Record<VodicJezik, ZajednickiSadrzaj> = {
       { kljuc: "haludovo", naziv: "Plaža Haludovo", opis: "Prostrana plaža sjeverno od centra." },
       { kljuc: "rova", naziv: "Rova & Vrtača", opis: "Mirne uvale u smjeru Rove, 15-ak min šetnje obalom." },
     ],
-    plazeLink: { tekst: "visitmalinska.com → sve plaže s kartom", url: "https://visitmalinska.com" },
+    plazeLink: { tekst: "visitmalinska.com → sve plaže s kartom", url: "https://www.visitmalinska.com/malinska-za-sve/malinska-plaze/" },
 
     gastroNaslov: "Gastronomija",
     gastroEyebrow: "GDJE DOBRO JESTI",
@@ -127,8 +127,8 @@ export const ZAJEDNICKO: Record<VodicJezik, ZajednickiSadrzaj> = {
         opisRedovi: [
           "**ROVA Bistro & Beach bar** — restoran u masliniku na samoj plaži Rova",
           "**Pizzeria Mandrać** — u uvali Rova",
-          "**Restoran Mulino** — uz marinu i hotel Malin",
           "**Primorska Koliba** — uz plažu Draga",
+          "**Restoran Mulino** — uz marinu i hotel Malin",
         ],
       },
     ],
@@ -237,7 +237,7 @@ export const ZAJEDNICKO: Record<VodicJezik, ZajednickiSadrzaj> = {
       { kljuc: "haludovo", naziv: "Haludovo", opis: "A spacious beach north of the centre." },
       { kljuc: "rova", naziv: "Rova & Vrtača", opis: "Quiet coves towards Rova, about a 15-minute walk along the coast." },
     ],
-    plazeLink: { tekst: "visitmalinska.com → all beaches with map", url: "https://visitmalinska.com" },
+    plazeLink: { tekst: "visitmalinska.com → all beaches with map", url: "https://www.visitmalinska.com/malinska-za-sve/malinska-plaze/" },
 
     gastroNaslov: "Dining",
     gastroEyebrow: "WHERE TO EAT WELL",
@@ -251,8 +251,8 @@ export const ZAJEDNICKO: Record<VodicJezik, ZajednickiSadrzaj> = {
         opisRedovi: [
           "**ROVA Bistro & Beach bar** — a restaurant in an olive grove right on Rova beach",
           "**Pizzeria Mandrać** — in Rova cove",
-          "**Restoran Mulino** — by the marina and Hotel Malin",
           "**Primorska Koliba** — by Draga beach",
+          "**Restoran Mulino** — by the marina and Hotel Malin",
         ],
       },
     ],
@@ -361,7 +361,7 @@ export const ZAJEDNICKO: Record<VodicJezik, ZajednickiSadrzaj> = {
       { kljuc: "haludovo", naziv: "Haludovo", opis: "Weitläufiger Strand nördlich des Zentrums." },
       { kljuc: "rova", naziv: "Rova & Vrtača", opis: "Ruhige Buchten Richtung Rova, etwa 15 Minuten Spaziergang entlang der Küste." },
     ],
-    plazeLink: { tekst: "visitmalinska.com → alle Strände mit Karte", url: "https://visitmalinska.com" },
+    plazeLink: { tekst: "visitmalinska.com → alle Strände mit Karte", url: "https://www.visitmalinska.com/malinska-za-sve/malinska-plaze/" },
 
     gastroNaslov: "Gastronomie",
     gastroEyebrow: "WO MAN GUT ISST",
@@ -375,8 +375,8 @@ export const ZAJEDNICKO: Record<VodicJezik, ZajednickiSadrzaj> = {
         opisRedovi: [
           "**ROVA Bistro & Beach bar** — ein Restaurant im Olivenhain direkt am Strand Rova",
           "**Pizzeria Mandrać** — in der Bucht Rova",
-          "**Restoran Mulino** — an der Marina und dem Hotel Malin",
           "**Primorska Koliba** — am Strand Draga",
+          "**Restoran Mulino** — an der Marina und dem Hotel Malin",
         ],
       },
     ],
