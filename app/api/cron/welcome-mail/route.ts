@@ -57,6 +57,13 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  // Kill-switch: automatsko slanje welcome maila gostima je onemogućeno dok se
+  // ne popravi prikaz u Gmailu. Ručno slanje preko admin gumba ostaje moguće.
+  // Uključi postavljanjem WELCOME_MAIL_ENABLED="true" na serveru.
+  if (process.env.WELCOME_MAIL_ENABLED !== "true") {
+    return NextResponse.json({ success: true, disabled: true });
+  }
+
   // 2) Koliko dana prije dolaska: PostavkeNaplate.mailDanaPrije, fallback na
   //    WELCOME_MAIL_DAYS_BEFORE env / 5 ako reda (postavki) nema.
   const postavke = await prisma.postavkeNaplate.findFirst({
