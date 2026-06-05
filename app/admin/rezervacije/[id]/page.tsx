@@ -392,7 +392,9 @@ export default async function RezervacijaDetaljPage({
   const smsSifra = ttlockPrva?.sifra || ttlockSifra;
 
   // Predispunjeno na jeziku gosta (i dalje editabilno u textarea). eCheckin
-  // red se izostavlja ako rezervacija nema spremljen link.
+  // red se izostavlja ako rezervacija nema spremljen link. Welcome link (isto
+  // kao cron): proslijedimo appUrl + slug + rezervacijaId.
+  const smsAppUrl = await getAppUrl();
   const smsPredlozak = sastaviCheckinSms({
     jezik: rezervacija.gost?.jezik,
     ime: rezervacija.gost?.ime || "goste",
@@ -402,6 +404,9 @@ export default async function RezervacijaDetaljPage({
     sifra: smsSifra,
     kontakt: smsKontakt,
     eCheckinLink: rezervacija.eCheckinLink,
+    appUrl: smsAppUrl,
+    slug: nazivToSlug(rezervacija.jedinica.objekt.naziv),
+    rezervacijaId: rezervacija.id,
   });
 
   // ── Welcome mail panel: default jezik = jezik gosta, editabilan uvod ──────

@@ -5,6 +5,7 @@ import { dodajTtlockSifru } from "@/lib/ttlock";
 import { normalizirajE164 } from "@/lib/twilio";
 import { imaInfobipKonfiguraciju, posaljiSmsInfobip } from "@/lib/infobip";
 import { sastaviCheckinSms } from "@/lib/smsCheckin";
+import { nazivToSlug } from "@/lib/objekti";
 
 export const dynamic = "force-dynamic";
 
@@ -74,8 +75,21 @@ export async function GET(request: Request) {
     });
   }
 
-  const danaPrije =
+  // Koliko dana prije dolaska cron šalje SMS: iz PostavkeNaplate.smsDanaPrije,
+  // fallback na CHECKIN_DAYS_BEFORE env / 3 ako reda (postavki) nema.
+  const postavke = await prisma.postavkeNaplate.findFirst({
+    orderBy: { createdAt: "asc" },
+  });
+  const envDana =
     Number.parseInt(process.env.CHECKIN_DAYS_BEFORE || "3", 10) || 3;
+  const danaPrije = postavke?.smsDanaPrije ?? envDana;
+
+  // Baza za welcome link u SMS-u: PostavkeNaplate.appUrl → env. Bez nje se
+  // welcome red izostavlja (ne stavljamo localhost u stvarni SMS).
+  const appUrl =
+    postavke?.appUrl?.replace(/\/$/, "") ||
+    process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") ||
+    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "");
 
   const danas = startOfDay(new Date());
   const ciljOd = addDays(danas, danaPrije);
@@ -236,6 +250,9 @@ export async function GET(request: Request) {
         sifra,
         kontakt,
         eCheckinLink: r.eCheckinLink,
+        appUrl,
+        slug: nazivToSlug(r.jedinica.objekt.naziv),
+        rezervacijaId: r.id,
       });
 
       const infobip = await posaljiSmsInfobip({ to: e164, text: smsTekst });

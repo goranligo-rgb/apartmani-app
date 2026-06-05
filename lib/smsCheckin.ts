@@ -5,6 +5,8 @@
 // Šifra se ispisuje kao *{sifra}# jer se TAKO unosi na TTLock bravu.
 
 import { odaberiJezikMaila, type MailJezik } from "@/lib/mailovi";
+import { welcomeUrl } from "@/lib/vodic/mail";
+import type { ObjektSlug } from "@/lib/objekti";
 
 type SmsTekst = {
   uvod: (p: {
@@ -15,6 +17,7 @@ type SmsTekst = {
     sifra: string;
   }) => string;
   eCheckinUvod: string; // rečenica iznad linka (link ide u sljedeći red)
+  welcomeUvod: string; // rečenica iznad welcome linka (link ide u sljedeći red)
   kontakt: (kontakt: string) => string;
 };
 
@@ -25,6 +28,7 @@ const TEKSTOVI: Record<MailJezik, SmsTekst> = {
       `Prijava ${datumUlaska} od 16h, odjava ${datumIzlaska} do 10h. ` +
       `Sifru za glavni ulaz i apartman unesite kao *${sifra}#.`,
     eCheckinUvod: "Molimo popunite prijavu prije dolaska na linku:",
+    welcomeUvod: "Sve informacije o boravku (vodic):",
     kontakt: (kontakt) => `Kontakt u slucaju problema: ${kontakt}`,
   },
   en: {
@@ -34,6 +38,7 @@ const TEKSTOVI: Record<MailJezik, SmsTekst> = {
       `Enter the code for the main entrance and apartment as *${sifra}#.`,
     eCheckinUvod:
       "Please complete your registration before arrival at this link:",
+    welcomeUvod: "All info about your stay (guide):",
     kontakt: (kontakt) => `Contact in case of problems: ${kontakt}`,
   },
   de: {
@@ -43,13 +48,16 @@ const TEKSTOVI: Record<MailJezik, SmsTekst> = {
       `Geben Sie den Code fuer Haupteingang und Apartment als *${sifra}# ein.`,
     eCheckinUvod:
       "Bitte fuellen Sie die Anmeldung vor der Ankunft unter diesem Link aus:",
+    welcomeUvod: "Alle Infos zu Ihrem Aufenthalt (Anleitung):",
     kontakt: (kontakt) => `Kontakt bei Problemen: ${kontakt}`,
   },
 };
 
 /**
  * Sastavi check-in SMS na jeziku gosta. eCheckin red (rečenica + link) se
- * izostavlja u sva 3 jezika ako link nije zadan.
+ * izostavlja u sva 3 jezika ako link nije zadan. Welcome red (rečenica +
+ * personalizirani link na /welcome/{slug}?t={rezervacijaId}) se izostavlja ako
+ * slug ili appUrl nedostaju.
  */
 export function sastaviCheckinSms(params: {
   jezik: string | null | undefined;
@@ -60,9 +68,14 @@ export function sastaviCheckinSms(params: {
   sifra: string;
   kontakt: string;
   eCheckinLink?: string | null;
+  appUrl?: string | null; // baza za welcome link; prazno → welcome red se izostavlja
+  slug?: ObjektSlug | null; // objekt za welcome link; prazno → welcome red se izostavlja
+  rezervacijaId?: string | null; // → ?t= (personalizacija); opcionalno
 }): string {
-  const t = TEKSTOVI[odaberiJezikMaila(params.jezik)];
+  const jezik = odaberiJezikMaila(params.jezik);
+  const t = TEKSTOVI[jezik];
   const link = (params.eCheckinLink || "").trim();
+  const appUrl = (params.appUrl || "").trim();
 
   const redovi: string[] = [
     t.uvod({
@@ -77,6 +90,11 @@ export function sastaviCheckinSms(params: {
   if (link) {
     redovi.push(t.eCheckinUvod);
     redovi.push(link);
+  }
+
+  if (appUrl && params.slug) {
+    redovi.push(t.welcomeUvod);
+    redovi.push(welcomeUrl(appUrl, jezik, params.slug, params.rezervacijaId));
   }
 
   redovi.push(t.kontakt(params.kontakt));
