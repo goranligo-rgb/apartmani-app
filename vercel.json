@@ -15,6 +15,10 @@
     {
       "path": "/api/cron/whatsapp-checkin",
       "schedule": "0 8 * * *"
+    },
+    {
+      "path": "/api/cron/welcome-mail",
+      "schedule": "0 9 * * *"
     }
   ]
 }

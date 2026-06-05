@@ -8,6 +8,12 @@ function startOfDay(d: Date) {
   return new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0, 0);
 }
 
+function addDays(d: Date, days: number) {
+  const x = new Date(d);
+  x.setDate(x.getDate() + days);
+  return x;
+}
+
 function money(value?: number | null) {
   return `${Number(value || 0).toFixed(2)} €`;
 }
@@ -70,6 +76,29 @@ function isDolaziUskoroNijePlaceno(r: any) {
 export default async function AdminPage() {
   const agencija = await prisma.ciscenjeAgencija.findFirst();
   const postavke = await prisma.ciscenjeMailPostavke.findFirst();
+
+  // Welcome-mail upozorenja: BOOKING rezervacije s dolaskom unutar smsDanaPrije
+  // (kada TTLock šifra već treba postojati — SMS cron ju kreira) kojima welcome
+  // mail NIJE poslan jer NEMAJU šifru. Prije tog prozora je "nema šifre" normalno
+  // stanje, ne problem. Sve izvedeno upitom — bez nove tablice.
+  const postavkeNaplate = await prisma.postavkeNaplate.findFirst({
+    orderBy: { createdAt: "asc" },
+  });
+  const smsDanaPrije = postavkeNaplate?.smsDanaPrije ?? 3;
+  const welcomeMailUpozorenja = await prisma.rezervacija.findMany({
+    where: {
+      izvor: "BOOKING",
+      status: { notIn: ["OTKAZANO", "OBRISANO"] },
+      datumOd: {
+        gte: startOfDay(new Date()),
+        lt: startOfDay(addDays(new Date(), smsDanaPrije + 1)),
+      },
+      emailovi: { none: { tip: "DOBRODOSLICA" } },
+      ttlockSifre: { none: {} },
+    },
+    include: { gost: true, jedinica: { include: { objekt: true } } },
+    orderBy: { datumOd: "asc" },
+  });
 
   const rezervacijeAktivne = await prisma.rezervacija.findMany({
     where: {
@@ -343,6 +372,61 @@ export default async function AdminPage() {
 
                       <div className="mt-1 text-xs font-black uppercase tracking-[0.16em] text-[#9b6b12]">
                         Čeka potvrdu
+                      </div>
+                    </div>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {welcomeMailUpozorenja.length > 0 && (
+          <section className="mb-6 border-2 border-[#d6aaa6] bg-[#fff4f2] p-5 shadow-[0_18px_45px_rgba(0,0,0,0.10)]">
+            <div className="mb-4">
+              <div className="text-xs font-black uppercase tracking-[0.22em] text-[#9b3f36]">
+                Upozorenja
+              </div>
+
+              <h2 className="mt-1 text-3xl font-black text-[#2e2923]">
+                Welcome mail nije poslan
+              </h2>
+
+              <p className="mt-1 text-sm text-[#7a2f2a]">
+                Gost dolazi uskoro, a welcome mail nije poslan jer rezervacija
+                nema TTLock šifru. Dodaj šifru — cron šalje mail sljedeći dan.
+              </p>
+            </div>
+
+            <div className="grid gap-3">
+              {welcomeMailUpozorenja.map((r) => (
+                <Link
+                  key={r.id}
+                  href={`/admin/rezervacije/${r.id}`}
+                  className="block border border-[#e2b3ad] bg-white p-4 transition hover:bg-[#fff0ee]"
+                >
+                  <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                    <div>
+                      <div className="text-lg font-black text-[#2e2923]">
+                        {r.gost?.ime} {r.gost?.prezime}
+                      </div>
+
+                      <div className="mt-1 text-sm text-[#6f665a]">
+                        {r.jedinica?.objekt?.naziv} · {r.jedinica?.naziv}
+                      </div>
+
+                      <div className="mt-1 text-sm font-bold text-[#9b3f36]">
+                        Dolazak: {r.datumOd.toLocaleDateString("hr-HR")}
+                      </div>
+                    </div>
+
+                    <div className="text-left md:text-right">
+                      <div className="text-sm font-black text-[#9b3f36]">
+                        Welcome mail nije poslan — nedostaje TTLock šifra
+                      </div>
+
+                      <div className="mt-1 text-xs font-black uppercase tracking-[0.16em] text-[#9b3f36]">
+                        Otvori →
                       </div>
                     </div>
                   </div>
