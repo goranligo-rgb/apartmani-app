@@ -249,6 +249,25 @@ export default async function WelcomePage({
       className={`min-h-screen bg-[#e8e6e2] ${poppins.className}`}
       style={{ color: "#6b6b6b", fontWeight: 300 }}
     >
+      {/* Mobilni layout (< 700px): kompozicija lista KAO PDF — svi omjeri ostaju
+          izvorni (naslovi/em razmaci, cqw padding, dekoracije, footer), mijenja se
+          SAMO bazna veličina fonta (manja, da kompozicija stane) + A4 omjer kao
+          MINIMUM visine (raste ako sadržaj ne stane, bez rezanja). Iznad 700px se
+          media upit NE primjenjuje → desktop/landscape identičan. */}
+      <style
+        dangerouslySetInnerHTML={{
+          __html: `
+            @media (max-width: 699px) {
+              .w-list { aspect-ratio: auto !important; overflow: visible !important; }
+              .w-inner {
+                min-height: calc((100vw - 24px) * 1.4142) !important;
+                height: auto !important;
+                font-size: 14px !important;
+              }
+            }
+          `,
+        }}
+      />
       <div className="mx-auto w-full max-w-[820px] px-3 py-7 sm:px-4">
         <Link
           href="/"
@@ -451,7 +470,7 @@ function Stranica({
 
   return (
     <section
-      className="relative overflow-hidden rounded-sm shadow-md"
+      className="w-list relative overflow-hidden rounded-sm shadow-md"
       // Fiksni A4 format (210×297) — visina = 141.4% širine, kao pravi list.
       // container-type → cqw jedinice djece skaliraju prema širini lista.
       style={{
@@ -465,7 +484,7 @@ function Stranica({
     >
       <Dekor d={d} />
       <div
-        className={`relative z-10 h-full ${center}`}
+        className={`w-inner relative z-10 h-full ${center}`}
         style={{ ...PAGE_PADDING, ...PAGE_TEXT }}
       >
         {variant === "content" ? (
