@@ -2,6 +2,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
 import { generirajINaPosalji } from "@/lib/ciscenje/generirajINaPosalji";
+import { adminSessionOk } from "@/lib/admin-auth";
 
 export const dynamic = "force-dynamic";
 
@@ -82,6 +83,30 @@ async function spremiPostavke(formData: FormData) {
   }
 
   redirect("/admin/ciscenje?saved=1");
+}
+
+async function spremiNapomenu(formData: FormData) {
+  "use server";
+
+  // Eksplicitni guard (osim middleware-a) — server action piše u bazu.
+  if (!(await adminSessionOk())) redirect("/admin/login");
+
+  const napomena = String(formData.get("napomenaAgenciji") || "").trim();
+
+  const postavke = await prisma.ciscenjeMailPostavke.findFirst();
+
+  if (postavke) {
+    await prisma.ciscenjeMailPostavke.update({
+      where: { id: postavke.id },
+      data: { napomenaAgenciji: napomena || null },
+    });
+  } else {
+    await prisma.ciscenjeMailPostavke.create({
+      data: { napomenaAgenciji: napomena || null },
+    });
+  }
+
+  redirect("/admin/ciscenje?napomenaSaved=1");
 }
 
 async function posaljiOdmah() {
@@ -183,6 +208,7 @@ export default async function CiscenjeAdminPage({
   searchParams?: Promise<{
     saved?: string;
     sent?: string;
+    napomenaSaved?: string;
     error?: string;
     dana?: string;
   }>;
@@ -611,6 +637,35 @@ export default async function CiscenjeAdminPage({
             </div>
           </form>
 
+          <form action={spremiNapomenu}>
+            <div style={{ ...cardStyle, marginTop: 18 }}>
+              <h2>Napomena agenciji</h2>
+
+              <p style={{ color: "#666", marginTop: 0 }}>
+                Šalje se uz sljedeći plan čišćenja. Jednokratna — briše se
+                automatski nakon što mail bude poslan.
+              </p>
+
+              {params?.napomenaSaved === "1" && (
+                <div style={{ ...successStyle, maxWidth: "100%" }}>
+                  ✅ Spremljeno.
+                </div>
+              )}
+
+              <textarea
+                name="napomenaAgenciji"
+                rows={4}
+                defaultValue={postavke?.napomenaAgenciji || ""}
+                placeholder="Npr. U apartmanu Eva 2 ostaviti dodatni set ručnika."
+                style={textareaStyle}
+              />
+
+              <button type="submit" style={buttonStyle}>
+                Spremi
+              </button>
+            </div>
+          </form>
+
           <form action={posaljiOdmah}>
             <button
               style={{
@@ -841,6 +896,18 @@ const smallInputStyle: React.CSSProperties = {
   padding: "9px 10px",
   marginTop: 4,
   border: "1px solid #ccc",
+};
+
+const textareaStyle: React.CSSProperties = {
+  width: "100%",
+  padding: "9px 10px",
+  marginTop: 4,
+  marginBottom: 12,
+  border: "1px solid #ccc",
+  boxSizing: "border-box",
+  fontFamily: "inherit",
+  fontSize: 14,
+  resize: "vertical",
 };
 
 const buttonStyle: React.CSSProperties = {

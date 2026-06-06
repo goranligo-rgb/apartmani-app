@@ -62,6 +62,33 @@ function guestName(gost: { ime?: string | null; prezime?: string | null } | null
   return ime || "-";
 }
 
+// Broj osoba; ako nije poznat ili 0 → puni kapacitet jedinice ("ful komplet",
+// isto pravilo kao tjedni plan). Tek ako ni kapacitet nije poznat → "-".
+function brojOsobaIliKapacitet(r: {
+  brojOsoba: number | null;
+  jedinica: { ukupniKapacitet: number | null };
+}): string {
+  if (r.brojOsoba && r.brojOsoba > 0) return String(r.brojOsoba);
+  if (r.jedinica.ukupniKapacitet && r.jedinica.ukupniKapacitet > 0) {
+    return String(r.jedinica.ukupniKapacitet);
+  }
+  return "-";
+}
+
+// Broj noćenja iz baze; fallback na razliku datuma (datumDo − datumOd u danima).
+function brojNocenjaIliIzracun(r: {
+  brojNocenja: number | null;
+  datumOd: Date;
+  datumDo: Date;
+}): number {
+  if (r.brojNocenja && r.brojNocenja > 0) return r.brojNocenja;
+  const MS_DAN = 24 * 60 * 60 * 1000;
+  return Math.max(
+    0,
+    Math.round((r.datumDo.getTime() - r.datumOd.getTime()) / MS_DAN)
+  );
+}
+
 export async function mozdaPosaljiNadopunu(
   args: NadopunaArgs
 ): Promise<NadopunaRezultat> {
@@ -220,8 +247,8 @@ export async function mozdaPosaljiNadopunu(
                 <td style="border:1px solid #ccc; vertical-align:top;">${escapeHtml(r.jedinica.objekt.naziv)}</td>
                 <td style="border:1px solid #ccc; vertical-align:top;">${escapeHtml(r.jedinica.naziv)}</td>
                 <td style="border:1px solid #ccc; vertical-align:top;">${escapeHtml(guestName(r.gost))}</td>
-                <td style="border:1px solid #999; vertical-align:top; font-weight:900; background:#f0fdf4;">${r.brojOsoba ?? "-"}</td>
-                <td style="border:1px solid #ccc; vertical-align:top;">${r.brojNocenja ?? "-"}</td>
+                <td style="border:1px solid #999; vertical-align:top; font-weight:900; background:#f0fdf4;">${brojOsobaIliKapacitet(r)}</td>
+                <td style="border:1px solid #ccc; vertical-align:top;">${brojNocenjaIliIzracun(r)}</td>
               </tr>
             `
           )

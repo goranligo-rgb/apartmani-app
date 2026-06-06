@@ -613,6 +613,10 @@ model CiscenjeMailPostavke {
 
   brojDanaUnaprijed Int @default(7)
 
+  // Jednokratna napomena agenciji — šalje se uz sljedeći plan čišćenja i briše
+  // se (null) odmah nakon uspješnog slanja maila. SQL stupac dodan ručno u Supabase.
+  napomenaAgenciji String?
+
   // Cjenik (Faza 1 — sustav troškova Adonija): fiksne stope + dani Stubište Eva.
   rubeninaCijenaPoKg    Float @default(3.30)
   generalnoCijenaPoSatu Float @default(18.00)

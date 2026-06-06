@@ -588,18 +588,18 @@ export async function generirajINaPosalji() {
         .filter(Boolean)
     : [];
 
-  // Stupac "Gosti ulaze": za završno čišćenje prikazuje broj gostiju koji ULAZE
-  // (ako ima skori ulazak) ili puni kapacitet jedinice ("Ful komplet"). Ostali
-  // tipovi (međučišćenje, bazen, stubište) nemaju ulaznog gosta → "-".
+  // Stupac "Gosti ulaze": za završno čišćenje SAMO broj — broj gostiju koji ULAZE
+  // (ako ima skori ulazak) ili puni kapacitet jedinice. Ostali tipovi
+  // (međučišćenje, bazen, stubište) nemaju ulaznog gosta → "-".
   function gostiUlazeText(s: any) {
     if (s.tip !== "ZAVRSNO_CISCENJE") return "-";
 
     if (s.imaSkoriUlazak && Number(s.brojGostijuUlaz || 0) > 0) {
-      return `Ulazi: ${s.brojGostijuUlaz}`;
+      return String(s.brojGostijuUlaz);
     }
 
     if (Number(s.ukupniKapacitet || 0) > 0) {
-      return `Ful komplet: ${s.ukupniKapacitet}`;
+      return String(s.ukupniKapacitet);
     }
 
     return "-";
@@ -682,6 +682,16 @@ export async function generirajINaPosalji() {
           })
           .join("")}
       </table>
+      ${
+        postavke.napomenaAgenciji && postavke.napomenaAgenciji.trim()
+          ? `<div style="margin-top:20px; padding:14px 16px; background:#fff8e1; border:2px solid #ead28b;">
+               <div style="font-weight:900; color:#7a4a0a; font-size:14px; margin-bottom:6px;">NAPOMENA</div>
+               <div style="font-size:14px; color:#111; line-height:1.5;">${escapeHtml(
+                 postavke.napomenaAgenciji.trim()
+               ).replaceAll("\n", "<br/>")}</div>
+             </div>`
+          : ""
+      }
 
       <p style="margin-top:20px; font-size:14px;">
         Lijep pozdrav,<br/>
@@ -709,6 +719,16 @@ export async function generirajINaPosalji() {
       poslanoAt: new Date(),
     },
   });
+
+  // Jednokratna napomena agenciji — briše se TEK nakon stvarnog slanja maila.
+  // (Rana grana "Nema stavki" i greška u resend.emails.send ne dođu dovde, pa
+  // napomena ostaje za idući plan ako mail nije poslan.)
+  if (postavke.napomenaAgenciji) {
+    await prisma.ciscenjeMailPostavke.update({
+      where: { id: postavke.id },
+      data: { napomenaAgenciji: null },
+    });
+  }
 
   return {
     success: true,

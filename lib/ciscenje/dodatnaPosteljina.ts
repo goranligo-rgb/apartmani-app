@@ -98,7 +98,7 @@ export function dodatnaPosteljinaRecenica(x: number): string {
  * - razmak 1       → "Dan poslije (DD.MM.YYYY)"
  * - razmak 2..4    → "DD.MM.YYYY"
  * - razmak >= 5    → "4+ dana"
- * - nema sljedeće  → "—"
+ * - nema sljedeće  → "4+ dana"
  *
  * formatDate se injektira da lokale ostanu u pozivatelju.
  */
@@ -108,7 +108,7 @@ export function sljedeciUlazakTekst(params: {
   formatDate: (d: Date) => string;
 }): { tekst: string; jeBrziUlazak: boolean } {
   if (!params.sljedecaRezervacija) {
-    return { tekst: "—", jeBrziUlazak: false };
+    return { tekst: "4+ dana", jeBrziUlazak: false };
   }
 
   const MS_DAN = 24 * 60 * 60 * 1000;
