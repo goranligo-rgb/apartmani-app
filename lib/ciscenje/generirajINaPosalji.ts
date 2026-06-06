@@ -685,8 +685,8 @@ export async function generirajINaPosalji() {
       ${
         postavke.napomenaAgenciji && postavke.napomenaAgenciji.trim()
           ? `<div style="margin-top:20px; padding:14px 16px; background:#fff8e1; border:2px solid #ead28b;">
-               <div style="font-weight:900; color:#7a4a0a; font-size:14px; margin-bottom:6px;">NAPOMENA</div>
-               <div style="font-size:14px; color:#111; line-height:1.5;">${escapeHtml(
+               <div style="margin:0 0 6px; background:transparent; font-weight:900; color:#7a4a0a; font-size:14px;">NAPOMENA</div>
+               <div style="margin:0; background:transparent; font-size:14px; color:#111; line-height:1.5;">${escapeHtml(
                  postavke.napomenaAgenciji.trim()
                ).replaceAll("\n", "<br/>")}</div>
              </div>`

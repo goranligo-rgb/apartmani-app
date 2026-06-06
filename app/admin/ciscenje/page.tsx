@@ -106,7 +106,7 @@ async function spremiNapomenu(formData: FormData) {
     });
   }
 
-  redirect("/admin/ciscenje?napomenaSaved=1");
+  redirect("/admin/ciscenje?napomenaSaved=1#napomena");
 }
 
 async function posaljiOdmah() {
@@ -638,7 +638,7 @@ export default async function CiscenjeAdminPage({
           </form>
 
           <form action={spremiNapomenu}>
-            <div style={{ ...cardStyle, marginTop: 18 }}>
+            <div id="napomena" style={{ ...cardStyle, marginTop: 18 }}>
               <h2>Napomena agenciji</h2>
 
               <p style={{ color: "#666", marginTop: 0 }}>
