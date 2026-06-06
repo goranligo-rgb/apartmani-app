@@ -6,6 +6,7 @@ import {
   izracunajDodatnuOsoba,
   dodatnaPosteljinaRecenica,
   sljedeciUlazakTekst,
+  jeSkoriUlazak,
 } from "@/lib/ciscenje/dodatnaPosteljina";
 
 const resend = new Resend(process.env.RESEND_API_KEY!);
@@ -289,6 +290,12 @@ export async function generirajINaPosalji() {
         formatDate: formatDatumKratko,
       });
 
+      // "Skori ulazak" izveden iz istog praga (<= 4 dana) kao logika posteljine.
+      const imaSkoriUlazak = jeSkoriUlazak({
+        sljedecaRezervacija,
+        datumDo: r.datumDo,
+      });
+
       // Opis u mailu je UVIJEK isti; dodatna posteljina ide samo u stupac Napomena.
       const opisMail = "Čišćenje nakon odlaska gosta.";
 
@@ -300,6 +307,10 @@ export async function generirajINaPosalji() {
         nazivJedinice: r.jedinica.naziv,
         nazivObjekta: r.jedinica.objekt.naziv,
         brojGostiju: r.brojOsoba || 0,
+        // Broj gostiju koji ULAZE (sljedeća rezervacija) + puni kapacitet jedinice.
+        brojGostijuUlaz: sljedecaRezervacija?.brojOsoba ?? null,
+        imaSkoriUlazak,
+        ukupniKapacitet: r.jedinica.ukupniKapacitet || 0,
         osnovniKapacitet: r.jedinica.osnovniKapacitet || 0,
         dodatnaOsoba,
         opis: opisMail,
@@ -577,6 +588,23 @@ export async function generirajINaPosalji() {
         .filter(Boolean)
     : [];
 
+  // Stupac "Gosti ulaze": za završno čišćenje prikazuje broj gostiju koji ULAZE
+  // (ako ima skori ulazak) ili puni kapacitet jedinice ("Ful komplet"). Ostali
+  // tipovi (međučišćenje, bazen, stubište) nemaju ulaznog gosta → "-".
+  function gostiUlazeText(s: any) {
+    if (s.tip !== "ZAVRSNO_CISCENJE") return "-";
+
+    if (s.imaSkoriUlazak && Number(s.brojGostijuUlaz || 0) > 0) {
+      return `Ulazi: ${s.brojGostijuUlaz}`;
+    }
+
+    if (Number(s.ukupniKapacitet || 0) > 0) {
+      return `Ful komplet: ${s.ukupniKapacitet}`;
+    }
+
+    return "-";
+  }
+
   function dodatnaPosteljinaText(s: any) {
     // Za završno čišćenje koristimo isti X kao u opisu (s.dodatnaOsoba);
     // za ostale tipove fallback na staru procjenu.
@@ -609,7 +637,7 @@ export async function generirajINaPosalji() {
           <th align="left" style="border:1px solid #999;">Datum odlaska</th>
           <th align="left" style="border:1px solid #999;">Objekt</th>
           <th align="left" style="border:1px solid #999;">Jedinica</th>
-          <th align="left" style="border:1px solid #999; background:#d1fae5;">Broj gostiju</th>
+          <th align="left" style="border:1px solid #999; background:#d1fae5;">Gosti ulaze</th>
           <th align="left" style="border:1px solid #999;">Opis</th>
           <th align="left" style="border:1px solid #999; background:#d1fae5;">Sljedeći ulazak</th>
           <th align="left" style="border:1px solid #999; background:#fff3cd;">Napomena</th>
@@ -633,7 +661,7 @@ export async function generirajINaPosalji() {
                   s.nazivJedinice
                 )}</td>
                 <td style="border:1px solid #999; vertical-align:top; font-weight:900; background:#f0fdf4;">
-                  ${s.brojGostiju && s.brojGostiju > 0 ? s.brojGostiju : "-"}
+                  ${escapeHtml(gostiUlazeText(s))}
                 </td>
                 <td style="border:1px solid #ccc; vertical-align:top;">
                   ${escapeHtml(s.opis || "")}

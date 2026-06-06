@@ -52,6 +52,37 @@ export function izracunajDodatnuOsoba(params: {
 }
 
 /**
+ * Razmak u danima između odlaska gosta (datumDo) i ulaska sljedećeg gosta.
+ * Vraća null ako nema sljedeće rezervacije.
+ */
+export function razmakUlazakaDana(params: {
+  sljedecaRezervacija: { datumOd: Date } | null;
+  datumDo: Date;
+}): number | null {
+  if (!params.sljedecaRezervacija) return null;
+
+  const MS_DAN = 24 * 60 * 60 * 1000;
+  return Math.round(
+    (startOfDay(params.sljedecaRezervacija.datumOd).getTime() -
+      startOfDay(params.datumDo).getTime()) /
+      MS_DAN
+  );
+}
+
+/**
+ * Ima li jedinica "skori ulazak" sljedećeg gosta — koristi ISTI prag (<= 4 dana)
+ * kao izracunajDodatnuOsoba / sljedeciUlazakTekst. Time prag ostaje izveden iz
+ * postojeće logike, a ne dupliciran na novom mjestu.
+ */
+export function jeSkoriUlazak(params: {
+  sljedecaRezervacija: { datumOd: Date } | null;
+  datumDo: Date;
+}): boolean {
+  const razmak = razmakUlazakaDana(params);
+  return razmak !== null && razmak <= 4;
+}
+
+/**
  * Rečenica za dodatnu posteljinu; prazno ako X <= 0.
  */
 export function dodatnaPosteljinaRecenica(x: number): string {
@@ -66,7 +97,7 @@ export function dodatnaPosteljinaRecenica(x: number): string {
  * - razmak 0       → "BRZI ULAZAK isti dan" (jeBrziUlazak = true)
  * - razmak 1       → "Dan poslije (DD.MM.YYYY)"
  * - razmak 2..4    → "DD.MM.YYYY"
- * - razmak >= 5    → "—"
+ * - razmak >= 5    → "4+ dana"
  * - nema sljedeće  → "—"
  *
  * formatDate se injektira da lokale ostanu u pozivatelju.
@@ -104,5 +135,5 @@ export function sljedeciUlazakTekst(params: {
   }
 
   // razmak >= 5
-  return { tekst: "—", jeBrziUlazak: false };
+  return { tekst: "4+ dana", jeBrziUlazak: false };
 }
