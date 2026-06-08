@@ -1,6 +1,24 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
+// Sljedeći sortOrder za galeriju objekta — nova dodjela pada NA KRAJ niza
+// (max postojećeg + 1). Set je isti kao javna galerija / reorder endpoint:
+// objektId===objektId ILI jedinica.objektId===objektId. Ako objekt nema još
+// nijednu sliku → 0.
+async function sljedeciSortOrder(objektId: string): Promise<number> {
+  if (!objektId) return 0;
+
+  const agg = await prisma.slikaObjekta.aggregate({
+    where: {
+      OR: [{ objektId }, { jedinica: { objektId } }],
+    },
+    _max: { sortOrder: true },
+  });
+
+  const max = agg._max.sortOrder;
+  return max === null || max === undefined ? 0 : max + 1;
+}
+
 export async function POST(req: Request) {
   try {
     const body = await req.json();
@@ -48,6 +66,7 @@ export async function POST(req: Request) {
               aktivna: true,
               prikaziNaPocetnoj: false,
               prikaziNaDashboardu: false,
+              sortOrder: await sljedeciSortOrder(objektId),
             },
           });
         }
@@ -96,6 +115,7 @@ export async function POST(req: Request) {
               aktivna: true,
               prikaziNaPocetnoj: false,
               prikaziNaDashboardu: false,
+              sortOrder: await sljedeciSortOrder(jedinica.objektId),
             },
           });
         }
@@ -135,6 +155,7 @@ export async function POST(req: Request) {
               aktivna: true,
               prikaziNaPocetnoj: false,
               prikaziNaDashboardu: true,
+              sortOrder: await sljedeciSortOrder(objektId),
             },
           });
         }
