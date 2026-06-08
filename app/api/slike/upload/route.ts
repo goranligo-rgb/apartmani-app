@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { createClient } from "@supabase/supabase-js";
+import type { SlikaObjekta } from "@prisma/client";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -20,7 +21,34 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Nema slika" }, { status: 400 });
     }
 
-    const spremljene = [];
+    // Ciljani objekt (novi UI: upload ravno u tab objekta). Ako nije zadan,
+    // ostaje stari "bare" put (objektId/jedinicaId = null, sortOrder 0).
+    const objektIdRaw = data.get("objektId");
+    const objektId = objektIdRaw ? String(objektIdRaw) : null;
+
+    // Bazni sortOrder = max postojećeg za objekt-set + 1 (nove slike padaju na
+    // KRAJ galerije). Svaka slika u ovom uploadu dobiva base + redni broj da
+    // ne nastane tie. Isti set kao javna galerija / reorder endpoint.
+    let baseSortOrder = 0;
+    if (objektId) {
+      const objekt = await prisma.objekt.findUnique({
+        where: { id: objektId },
+        select: { id: true },
+      });
+
+      if (!objekt) {
+        return NextResponse.json({ error: "Objekt ne postoji" }, { status: 400 });
+      }
+
+      const agg = await prisma.slikaObjekta.aggregate({
+        where: { OR: [{ objektId }, { jedinica: { objektId } }] },
+        _max: { sortOrder: true },
+      });
+
+      baseSortOrder = (agg._max.sortOrder ?? -1) + 1;
+    }
+
+    const spremljene: SlikaObjekta[] = [];
 
     for (const file of allFiles) {
       const bytes = await file.arrayBuffer();
@@ -52,14 +80,23 @@ export async function POST(req: Request) {
         .from(bucket)
         .getPublicUrl(filePath);
 
+      // Bez objekta → bare red, sortOrder 0 (kao prije). S objektom → base +
+      // redni broj u ovom uploadu (kraj galerije, bez tie-a). Izračun je u
+      // lokalnoj varijabli (ne unutar create-a) da se izbjegne cirkularna
+      // type-inference na `spremljene`.
+      const trenutniSortOrder = objektId
+        ? baseSortOrder + spremljene.length
+        : 0;
+
       const slika = await prisma.slikaObjekta.create({
         data: {
           url: publicUrlData.publicUrl,
           aktivna: true,
           prikaziNaPocetnoj: false,
           prikaziNaDashboardu: false,
-          objektId: null,
+          objektId,
           jedinicaId: null,
+          sortOrder: trenutniSortOrder,
         },
       });
 
