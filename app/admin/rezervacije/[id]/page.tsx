@@ -19,6 +19,7 @@ import { welcomeUrl } from "@/lib/vodic/mail";
 import { renderWelcomeMail } from "@/lib/vodic/welcomeMail";
 import { normalizirajE164 } from "@/lib/twilio";
 import { sastaviCheckinSms } from "@/lib/smsCheckin";
+import { posaljiRacunMail } from "@/lib/posaljiRacunMail";
 
 export const dynamic = "force-dynamic";
 
@@ -28,6 +29,8 @@ type PageParams = Promise<{
 
 type SearchParams = Promise<{
   errBrojOsoba?: string;
+  racunError?: string; // poruka greške kod slanja računa gostu
+  racunPoslan?: string; // "1" = račun uspješno poslan
 }>;
 
 const resend = new Resend(process.env.RESEND_API_KEY);
@@ -2563,6 +2566,34 @@ export default async function RezervacijaDetaljPage({
           </Card>
 
           <Card title="Računi">
+            {sp?.racunError ? (
+              <div
+                style={{
+                  marginBottom: 8,
+                  color: "#b42318",
+                  fontSize: 12,
+                  border: "1px solid #f3c5be",
+                  background: "#fef2f2",
+                  padding: "8px 10px",
+                }}
+              >
+                Račun nije poslan: {sp.racunError}
+              </div>
+            ) : null}
+            {sp?.racunPoslan ? (
+              <div
+                style={{
+                  marginBottom: 8,
+                  color: "#166534",
+                  fontSize: 12,
+                  border: "1px solid #bbf7d0",
+                  background: "#f0fdf4",
+                  padding: "8px 10px",
+                }}
+              >
+                Račun je poslan gostu na mail.
+              </div>
+            ) : null}
             <form
               action={generirajRacun}
               style={{
@@ -2642,28 +2673,24 @@ export default async function RezervacijaDetaljPage({
                         action={async () => {
                           "use server";
 
-                          const response = await fetch(
-                            `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/api/admin/racuni/posalji`,
-                            {
-                              method: "POST",
-                              headers: {
-                                "Content-Type": "application/json",
-                              },
-                              body: JSON.stringify({
-                                racunId: racun.id,
-                              }),
-                            }
-                          );
+                          // Pozovi logiku slanja in-process — bez fetcha na
+                          // zaštićenu rutu (server fetch ne nosi admin cookie →
+                          // bivši 401). Funkcija vraća rezultat, ne baca.
+                          const res = await posaljiRacunMail(racun.id);
 
-                          if (!response.ok) {
-                            const errorBody = await response.text().catch(() => "");
-                            throw new Error(
-                              `Slanje računa nije uspjelo: ${response.status} ${errorBody.slice(0, 200)}`,
+                          revalidatePath(`/admin/rezervacije/${rezervacija.id}`);
+
+                          // redirect() interno baca NEXT_REDIRECT, zato ide
+                          // nakon poziva (nema try/catcha koji bi ga progutao).
+                          if (!res.ok) {
+                            redirect(
+                              `/admin/rezervacije/${rezervacija.id}?racunError=${encodeURIComponent(res.error)}`,
                             );
                           }
 
-                          revalidatePath(`/admin/rezervacije/${rezervacija.id}`);
-                          redirect(`/admin/rezervacije/${rezervacija.id}`);
+                          redirect(
+                            `/admin/rezervacije/${rezervacija.id}?racunPoslan=1`,
+                          );
                         }}
                       >
                         <button className="bo">Ponovno pošalji račun</button>
