@@ -212,6 +212,9 @@ export async function generirajINaPosalji() {
   // zadataka / mail). Cjenik se učita jednom kao mapa po jedinicaId; jedinica bez
   // cjenika → iznos 0 (snapshot dok korisnik ne upiše cijene).
   const troskoviEnabled = process.env.TROSKOVI_ENABLED === "true";
+  // PRIVREMENI DIJAGNOSTIČKI LOG — potvrda točne vrijednosti flaga na Vercelu
+  // (JSON.stringify otkriva navodnike/razmake/undefined). Ukloniti nakon dijagnoze.
+  console.log("[troskovi] TROSKOVI_ENABLED =", JSON.stringify(process.env.TROSKOVI_ENABLED));
   const cjenikRows = await prisma.cjenikCiscenjaJedinice.findMany();
   const cjenikMap = new Map(cjenikRows.map((c) => [c.jedinicaId, c]));
 
