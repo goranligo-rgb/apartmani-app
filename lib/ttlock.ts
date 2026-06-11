@@ -31,6 +31,11 @@ async function postForm(path: string, data: Record<string, string | number>) {
   const json = await res.json();
 
   if (!res.ok || json.errcode) {
+    // PRIVREMENI DIJAGNOSTIČKI LOG (grana debug/ttlock-login) — logira CIJELI
+    // TTLock odgovor (errcode/errmsg) PRIJE throw-a; inače se greška baci i
+    // poziv nikad ne vidi json. Ne otkriva lozinku (TTLock je ne vraća natrag).
+    // Ukloniti nakon dijagnoze.
+    console.log("[ttlock-resp]", path, JSON.stringify(json));
     throw new Error(json.errmsg || JSON.stringify(json));
   }
 
