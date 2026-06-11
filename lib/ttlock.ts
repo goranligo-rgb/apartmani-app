@@ -71,7 +71,18 @@ export async function dodajTtlockSifru(params: {
 }) {
   const accessToken = await getTtlockAccessToken();
 
-  return postForm("/v3/keyboardPwd/add", {
+  // PRIVREMENI DIJAGNOSTIČKI LOG (grana debug/ttlock-login) — što ŠALJEMO na
+  // /v3/keyboardPwd/add. BEZ šifre gosta: samo lockId, duljina šifre i datumski
+  // prozor (ms). Potvrđuje šalje li se ispravan lockId. Ukloniti nakon dijagnoze.
+  console.log("[ttlock-add-req]",
+    "lockId:", Number(params.lockId),
+    "lockId raw:", JSON.stringify(params.lockId),
+    "sifra len:", String(params.sifra || "").length,
+    "startDate:", params.vrijediOd.getTime(),
+    "endDate:", params.vrijediDo.getTime(),
+    "accessToken len:", String(accessToken || "").length);
+
+  const odgovor = await postForm("/v3/keyboardPwd/add", {
     clientId: env("TTLOCK_CLIENT_ID"),
     accessToken,
     lockId: Number(params.lockId),
@@ -82,4 +93,10 @@ export async function dodajTtlockSifru(params: {
     addType: 2,
     date: Date.now(),
   });
+
+  // PRIVREMENI DIJAGNOSTIČKI LOG — cijeli odgovor TTLock-a na dodavanje šifre.
+  // (Pri grešci s errcode postForm baci ranije i ispiše [ttlock-resp]; ovaj se
+  // ispiše samo na uspješan odgovor.) Ukloniti nakon dijagnoze.
+  console.log("[ttlock-add]", JSON.stringify(odgovor));
+  return odgovor;
 }
