@@ -20,6 +20,7 @@ import { renderWelcomeMail } from "@/lib/vodic/welcomeMail";
 import { normalizirajE164 } from "@/lib/twilio";
 import { sastaviCheckinSms } from "@/lib/smsCheckin";
 import { posaljiRacunMail } from "@/lib/posaljiRacunMail";
+import { zagrebWallClockToInstant, formatZagreb } from "@/lib/dates";
 
 export const dynamic = "force-dynamic";
 
@@ -185,11 +186,6 @@ function generirajSifruIzTelefona(telefon?: string | null) {
   return String(Math.floor(1000 + Math.random() * 9000));
 }
 
-function setTime(date: Date, hour: number, minute: number) {
-  const d = new Date(date);
-  d.setHours(hour, minute, 0, 0);
-  return d;
-}
 
 // Kratak datum DD.MM. (bez godine) — za SMS predložak.
 function formatDanMjesec(d: Date) {
@@ -208,7 +204,20 @@ function parseTime(value?: string | null) {
 
 function formatTime(value?: Date | null) {
   if (!value) return "16:00";
-  return value.toLocaleTimeString("hr-HR", {
+  // Europe/Zagreb: vrijediOd/Do je sada spremljen kao ISPRAVAN instant
+  // (npr. 14:00 UTC ljeti = 16:00 lokalno). Bez timeZone bi se na UTC serveru
+  // prikazalo "14:00" — formatZagreb vraća "16:00".
+  return formatZagreb(value, { hour: "2-digit", minute: "2-digit" });
+}
+
+// TTLock prozor (vrijediOd/Do) UVIJEK u Europe/Zagreb — mora se slagati sa
+// satom koji brava stvarno radi. (Logovi createdAt/poslanoAt = Blok B.)
+function formatDateTimeTtlock(value?: Date | null) {
+  if (!value) return "-";
+  return formatZagreb(value, {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
     hour: "2-digit",
     minute: "2-digit",
   });
@@ -379,10 +388,10 @@ export default async function RezervacijaDetaljPage({
     ttlockPrva?.sifra || generirajSifruIzTelefona(rezervacija.gost?.telefon);
 
   const ttlockUlaz =
-    ttlockPrva?.vrijediOd || setTime(rezervacija.datumOd, 16, 0);
+    ttlockPrva?.vrijediOd || zagrebWallClockToInstant(rezervacija.datumOd, 16, 0);
 
   const ttlockIzlaz =
-    ttlockPrva?.vrijediDo || setTime(rezervacija.datumDo, 10, 0);
+    ttlockPrva?.vrijediDo || zagrebWallClockToInstant(rezervacija.datumDo, 10, 0);
 
   // ── SMS panel: preduvjeti + predispunjen predložak ─────────────────────
   const infobipOk = imaInfobipKonfiguraciju();
@@ -1395,8 +1404,9 @@ export default async function RezervacijaDetaljPage({
     const ulaz = parseTime(ulazVrijeme);
     const izlaz = parseTime(izlazVrijeme);
 
-    const vrijediOd = setTime(r.datumOd, ulaz.hour, ulaz.minute);
-    const vrijediDo = setTime(r.datumDo, izlaz.hour, izlaz.minute);
+    // Sat iz forme je hrvatski zidni sat → ispravan UTC instant (DST-aware).
+    const vrijediOd = zagrebWallClockToInstant(r.datumOd, ulaz.hour, ulaz.minute);
+    const vrijediDo = zagrebWallClockToInstant(r.datumDo, izlaz.hour, izlaz.minute);
 
     for (const veza of r.jedinica.ttlockBrave) {
       await prisma.rezervacijaTtlockSifra.upsert({
@@ -2082,7 +2092,7 @@ export default async function RezervacijaDetaljPage({
                       >
                         <div style={{ fontWeight: 600, color: "#2f261d" }}>{s.brava.naziv}</div>
                         <div style={{ marginTop: 2, color: "#6f665a" }}>
-                          {formatDateTime(s.vrijediOd)} - {formatDateTime(s.vrijediDo)}
+                          {formatDateTimeTtlock(s.vrijediOd)} - {formatDateTimeTtlock(s.vrijediDo)}
                         </div>
                         <div style={{ marginTop: 2, fontWeight: 600, color: "#9b6b12" }}>
                           Status: {s.status}

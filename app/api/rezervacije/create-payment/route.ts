@@ -5,6 +5,7 @@ import { stripe } from "@/lib/stripe";
 import { Resend } from "resend";
 import { pronadiPreklapanja } from "@/lib/zauzeca";
 import { routing } from "@/i18n/routing";
+import { zagrebWallClockToInstant } from "@/lib/dates";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -148,11 +149,12 @@ export async function GET(req: Request) {
       postavke?.danaPrijeDolaskaMoraBitiPlaceno ??
       3;
 
-    const expiresAtDate = new Date(r.datumOd);
-    expiresAtDate.setDate(
-      expiresAtDate.getDate() - danaPrijeMoraBitiPlaceno
-    );
-    expiresAtDate.setHours(23, 59, 0, 0);
+    // Rok = 23:59 po HRVATSKOM vremenu N dana prije dolaska. Računamo u UTC
+    // (datumOd je UTC podne) pa zidnih 23:59 pretvorimo u ispravan instant —
+    // setHours(23,59) bi na UTC serveru dao 01:59 hrvatskog (DST pomak).
+    const baza = new Date(r.datumOd);
+    baza.setUTCDate(baza.getUTCDate() - danaPrijeMoraBitiPlaceno);
+    const expiresAtDate = zagrebWallClockToInstant(baza, 23, 59);
 
     const expiresAtUnix = Math.floor(expiresAtDate.getTime() / 1000);
     const nowUnix = Math.floor(Date.now() / 1000);

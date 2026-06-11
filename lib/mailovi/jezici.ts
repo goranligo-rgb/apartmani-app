@@ -1,4 +1,5 @@
 import type { Locale } from "@/i18n/routing";
+import { formatZagreb } from "@/lib/dates";
 
 // Mail layer podržava 3 jezika: hr (domaći), de (njemački govorni gosti),
 // en (univerzalni fallback za sve ostale).
@@ -58,7 +59,11 @@ export function formatDateTimeZaMail(
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) return "-";
 
-  return d.toLocaleString(LOCALE_MAP[jezik], {
+  // UVIJEK Europe/Zagreb: mail gostu mora reći isti sat koji brava stvarno
+  // radi (TTLock prozor je sada ispravan instant). Bez timeZone bi na UTC
+  // serveru mail rekao -2h od stvarnog lokalnog vremena.
+  return formatZagreb(d, {
+    locale: LOCALE_MAP[jezik],
     day: "2-digit",
     month: "2-digit",
     year: "numeric",

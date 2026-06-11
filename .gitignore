@@ -46,3 +46,9 @@ next-env.d.ts
 
 # preview / throwaway artifacts
 /tmp/
+
+# lokalni Claude Code podaci (memorija, transkripti) — ne u repo
+.claude/
+
+# lokalni dokumenti (vodici, PDF-ovi) — ne u repo
+docs/

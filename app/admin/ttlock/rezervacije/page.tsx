@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { zagrebWallClockToInstant, formatZagreb } from "@/lib/dates";
 import { revalidatePath } from "next/cache";
 import { Resend } from "resend";
 import {
@@ -22,12 +23,6 @@ function generirajSifruIzTelefona(telefon?: string | null) {
     return String(Math.floor(1000 + Math.random() * 9000));
 }
 
-function setTime(date: Date, hour: number, minute: number) {
-    const d = new Date(date);
-    d.setHours(hour, minute, 0, 0);
-    return d;
-}
-
 function parseTime(value?: string | null) {
     const v = String(value || "").trim();
     const [h, m] = v.split(":").map(Number);
@@ -47,7 +42,21 @@ function formatDate(value: Date) {
 }
 
 function formatTime(value: Date) {
-    return value.toLocaleTimeString("hr-HR", {
+    // Europe/Zagreb: vrijediOd/Do je sada ispravan instant; bez timeZone bi se
+    // na UTC serveru prikazalo -2h (npr. "14:00" umjesto "16:00").
+    return formatZagreb(value, {
+        hour: "2-digit",
+        minute: "2-digit",
+    });
+}
+
+// TTLock prozor (vrijediOd/Do) UVIJEK u Europe/Zagreb — mora se slagati s
+// bravom. (poslanaAt log = Blok B, koristi formatDateTime ispod.)
+function formatDateTimeTtlock(value: Date) {
+    return formatZagreb(value, {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
         hour: "2-digit",
         minute: "2-digit",
     });
@@ -86,8 +95,9 @@ async function osigurajTtlockSifreZaRezervacije() {
         if (rezervacija.jedinica.ttlockBrave.length === 0) continue;
 
         const sifra = generirajSifruIzTelefona(rezervacija.gost?.telefon);
-        const vrijediOd = setTime(rezervacija.datumOd, 16, 0);
-        const vrijediDo = setTime(rezervacija.datumDo, 10, 0);
+        // Hrvatski zidni sat (16:00/10:00) → ispravan UTC instant (DST-aware).
+        const vrijediOd = zagrebWallClockToInstant(rezervacija.datumOd, 16, 0);
+        const vrijediDo = zagrebWallClockToInstant(rezervacija.datumDo, 10, 0);
 
         for (const veza of rezervacija.jedinica.ttlockBrave) {
             await prisma.rezervacijaTtlockSifra.upsert({
@@ -148,8 +158,9 @@ async function spremiSifru(formData: FormData) {
     const ulaz = parseTime(ulazVrijeme);
     const izlaz = parseTime(izlazVrijeme);
 
-    const vrijediOd = setTime(rezervacija.datumOd, ulaz.hour, ulaz.minute);
-    const vrijediDo = setTime(rezervacija.datumDo, izlaz.hour, izlaz.minute);
+    // Sat iz forme je hrvatski zidni sat → ispravan UTC instant (DST-aware).
+    const vrijediOd = zagrebWallClockToInstant(rezervacija.datumOd, ulaz.hour, ulaz.minute);
+    const vrijediDo = zagrebWallClockToInstant(rezervacija.datumDo, izlaz.hour, izlaz.minute);
 
     for (const veza of rezervacija.jedinica.ttlockBrave) {
         await prisma.rezervacijaTtlockSifra.upsert({
@@ -519,8 +530,8 @@ export default async function TtlockRezervacijePage() {
                                                         >
                                                             <p className="font-bold">{s.brava.naziv}</p>
                                                             <p className="text-xs text-[#6f6255]">
-                                                                Vrijedi od {formatDateTime(s.vrijediOd)} do{" "}
-                                                                {formatDateTime(s.vrijediDo)}
+                                                                Vrijedi od {formatDateTimeTtlock(s.vrijediOd)} do{" "}
+                                                                {formatDateTimeTtlock(s.vrijediDo)}
                                                             </p>
                                                             <p className="mt-1 text-xs font-bold text-[#8a6a3f]">
                                                                 Status: {s.status}

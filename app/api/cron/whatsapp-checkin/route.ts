@@ -6,6 +6,7 @@ import { normalizirajE164 } from "@/lib/twilio";
 import { imaInfobipKonfiguraciju, posaljiSmsInfobip } from "@/lib/infobip";
 import { sastaviCheckinSms } from "@/lib/smsCheckin";
 import { nazivToSlug } from "@/lib/objekti";
+import { zagrebWallClockToInstant } from "@/lib/dates";
 
 export const dynamic = "force-dynamic";
 
@@ -27,12 +28,6 @@ function addDays(d: Date, days: number): Date {
   const x = new Date(d);
   x.setDate(x.getDate() + days);
   return x;
-}
-
-function setTime(date: Date, hour: number, minute: number): Date {
-  const d = new Date(date);
-  d.setHours(hour, minute, 0, 0);
-  return d;
 }
 
 // Ista logika kao postojeći ručni TTLock flow: zadnje 4 znamenke telefona.
@@ -144,8 +139,11 @@ export async function GET(request: Request) {
 
       // ── (b) Osiguraj zapise šifre (ne diraj postojeće ako već postoje) ──
       const sifra = generirajSifruIzTelefona(r.gost?.telefon);
-      const vrijediOd = setTime(r.datumOd, CHECKIN_TIME_HOUR, 0);
-      const vrijediDo = setTime(r.datumDo, CHECKOUT_TIME_HOUR, 0);
+      // Hrvatski zidni sat (16:00 prijava / 10:00 odjava) → ispravan UTC instant.
+      // setHours bi na UTC serveru (Vercel) protumačio 16:00 kao UTC i brava bi
+      // dobila +2h (ljeti). zagrebWallClockToInstant je DST-aware.
+      const vrijediOd = zagrebWallClockToInstant(r.datumOd, CHECKIN_TIME_HOUR, 0);
+      const vrijediDo = zagrebWallClockToInstant(r.datumDo, CHECKOUT_TIME_HOUR, 0);
 
       for (const veza of r.jedinica.ttlockBrave) {
         await prisma.rezervacijaTtlockSifra.upsert({
