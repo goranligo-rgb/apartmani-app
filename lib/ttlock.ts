@@ -38,6 +38,15 @@ async function postForm(path: string, data: Record<string, string | number>) {
 }
 
 export async function getTtlockAccessToken() {
+  // PRIVREMENI DIJAGNOSTIČKI LOG (grana debug/ttlock-login) — NIKAD ne logira
+  // samu lozinku, samo duljine i ima li višak razmaka. Ukloniti nakon dijagnoze.
+  console.log("[ttlock] user len:", (process.env.TTLOCK_USERNAME||"").length,
+    "pass len:", (process.env.TTLOCK_PASSWORD||"").length,
+    "user trimmed?", process.env.TTLOCK_USERNAME !== (process.env.TTLOCK_USERNAME||"").trim(),
+    "pass trimmed?", process.env.TTLOCK_PASSWORD !== (process.env.TTLOCK_PASSWORD||"").trim(),
+    "client_id set?", !!process.env.TTLOCK_CLIENT_ID,
+    "client_secret set?", !!process.env.TTLOCK_CLIENT_SECRET);
+
   const json = await postForm("/oauth2/token", {
     client_id: env("TTLOCK_CLIENT_ID"),
     client_secret: env("TTLOCK_CLIENT_SECRET"),
