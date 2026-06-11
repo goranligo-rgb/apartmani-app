@@ -92,6 +92,100 @@ export function dohvatiZagrebDanISat(): { dayOfWeek: number; hour: number } {
 }
 
 /**
+ * Vraća offset zone Europe/Zagreb u milisekundama za DANI instant
+ * (zagrebLokalno − UTC). Ljeti (CEST) = +2h = 7_200_000, zimi (CET) = +1h.
+ *
+ * Računa se preko Intl-a (ne fiksno), pa DST skok (zadnja nedjelja u ožujku /
+ * listopadu) preživljava automatski. Trik: formatiramo instant u Zagreb zoni,
+ * pa te iste komponente pročitamo kao da su UTC — razlika je offset.
+ */
+function zagrebOffsetMs(instant: Date): number {
+  const dtf = new Intl.DateTimeFormat("en-US", {
+    timeZone: ZAGREB_TZ,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  });
+
+  const p = dtf.formatToParts(instant);
+  const get = (t: string) => Number(p.find((x) => x.type === t)!.value);
+  // "24" za ponoć je en-US kvirk — normaliziraj na 0.
+  const hour = get("hour") === 24 ? 0 : get("hour");
+
+  const kaoUtc = Date.UTC(
+    get("year"),
+    get("month") - 1,
+    get("day"),
+    hour,
+    get("minute"),
+    get("second")
+  );
+
+  return kaoUtc - instant.getTime();
+}
+
+/**
+ * Hrvatski ZIDNI sat na danom datumu → ispravan UTC instant (DST-aware).
+ *
+ * Datum (godina/mjesec/dan) čita se iz UTC komponenti `baseDate` — to je
+ * konzistentno s konvencijom baze gdje su `datumOd`/`datumDo` spremljeni kao
+ * UTC PODNE tog hrvatskog dana (UTC dan == hrvatski dan u podne). Sat i minuta
+ * su hrvatski zidni (npr. check-in 16:00). Vraćeni Date je apsolutni instant
+ * koji TTLock-u (i bilo kome) daje točno to lokalno vrijeme.
+ *
+ * Primjer:
+ *   zagrebWallClockToInstant(2026-07-15, 16, 0) → 2026-07-15T14:00:00.000Z
+ *     (ljeto, CEST UTC+2: 16:00 lokalno = 14:00 UTC)
+ *   zagrebWallClockToInstant(2026-01-15, 16, 0) → 2026-01-15T15:00:00.000Z
+ *     (zima, CET UTC+1: 16:00 lokalno = 15:00 UTC)
+ */
+export function zagrebWallClockToInstant(
+  baseDate: Date,
+  sat: number,
+  minuta: number
+): Date {
+  const y = baseDate.getUTCFullYear();
+  const m = baseDate.getUTCMonth();
+  const d = baseDate.getUTCDate();
+
+  // Prva procjena: tretiraj zidni sat kao da je UTC, pa oduzmi zagrebački
+  // offset. Offset računamo na samoj procjeni; jednom ga rafiniramo da
+  // pokrijemo rubni slučaj kad procjena padne na drugu stranu DST skoka.
+  const guess = Date.UTC(y, m, d, sat, minuta, 0, 0);
+  let instant = guess - zagrebOffsetMs(new Date(guess));
+  instant = guess - zagrebOffsetMs(new Date(instant));
+
+  return new Date(instant);
+}
+
+/**
+ * Prikaz datuma/vremena UVIJEK u zoni Europe/Zagreb.
+ *
+ * Tanak wrapper oko `Intl.DateTimeFormat` koji nasilno postavlja
+ * `timeZone: "Europe/Zagreb"`, pa server (UTC na Vercelu) ne može iscuriti
+ * UTC zidni sat u prikaz. Sve ostale opcije (locale, dateStyle, hour, …) se
+ * prosljeđuju. Default locale je "hr-HR".
+ *
+ * Primjer:
+ *   formatZagreb(2026-07-15T08:00:00Z, { hour: "2-digit", minute: "2-digit" })
+ *     → "10:00"  (a ne "08:00")
+ */
+export function formatZagreb(
+  d: Date,
+  opts: Intl.DateTimeFormatOptions & { locale?: string } = {}
+): string {
+  const { locale = "hr-HR", ...rest } = opts;
+  return new Intl.DateTimeFormat(locale, {
+    timeZone: ZAGREB_TZ,
+    ...rest,
+  }).format(d);
+}
+
+/**
  * Normaliziraj datum na 12:00 UTC istog UTC kalendarskog dana.
  *
  * Konvencija: rezervacije i blokade se interpretiraju kao "od 12:00 do 12:00"
