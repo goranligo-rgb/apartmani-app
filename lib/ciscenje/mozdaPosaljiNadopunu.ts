@@ -1,5 +1,10 @@
 import { prisma } from "@/lib/prisma";
 import { Resend } from "resend";
+import {
+  stavkaZaNovuRezervaciju,
+  renderTablicaPlana,
+  izracunajRasporedZaPeriod,
+} from "@/lib/ciscenje/nadopunaRaspored";
 
 // ── Nadopuna tjednog plana čišćenja ──
 //
@@ -7,6 +12,14 @@ import { Resend } from "resend";
 // (PR1 weekly mail), agenciji za čišćenje treba mail koji javlja "evo još
 // jedne smjene koju nismo imali kad smo poslali plan". Bez ovog: agencija
 // dođe na prazan apartman ili propusti smjenu.
+//
+// Izgled maila (Faza B redizajn): GORE žuti "🆕 NOVO" banner + mala tablica
+// samo s novom rezervacijom (isti stupci kao tjedni plan, BEZ imena gostiju),
+// ISPOD cijeli ažurirani raspored za narednih `brojDanaUnaprijed` dana —
+// identična tablica kao tjedni plan. Render i izračun dolaze iz READ-ONLY
+// modula `nadopunaRaspored.ts` (vidi tamo); tjedni `generirajINaPosalji.ts`
+// se NE dira. Nadopuna i dalje NEMA nuspojave na raspored (bez Zadatak/Trosak/
+// dodatne narudžbe), šalje SAMO agenciji.
 //
 // Helper je defenzivan po dizajnu — sve unutarnje greške hvata i vraća
 // `{ skipped: 'error' }`. Pozivatelji (Stripe webhook flow, admin nova rez,
@@ -38,6 +51,16 @@ export type NadopunaRezultat =
       rezervacijaIds: string[];
     };
 
+function startOfDay(d: Date) {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+}
+
+function addDays(d: Date, days: number) {
+  const x = new Date(d);
+  x.setDate(x.getDate() + days);
+  return x;
+}
+
 function formatDate(d: Date) {
   return d.toLocaleDateString("hr-HR", {
     weekday: "long",
@@ -47,46 +70,92 @@ function formatDate(d: Date) {
   });
 }
 
-function escapeHtml(value: unknown) {
-  return String(value ?? "")
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
-}
+// Tip rezervacije koju NOVO red treba — preuzet iz potpisa
+// `stavkaZaNovuRezervaciju` da ne dupliciramo strukturu (i da ostane u sinkronu
+// s read-only modulom). findMany rezultat je strukturni superset → assignable.
+type NadopunaRez = Parameters<typeof stavkaZaNovuRezervaciju>[0];
 
-function guestName(gost: { ime?: string | null; prezime?: string | null } | null) {
-  if (!gost) return "-";
-  const ime = `${gost.ime ?? ""} ${gost.prezime ?? ""}`.trim();
-  return ime || "-";
-}
+/**
+ * Gradi HTML tijela nadopuna maila: žuti "🆕 NOVO" banner + mala NOVO tablica
+ * (samo nove rezervacije, bez imena) + cijeli ažurirani raspored za narednih
+ * `brojDanaUnaprijed` dana (identičan izgled kao tjedni plan).
+ *
+ * READ-ONLY: čita samo `postavke` i raspored kroz `nadopunaRaspored.ts`, NE radi
+ * nikakve upise. Izdvojeno iz `mozdaPosaljiNadopunu` da preview/test rute mogu
+ * renderirati TOČNO isti mail kao pravi tok (bez drifta).
+ */
+export async function gradiNadopunaHtml(params: {
+  stvarnoNovi: NadopunaRez[];
+  zadnjiWeekly: { datumOd: Date; datumDo: Date };
+}): Promise<string> {
+  const { stvarnoNovi, zadnjiWeekly } = params;
 
-// Broj osoba; ako nije poznat ili 0 → puni kapacitet jedinice ("ful komplet",
-// isto pravilo kao tjedni plan). Tek ako ni kapacitet nije poznat → "-".
-function brojOsobaIliKapacitet(r: {
-  brojOsoba: number | null;
-  jedinica: { ukupniKapacitet: number | null };
-}): string {
-  if (r.brojOsoba && r.brojOsoba > 0) return String(r.brojOsoba);
-  if (r.jedinica.ukupniKapacitet && r.jedinica.ukupniKapacitet > 0) {
-    return String(r.jedinica.ukupniKapacitet);
-  }
-  return "-";
-}
+  // Postavke samo radi `brojDanaUnaprijed` (isti period kao tjedni plan).
+  // Nadopuna ih NE mijenja (Kristinina napomena se NE dira).
+  const postavke = await prisma.ciscenjeMailPostavke.findFirst();
+  const brojDana = postavke?.brojDanaUnaprijed || 7;
+  const danas = startOfDay(new Date());
+  const doDatuma = addDays(danas, brojDana);
 
-// Broj noćenja iz baze; fallback na razliku datuma (datumDo − datumOd u danima).
-function brojNocenjaIliIzracun(r: {
-  brojNocenja: number | null;
-  datumOd: Date;
-  datumDo: Date;
-}): number {
-  if (r.brojNocenja && r.brojNocenja > 0) return r.brojNocenja;
-  const MS_DAN = 24 * 60 * 60 * 1000;
-  return Math.max(
-    0,
-    Math.round((r.datumDo.getTime() - r.datumOd.getTime()) / MS_DAN)
+  // Gornji "NOVO" red(ovi) — samo nove rezervacije, isti format kao tjedni
+  // (bez imena gostiju). Read-only, bez nuspojava.
+  const novoStavke = await Promise.all(
+    stvarnoNovi.map((r) => stavkaZaNovuRezervaciju(r))
   );
+
+  // Donji cijeli raspored za narednih X dana — identičan izgled kao tjedni.
+  // `postavke || {}` osigurava da Marty bazen / Eva stubište budu prazni ako
+  // postavke fale (ne ruši render; `brojDana` fallback je već 7).
+  const rasporedStavke = await izracunajRasporedZaPeriod(
+    danas,
+    doDatuma,
+    postavke || {}
+  );
+
+  return `
+  <div style="font-family: Calibri, Segoe UI, Arial, sans-serif; color:#111; background:#f5f6f7; padding:24px;">
+    <div style="background:white; border:1px solid #ddd; padding:20px;">
+      <div style="background:#fef3c7; border:2px solid #c79a57; padding:14px; margin-bottom:18px;">
+        <h2 style="margin:0; font-size:22px; font-weight:900; color:#7a5a22;">
+          🆕 NOVO — Nadopuna rasporeda čišćenja
+        </h2>
+        <p style="margin:8px 0 0; font-size:14px; color:#7a5a22;">
+          Nakon zadnjeg tjednog plana ulet${stvarnoNovi.length === 1 ? "jela je" : "jelo je"}
+          <b>${stvarnoNovi.length}</b>
+          ${stvarnoNovi.length === 1 ? "nova rezervacija" : "novih rezervacija"}.
+          Detalji su u tablici „NOVO" ispod, a cijeli ažurirani raspored je niže.
+        </p>
+      </div>
+
+      <h3 style="margin:0 0 6px; font-size:16px; font-weight:900; color:#7a5a22;">
+        🆕 NOVO
+      </h3>
+      ${renderTablicaPlana(novoStavke)}
+
+      <h3 style="margin:24px 0 4px; font-size:16px; font-weight:900; color:#111;">
+        Cijeli raspored čišćenja — sljedećih ${brojDana} dana
+      </h3>
+      <p style="margin:0 0 8px; color:#555; font-size:14px;">
+        Period:
+        <b>${formatDate(danas)}</b>
+        –
+        <b>${formatDate(doDatuma)}</b>
+      </p>
+      ${renderTablicaPlana(rasporedStavke)}
+
+      <p style="margin-top:18px; font-size:13px; color:#555;">
+        Tjedni plan koji se nadopunjuje poslan je
+        <b>${zadnjiWeekly.datumOd.toLocaleString("hr-HR")}</b>
+        (period ${formatDate(zadnjiWeekly.datumOd)} – ${formatDate(zadnjiWeekly.datumDo)}).
+      </p>
+
+      <p style="margin-top:18px; font-size:14px;">
+        Lijep pozdrav,<br/>
+        <b>Malinska Stay</b>
+      </p>
+    </div>
+  </div>
+`;
 }
 
 export async function mozdaPosaljiNadopunu(
@@ -208,66 +277,9 @@ export async function mozdaPosaljiNadopunu(
 
     const subject = `🆕 Nadopuna rasporeda čišćenja — Malinska Stay (${stvarnoNovi.length})`;
 
-    const html = `
-  <div style="font-family: Calibri, Segoe UI, Arial, sans-serif; color:#111; background:#f5f6f7; padding:24px;">
-    <div style="background:white; border:1px solid #ddd; padding:20px;">
-      <div style="background:#fef3c7; border:2px solid #c79a57; padding:14px; margin-bottom:18px;">
-        <h2 style="margin:0; font-size:22px; font-weight:900; color:#7a5a22;">
-          🆕 NOVO — Nadopuna rasporeda čišćenja
-        </h2>
-        <p style="margin:8px 0 0; font-size:14px; color:#7a5a22;">
-          Nakon zadnjeg tjednog plana ulet${stvarnoNovi.length === 1 ? "jela je" : "jelo je"}
-          <b>${stvarnoNovi.length}</b>
-          ${stvarnoNovi.length === 1 ? "nova rezervacija" : "novih rezervacija"}
-          u period
-          <b>${formatDate(zadnjiWeekly.datumOd)}</b>
-          –
-          <b>${formatDate(zadnjiWeekly.datumDo)}</b>.
-          Molimo nadopunite raspored.
-        </p>
-      </div>
-
-      <table cellpadding="8" cellspacing="0" style="border-collapse:collapse; width:100%; font-size:13px; background:white;">
-        <tr style="background:#e9ecef;">
-          <th align="left" style="border:1px solid #999;">Dolazak</th>
-          <th align="left" style="border:1px solid #999;">Odlazak</th>
-          <th align="left" style="border:1px solid #999;">Objekt</th>
-          <th align="left" style="border:1px solid #999;">Jedinica</th>
-          <th align="left" style="border:1px solid #999;">Gost</th>
-          <th align="left" style="border:1px solid #999; background:#d1fae5;">Broj osoba</th>
-          <th align="left" style="border:1px solid #999;">Noćenja</th>
-        </tr>
-
-        ${stvarnoNovi
-          .map(
-            (r) => `
-              <tr>
-                <td style="border:1px solid #ccc; vertical-align:top;">${escapeHtml(formatDate(r.datumOd))}</td>
-                <td style="border:1px solid #ccc; vertical-align:top; font-weight:900;">${escapeHtml(formatDate(r.datumDo))}</td>
-                <td style="border:1px solid #ccc; vertical-align:top;">${escapeHtml(r.jedinica.objekt.naziv)}</td>
-                <td style="border:1px solid #ccc; vertical-align:top;">${escapeHtml(r.jedinica.naziv)}</td>
-                <td style="border:1px solid #ccc; vertical-align:top;">${escapeHtml(guestName(r.gost))}</td>
-                <td style="border:1px solid #999; vertical-align:top; font-weight:900; background:#f0fdf4;">${brojOsobaIliKapacitet(r)}</td>
-                <td style="border:1px solid #ccc; vertical-align:top;">${brojNocenjaIliIzracun(r)}</td>
-              </tr>
-            `
-          )
-          .join("")}
-      </table>
-
-      <p style="margin-top:18px; font-size:13px; color:#555;">
-        Tjedni plan koji se nadopunjuje poslan je
-        <b>${zadnjiWeekly.datumOd.toLocaleString("hr-HR")}</b>
-        (period ${formatDate(zadnjiWeekly.datumOd)} – ${formatDate(zadnjiWeekly.datumDo)}).
-      </p>
-
-      <p style="margin-top:18px; font-size:14px;">
-        Lijep pozdrav,<br/>
-        <b>Malinska Stay</b>
-      </p>
-    </div>
-  </div>
-`;
+    // Tijelo maila gradi izdvojeni `gradiNadopunaHtml` (isti HTML koji vide i
+    // preview/test rute). Read-only — nikakvih upisa unutar render-a.
+    const html = await gradiNadopunaHtml({ stvarnoNovi, zadnjiWeekly });
 
     // Najprije kreiraj narudžbu (s `napomena` markerom za spam-check), pa
     // pošalji mail. Ako mail propadne, narudžba ostaje zapisana s
