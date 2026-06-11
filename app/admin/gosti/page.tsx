@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
+import { formatZagreb } from "@/lib/dates";
 
 export const dynamic = "force-dynamic";
 
@@ -42,7 +43,9 @@ function parseOznake(value?: string | null) {
 
 function formatDate(value?: Date | null) {
   if (!value) return "-";
-  return value.toLocaleDateString("hr-HR", {
+  // createdAt/updatedAt su pravi žigovi — Europe/Zagreb da datum ne odluta
+  // za dan oko ponoći. (datumOd/Do je UTC podne, isti rezultat.)
+  return formatZagreb(value, {
     day: "2-digit",
     month: "2-digit",
     year: "numeric",

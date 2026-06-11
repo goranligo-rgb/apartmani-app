@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { formatZagreb } from "@/lib/dates";
 
 export const dynamic = "force-dynamic";
 
@@ -12,15 +13,19 @@ type PorukaSDetaljima = Prisma.WhatsappPorukaGetPayload<{
   };
 }>;
 
+// Ključ za grupiranje po danu u Europe/Zagreb (en-CA daje YYYY-MM-DD) —
+// da grupa i prikazani dan budu konzistentni i preko ponoći (UTC vs Zg).
 function dayKey(d: Date): string {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
+  return formatZagreb(d, {
+    locale: "en-CA",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
 }
 
 function dayLabel(d: Date): string {
-  return d.toLocaleDateString("hr-HR", {
+  return formatZagreb(d, {
     weekday: "long",
     day: "2-digit",
     month: "2-digit",
@@ -29,7 +34,8 @@ function dayLabel(d: Date): string {
 }
 
 function timeLabel(d: Date): string {
-  return d.toLocaleTimeString("hr-HR", { hour: "2-digit", minute: "2-digit" });
+  // poslanoAt je pravi žig; Europe/Zagreb pokaže stvarni sat slanja (ne UTC).
+  return formatZagreb(d, { hour: "2-digit", minute: "2-digit" });
 }
 
 export default async function WhatsappPregledPage() {

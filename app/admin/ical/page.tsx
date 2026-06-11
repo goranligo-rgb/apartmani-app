@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
+import { formatZagreb } from "@/lib/dates";
 import {
   spremiVanjskiKalendar,
   syncSveKalendare,
@@ -10,10 +11,11 @@ export const dynamic = "force-dynamic";
 
 function formatDate(value?: Date | null) {
   if (!value) return "Nikad";
-  return new Intl.DateTimeFormat("hr-HR", {
+  // Zadnji iCal sync (createdAt) — pravi žig; Europe/Zagreb pokaže stvarni sat.
+  return formatZagreb(value, {
     dateStyle: "medium",
     timeStyle: "short",
-  }).format(value);
+  });
 }
 
 export default async function AdminIcalPage({

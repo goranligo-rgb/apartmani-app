@@ -62,8 +62,9 @@ function formatDateTimeTtlock(value: Date) {
     });
 }
 
+// Logovi (poslanaAt) — pravi žig. Europe/Zagreb da pokaže stvarni sat.
 function formatDateTime(value: Date) {
-    return value.toLocaleString("hr-HR", {
+    return formatZagreb(value, {
         day: "2-digit",
         month: "2-digit",
         year: "numeric",

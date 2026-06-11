@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { formatZagreb } from "@/lib/dates";
 
 export const dynamic = "force-dynamic";
 
@@ -27,7 +28,8 @@ function formatDate(value?: Date | null) {
 function formatDateTime(value?: Date | null) {
   if (!value) return "-";
 
-  return value.toLocaleString("hr-HR", {
+  // createdAt/excelImportiranoAt — pravi žig; Europe/Zagreb pokaže stvarni sat.
+  return formatZagreb(value, {
     day: "2-digit",
     month: "2-digit",
     year: "numeric",

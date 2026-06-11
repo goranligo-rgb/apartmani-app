@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { Resend } from "resend";
+import { formatZagreb } from "@/lib/dates";
 import {
   stavkaZaNovuRezervaciju,
   renderTablicaPlana,
@@ -145,7 +146,7 @@ export async function gradiNadopunaHtml(params: {
 
       <p style="margin-top:18px; font-size:13px; color:#555;">
         Tjedni plan koji se nadopunjuje poslan je
-        <b>${zadnjiWeekly.datumOd.toLocaleString("hr-HR")}</b>
+        <b>${formatZagreb(zadnjiWeekly.datumOd, { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })}</b>
         (period ${formatDate(zadnjiWeekly.datumOd)} – ${formatDate(zadnjiWeekly.datumDo)}).
       </p>
 

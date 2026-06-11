@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { formatZagreb } from "@/lib/dates";
 
 export const dynamic = "force-dynamic";
 
@@ -12,11 +13,12 @@ type PageProps = {
 
 function formatDate(value?: Date | string | null) {
   if (!value) return "—";
-  return new Intl.DateTimeFormat("hr-HR", {
+  // createdAt (pravi žig) — Europe/Zagreb da datum ne odluta za dan oko ponoći.
+  return formatZagreb(new Date(value), {
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
-  }).format(new Date(value));
+  });
 }
 
 function formatMoney(value: unknown) {

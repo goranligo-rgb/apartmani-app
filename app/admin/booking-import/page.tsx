@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Fragment } from "react";
 import { prisma } from "@/lib/prisma";
+import { formatZagreb } from "@/lib/dates";
 import {
   OBJEKT_KEY_TO_NAZIV,
   type ObjektKey,
@@ -191,7 +192,8 @@ function Step({
 }
 
 function formatDateTime(d: Date) {
-  return d.toLocaleString("hr-HR", {
+  // createdAt importa — pravi žig; Europe/Zagreb pokaže stvarni sat.
+  return formatZagreb(d, {
     day: "2-digit",
     month: "2-digit",
     year: "numeric",

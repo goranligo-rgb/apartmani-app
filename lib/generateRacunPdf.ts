@@ -2,6 +2,7 @@ import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 import fs from "fs";
 import path from "path";
 import { createClient } from "@supabase/supabase-js";
+import { formatZagreb } from "@/lib/dates";
 
 function safeFileName(value: string) {
   return String(value || "racun")
@@ -40,7 +41,8 @@ function formatTime(value: any) {
   const d = value ? new Date(value) : new Date();
   if (Number.isNaN(d.getTime())) return "-";
 
-  return d.toLocaleTimeString("hr-HR", {
+  // Vrijeme izdavanja računa — pravi žig; Europe/Zagreb pokaže stvarni sat.
+  return formatZagreb(d, {
     hour: "2-digit",
     minute: "2-digit",
   });

@@ -112,7 +112,9 @@ function formatDate(value?: Date | null) {
 function formatDateTime(value?: Date | null) {
   if (!value) return "-";
 
-  return value.toLocaleString("hr-HR", {
+  // Logovi (createdAt/poslanoAt) — pravi vremenski žigovi. Europe/Zagreb da
+  // log pokaže stvarni hrvatski sat slanja (npr. 10:00), a ne UTC (08:00).
+  return formatZagreb(value, {
     day: "2-digit",
     month: "2-digit",
     year: "numeric",

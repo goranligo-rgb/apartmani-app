@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
+import { formatZagreb } from "@/lib/dates";
 
 export const dynamic = "force-dynamic";
 
@@ -70,7 +71,7 @@ export default async function ObrisaneRezervacijePage() {
               </div>
 
               <div className="text-xs text-gray-500">
-                obrisano: {r.obrisanoAt?.toLocaleString("hr-HR")}
+                obrisano: {r.obrisanoAt ? formatZagreb(r.obrisanoAt, { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "-"}
               </div>
 
               <div className="mt-3 flex gap-2">
