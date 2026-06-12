@@ -12,6 +12,14 @@ function env(name: string) {
   return value;
 }
 
+// DRY-RUN način rada za sigurno testiranje BEZ diranja fizičke brave.
+// Kad je TTLOCK_DRY_RUN="true", mutirajući pozivi (add/change/delete) NE šalju
+// ništa na TTLock — samo logiraju što BI poslali i vrate sintetički odgovor.
+// Default (flag odsutan/false) → nula promjene ponašanja, sve ide na bravu.
+function jeDryRun() {
+  return process.env.TTLOCK_DRY_RUN === "true";
+}
+
 async function postForm(path: string, data: Record<string, string | number>) {
   const body = new URLSearchParams();
 
@@ -82,6 +90,14 @@ export async function dodajTtlockSifru(params: {
     "endDate:", params.vrijediDo.getTime(),
     "accessToken len:", String(accessToken || "").length);
 
+  // DRY-RUN: ne diraj bravu, vrati sintetički keyboardPwdId (pozivatelji ga
+  // čitaju iz response.keyboardPwdId i spremaju u bazu).
+  if (jeDryRun()) {
+    const fakeId = `DRYRUN-${Number(params.lockId)}-${params.vrijediOd.getTime()}`;
+    console.log("[ttlock-add][DRY_RUN] preskačem keyboardPwd/add →", fakeId);
+    return { errcode: 0, keyboardPwdId: fakeId };
+  }
+
   const odgovor = await postForm("/v3/keyboardPwd/add", {
     clientId: env("TTLOCK_CLIENT_ID"),
     accessToken,
@@ -98,5 +114,85 @@ export async function dodajTtlockSifru(params: {
   // (Pri grešci s errcode postForm baci ranije i ispiše [ttlock-resp]; ovaj se
   // ispiše samo na uspješan odgovor.) Ukloniti nakon dijagnoze.
   console.log("[ttlock-add]", JSON.stringify(odgovor));
+  return odgovor;
+}
+
+// IZMJENA postojeće šifre na bravi — /v3/keyboardPwd/change (changeType:2 =
+// gateway, isto kao add addType:2 → remote, bez bluetootha). Mijenja vremenski
+// prozor (startDate/endDate) i opcionalno sam broj (newKeyboardPwd). keyboardPwdId
+// dolazi iz baze (RezervacijaTtlockSifra.ttlockKeyboardPwdId), spremljen pri add-u.
+// vrijediOd/Do su VEĆ ispravni instanti (zagrebWallClockToInstant kod pozivatelja)
+// — ovdje ih samo prosljeđujemo kao Unix ms, BEZ ikakvog novog TZ izračuna.
+export async function promijeniTtlockSifru(params: {
+  lockId: string | number;
+  keyboardPwdId: string | number;
+  vrijediOd: Date;
+  vrijediDo: Date;
+  sifra?: string; // ako je zadan → mijenja se i broj (newKeyboardPwd)
+  naziv?: string;
+}) {
+  const accessToken = await getTtlockAccessToken();
+
+  // Dijagnostički log (bez šifre gosta): lockId, pwdId, prozor (ms), mijenja li broj.
+  console.log("[ttlock-change-req]",
+    "lockId:", Number(params.lockId),
+    "keyboardPwdId:", String(params.keyboardPwdId),
+    "startDate:", params.vrijediOd.getTime(),
+    "endDate:", params.vrijediDo.getTime(),
+    "mijenjaBroj:", Boolean(params.sifra),
+    "accessToken len:", String(accessToken || "").length);
+
+  if (jeDryRun()) {
+    console.log("[ttlock-change][DRY_RUN] preskačem keyboardPwd/change");
+    return { errcode: 0 };
+  }
+
+  // newKeyboardPwd se šalje SAMO kad mijenjamo broj — inače se zadržava postojeći.
+  const data: Record<string, string | number> = {
+    clientId: env("TTLOCK_CLIENT_ID"),
+    accessToken,
+    lockId: Number(params.lockId),
+    keyboardPwdId: Number(params.keyboardPwdId),
+    keyboardPwdName: params.naziv || "Malinska Stay gost",
+    startDate: params.vrijediOd.getTime(),
+    endDate: params.vrijediDo.getTime(),
+    changeType: 2,
+    date: Date.now(),
+  };
+  if (params.sifra) data.newKeyboardPwd = params.sifra;
+
+  const odgovor = await postForm("/v3/keyboardPwd/change", data);
+  console.log("[ttlock-change]", JSON.stringify(odgovor));
+  return odgovor;
+}
+
+// BRISANJE šifre s brave — /v3/keyboardPwd/delete (deleteType:2 = WiFi gateway,
+// remote). Koristi se kao fallback uz change (zastario pwdId) i za čišćenje
+// orphan šifri kad admin obriše zapis u bazi.
+export async function obrisiTtlockSifru(params: {
+  lockId: string | number;
+  keyboardPwdId: string | number;
+}) {
+  const accessToken = await getTtlockAccessToken();
+
+  console.log("[ttlock-delete-req]",
+    "lockId:", Number(params.lockId),
+    "keyboardPwdId:", String(params.keyboardPwdId),
+    "accessToken len:", String(accessToken || "").length);
+
+  if (jeDryRun()) {
+    console.log("[ttlock-delete][DRY_RUN] preskačem keyboardPwd/delete");
+    return { errcode: 0 };
+  }
+
+  const odgovor = await postForm("/v3/keyboardPwd/delete", {
+    clientId: env("TTLOCK_CLIENT_ID"),
+    accessToken,
+    lockId: Number(params.lockId),
+    keyboardPwdId: Number(params.keyboardPwdId),
+    deleteType: 2,
+    date: Date.now(),
+  });
+  console.log("[ttlock-delete]", JSON.stringify(odgovor));
   return odgovor;
 }
