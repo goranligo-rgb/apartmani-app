@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { zagrebWallClockToInstant, formatZagreb } from "@/lib/dates";
+import { obrisiTtlockSifru } from "@/lib/ttlock";
 import { revalidatePath } from "next/cache";
 import { Resend } from "resend";
 import {
@@ -274,6 +275,32 @@ async function obrisiSifre(formData: FormData) {
 
     const rezervacijaId = String(formData.get("rezervacijaId") || "");
     if (!rezervacijaId) return;
+
+    // Orphan fix: prije brisanja iz baze makni šifru i s FIZIČKE brave. Bez
+    // ovoga bi zapis nestao iz baze, a kod ostao aktivan na bravi (gost bi i
+    // dalje mogao ući). Učitamo lockId + keyboardPwdId za svaki red.
+    const sifre = await prisma.rezervacijaTtlockSifra.findMany({
+        where: { rezervacijaId },
+        include: { brava: true },
+    });
+
+    for (const s of sifre) {
+        // Bez keyboardPwdId-a (nikad uspješno poslana) nema što obrisati s brave.
+        if (!s.ttlockKeyboardPwdId) continue;
+        try {
+            await obrisiTtlockSifru({
+                lockId: s.brava.lockId,
+                keyboardPwdId: s.ttlockKeyboardPwdId,
+            });
+        } catch (err: any) {
+            // Greška na bravi NE smije blokirati brisanje iz baze (npr. šifra
+            // već ne postoji na bravi). Logiramo i nastavljamo.
+            console.error(
+                `[ttlock-orphan] brisanje s brave nije uspjelo (sifra ${s.id}):`,
+                err?.message
+            );
+        }
+    }
 
     await prisma.rezervacijaTtlockSifra.deleteMany({
         where: { rezervacijaId },
