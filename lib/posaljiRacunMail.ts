@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { Resend } from "resend";
 import { dohvatiPrijevode, odaberiJezikMaila } from "@/lib/mailovi";
+import { rezerviraniJezik } from "@/lib/jezik";
 
 // Zajednička logika slanja (već generiranog) računa gostu mailom — izlučena iz
 // /api/admin/racuni/posalji route handlera.
@@ -66,7 +67,7 @@ export async function posaljiRacunMail(
   const arrayBuffer = await pdfResponse.arrayBuffer();
   const fileBuffer = Buffer.from(arrayBuffer);
 
-  const jezik = odaberiJezikMaila(racun.rezervacija.gost?.jezik);
+  const jezik = odaberiJezikMaila(rezerviraniJezik(racun.rezervacija.gost));
   const t = dohvatiPrijevode(jezik).racunPonovnoPoslan;
 
   const subject = t.subject(racun.brojRacuna);

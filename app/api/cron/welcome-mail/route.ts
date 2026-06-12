@@ -6,6 +6,7 @@ import { renderWelcomeMail } from "@/lib/vodic/welcomeMail";
 import { welcomeUrl } from "@/lib/vodic/mail";
 import { vodicJezik, OBJEKT_BOJA } from "@/lib/vodic";
 import { dohvatiPrijevode } from "@/lib/mailovi";
+import { rezerviraniJezik } from "@/lib/jezik";
 import { nazivToSlug } from "@/lib/objekti";
 
 export const dynamic = "force-dynamic";
@@ -141,7 +142,8 @@ export async function GET(request: Request) {
 
       // Jednostavni welcome mail (mailWrapper pattern) — isti kao admin gumb,
       // bez uvod override (default "najava"). Šifra/eCheckin/datumi s rezervacije.
-      const jezik = vodicJezik(r.gost.jezik);
+      // Jezik preko resolvera (drzava korigira zaglavljeni "hr" default).
+      const jezik = vodicJezik(rezerviraniJezik(r.gost));
       const tekst = dohvatiPrijevode(jezik).dobrodoslica;
       const subject = tekst.subject(r.jedinica.objekt.naziv);
       const html = renderWelcomeMail({

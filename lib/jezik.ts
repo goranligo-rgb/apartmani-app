@@ -69,3 +69,35 @@ export function drzavaUJezik(
   if (!key) return null;
   return MAP[key] ?? null;
 }
+
+// Jedan izvor istine za "na kojem jeziku komuniciramo s ovim gostom".
+// Postoji jer je `Gost.jezik` povijesno imao @default("hr") (+ literalni "hr"
+// fallback na više write-mjesta), pa strani gosti zaglave na "hr" i dobiju
+// hrvatski SMS/mail. Ovdje to ispravljamo na strani ČITANJA, koristeći državu
+// kao korektiv — bez gaženja eksplicitnog izbora jezika (web forma/admin).
+//
+// Pravila (redom):
+//   1) nema spremljenog jezika      → izvedi iz države; nepoznata država → "en"
+//   2) jezik === "hr" + STRANA zemlja (drzava mapira u ne-"hr") → izvedeni jezik
+//      (popravlja zaglavljeni default; pravi/regionalni hr gosti se NE diraju)
+//   3) inače                         → vjeruj spremljenom jeziku
+//
+// Vraća "najbolji poznati" locale (hr/en/de/it/hu/pl/cs/sk…); pozivatelj ga
+// po kanalu svodi (odaberiJezikMaila/vodicJezik → hr/en/de, ostalo → en).
+export function rezerviraniJezik(
+  gost: { jezik?: string | null; drzava?: string | null } | null | undefined
+): string {
+  const izvedeni = drzavaUJezik(gost?.drzava); // Locale | null
+  const jezik = (gost?.jezik || "").trim();
+
+  // 1) Bez spremljenog jezika — izvedi iz države, inače EN (D1).
+  if (!jezik) return izvedeni ?? "en";
+
+  // 2) Zaglavljeni "hr" na stranom gostu — vrati jezik države.
+  if (jezik === "hr" && izvedeni != null && izvedeni !== "hr") {
+    return izvedeni;
+  }
+
+  // 3) Eksplicitan jezik (ili pravi/regionalni hr) — vjeruj mu.
+  return jezik;
+}

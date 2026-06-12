@@ -19,6 +19,7 @@ import { welcomeUrl } from "@/lib/vodic/mail";
 import { renderWelcomeMail } from "@/lib/vodic/welcomeMail";
 import { normalizirajE164 } from "@/lib/twilio";
 import { sastaviCheckinSms } from "@/lib/smsCheckin";
+import { rezerviraniJezik } from "@/lib/jezik";
 import { posaljiRacunMail } from "@/lib/posaljiRacunMail";
 import { zagrebWallClockToInstant, formatZagreb } from "@/lib/dates";
 
@@ -411,7 +412,8 @@ export default async function RezervacijaDetaljPage({
   // kao cron): proslijedimo appUrl + slug + rezervacijaId.
   const smsAppUrl = await getAppUrl();
   const smsPredlozak = sastaviCheckinSms({
-    jezik: rezervacija.gost?.jezik,
+    // Jezik preko resolvera (drzava korigira zaglavljeni "hr" default).
+    jezik: rezerviraniJezik(rezervacija.gost),
     ime: rezervacija.gost?.ime || "goste",
     objekt: rezervacija.jedinica.objekt.naziv,
     datumUlaska: formatDanMjesec(rezervacija.datumOd),
@@ -425,7 +427,9 @@ export default async function RezervacijaDetaljPage({
   });
 
   // ── Welcome mail panel: default jezik = jezik gosta, editabilan uvod ──────
-  const welcomeJezikDefault = odaberiJezikMaila(rezervacija.gost?.jezik);
+  const welcomeJezikDefault = odaberiJezikMaila(
+    rezerviraniJezik(rezervacija.gost)
+  );
   const welcomeUvodDefault =
     dohvatiPrijevode(welcomeJezikDefault).dobrodoslica.najava;
   const imaEmail = Boolean(rezervacija.gost?.email);

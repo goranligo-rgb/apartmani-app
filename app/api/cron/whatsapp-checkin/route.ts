@@ -5,6 +5,7 @@ import { sinkronizirajTtlockSifru } from "@/lib/ttlock";
 import { normalizirajE164 } from "@/lib/twilio";
 import { imaInfobipKonfiguraciju, posaljiSmsInfobip } from "@/lib/infobip";
 import { sastaviCheckinSms } from "@/lib/smsCheckin";
+import { rezerviraniJezik } from "@/lib/jezik";
 import { nazivToSlug } from "@/lib/objekti";
 import { zagrebWallClockToInstant } from "@/lib/dates";
 
@@ -245,7 +246,8 @@ export async function GET(request: Request) {
       // obje brave). Tekst je ASCII (GSM-7); eCheckin red se izostavlja ako
       // rezervacija nema spremljen link.
       const smsTekst = sastaviCheckinSms({
-        jezik: r.gost?.jezik,
+        // Jezik preko resolvera (drzava korigira zaglavljeni "hr" default).
+        jezik: rezerviraniJezik(r.gost),
         ime: r.gost?.ime || "gost",
         objekt: r.jedinica.objekt.naziv, // pun naziv: "Apartments Eva" / "Luxury Apartments Marty" / "House Art"
         datumUlaska: formatDatumKratko(r.datumOd),
