@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { StatusRezervacije } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { dodajTtlockSifru } from "@/lib/ttlock";
+import { sinkronizirajTtlockSifru } from "@/lib/ttlock";
 import { normalizirajE164 } from "@/lib/twilio";
 import { imaInfobipKonfiguraciju, posaljiSmsInfobip } from "@/lib/infobip";
 import { sastaviCheckinSms } from "@/lib/smsCheckin";
@@ -176,8 +176,12 @@ export async function GET(request: Request) {
       for (const s of sifre) {
         if (s.status === "POSLANO") continue;
         try {
-          const resp: any = await dodajTtlockSifru({
+          // Orkestrator: ADD ako brava još nema šifru, inače CHANGE (zadrži
+          // postojeći keyboardPwdId), s DELETE+ADD fallbackom. Sprječava
+          // "The same passcode already exists." kod ponovnog slanja.
+          const resp = await sinkronizirajTtlockSifru({
             lockId: s.brava.lockId,
+            keyboardPwdId: s.ttlockKeyboardPwdId,
             sifra: s.sifra,
             naziv: `${r.jedinica.naziv} ${r.gost?.ime || "Gost"}`,
             vrijediOd: s.vrijediOd,
@@ -188,9 +192,10 @@ export async function GET(request: Request) {
             where: { id: s.id },
             data: {
               status: "POSLANO",
-              ttlockKeyboardPwdId: resp?.keyboardPwdId
-                ? String(resp.keyboardPwdId)
-                : null,
+              // CHANGE vrati isti pwdId; ADD/DELETE_ADD vrate novi. Ne gazi
+              // postojeći s null ako iz nekog razloga nije vraćen.
+              ttlockKeyboardPwdId:
+                resp.keyboardPwdId ?? s.ttlockKeyboardPwdId ?? null,
               greska: null,
             },
           });

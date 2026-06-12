@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { Resend } from "resend";
 import { stripe } from "@/lib/stripe";
-import { dodajTtlockSifru } from "@/lib/ttlock";
+import { sinkronizirajTtlockSifru } from "@/lib/ttlock";
 import { potvrdiNaplatu } from "@/lib/potvrdaNaplate";
 import {
   dohvatiPrijevode,
@@ -1464,8 +1464,12 @@ export default async function RezervacijaDetaljPage({
 
     for (const s of sifre) {
       try {
-        const response = await dodajTtlockSifru({
+        // Orkestrator: ADD prvi put, inače CHANGE postojeće šifre (zadrži
+        // keyboardPwdId), fallback DELETE+ADD. Ovo je glavni "ponovo pošalji"
+        // put — bez njega bi ponovno slanje iste šifre palo na bravi.
+        const resp = await sinkronizirajTtlockSifru({
           lockId: s.brava.lockId,
+          keyboardPwdId: s.ttlockKeyboardPwdId,
           sifra: s.sifra,
           naziv: `${s.rezervacija.jedinica.naziv} ${s.rezervacija.gost?.ime || "Gost"}`,
           vrijediOd: s.vrijediOd,
@@ -1476,9 +1480,8 @@ export default async function RezervacijaDetaljPage({
           where: { id: s.id },
           data: {
             status: "POSLANO",
-            ttlockKeyboardPwdId: response.keyboardPwdId
-              ? String(response.keyboardPwdId)
-              : null,
+            ttlockKeyboardPwdId:
+              resp.keyboardPwdId ?? s.ttlockKeyboardPwdId ?? null,
             greska: null,
           },
         });
