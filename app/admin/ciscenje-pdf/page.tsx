@@ -5,6 +5,11 @@ import {
   izracunajDodatnuOsoba,
   dodatnaPosteljinaRecenica,
 } from "@/lib/ciscenje/dodatnaPosteljina";
+// Predikat dana čišćenja po konkretnom datumu — jedini izvor istine.
+import {
+  martyBazenZaDan,
+  evaStubisteZaDan,
+} from "@/lib/ciscenje/daniCiscenja";
 
 export const dynamic = "force-dynamic";
 
@@ -50,33 +55,6 @@ function tipLabel(tip: string) {
   return tip;
 }
 
-function martyBazenZaDan(postavke: any, datum: Date) {
-  const day = datum.getDay();
-
-  return [
-    postavke?.martyBazenNedjelja,
-    postavke?.martyBazenPonedjeljak,
-    postavke?.martyBazenUtorak,
-    postavke?.martyBazenSrijeda,
-    postavke?.martyBazenCetvrtak,
-    postavke?.martyBazenPetak,
-    postavke?.martyBazenSubota,
-  ][day];
-}
-
-function evaStubisteZaDan(postavke: any, datum: Date) {
-  const day = datum.getDay();
-
-  return [
-    postavke?.evaStubisteNedjelja,
-    postavke?.evaStubistePonedjeljak,
-    postavke?.evaStubisteUtorak,
-    postavke?.evaStubisteSrijeda,
-    postavke?.evaStubisteCetvrtak,
-    postavke?.evaStubistePetak,
-    postavke?.evaStubisteSubota,
-  ][day];
-}
 
 type PlanItem = {
   id: string;

@@ -8,6 +8,13 @@ import {
   sljedeciUlazakTekst,
   jeSkoriUlazak,
 } from "@/lib/ciscenje/dodatnaPosteljina";
+// Predikat dana čišćenja (koji KONKRETAN datum se čisti) — jedini izvor istine.
+// Render/petlja/opis ispod ostaju identični; mijenja se samo kako se odlučuje
+// "je li ovaj datum dan za bazen / stubište".
+import {
+  martyBazenZaDan,
+  evaStubisteZaDan,
+} from "@/lib/ciscenje/daniCiscenja";
 
 const resend = new Resend(process.env.RESEND_API_KEY!);
 
@@ -35,34 +42,6 @@ function formatDatumKratko(d: Date) {
   const dd = String(d.getDate()).padStart(2, "0");
   const mm = String(d.getMonth() + 1).padStart(2, "0");
   return `${dd}.${mm}.${d.getFullYear()}.`;
-}
-
-function martyBazenZaDan(postavke: any, datum: Date) {
-  const day = datum.getDay();
-
-  return [
-    postavke.martyBazenNedjelja,
-    postavke.martyBazenPonedjeljak,
-    postavke.martyBazenUtorak,
-    postavke.martyBazenSrijeda,
-    postavke.martyBazenCetvrtak,
-    postavke.martyBazenPetak,
-    postavke.martyBazenSubota,
-  ][day];
-}
-
-function evaStubisteZaDan(postavke: any, datum: Date) {
-  const day = datum.getDay();
-
-  return [
-    postavke.evaStubisteNedjelja,
-    postavke.evaStubistePonedjeljak,
-    postavke.evaStubisteUtorak,
-    postavke.evaStubisteSrijeda,
-    postavke.evaStubisteCetvrtak,
-    postavke.evaStubistePetak,
-    postavke.evaStubisteSubota,
-  ][day];
 }
 
 function guestName(gost: any) {

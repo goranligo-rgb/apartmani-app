@@ -3,6 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
 import { generirajINaPosalji } from "@/lib/ciscenje/generirajINaPosalji";
 import { adminSessionOk } from "@/lib/admin-auth";
+// Predikat dana čišćenja po konkretnom datumu — jedini izvor istine.
+import { martyBazenZaDan } from "@/lib/ciscenje/daniCiscenja";
 
 export const dynamic = "force-dynamic";
 
@@ -157,20 +159,6 @@ function tipLabel(tip: string) {
   }
   if (tip === "DODATNO_CISCENJE") return "Dodatno čišćenje";
   return tip;
-}
-
-function martyBazenZaDan(postavke: any, datum: Date) {
-  const day = datum.getDay();
-
-  return [
-    postavke?.martyBazenNedjelja,
-    postavke?.martyBazenPonedjeljak,
-    postavke?.martyBazenUtorak,
-    postavke?.martyBazenSrijeda,
-    postavke?.martyBazenCetvrtak,
-    postavke?.martyBazenPetak,
-    postavke?.martyBazenSubota,
-  ][day];
 }
 
 // Eksterni kanali — gost je platio platformi (Booking/Airbnb) ili je rezervacija

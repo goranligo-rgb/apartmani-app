@@ -26,6 +26,11 @@ import {
   sljedeciUlazakTekst,
   jeSkoriUlazak,
 } from "@/lib/ciscenje/dodatnaPosteljina";
+// Isti predikat dana kao tjedni (jedini izvor istine) — render ostaje 1:1.
+import {
+  martyBazenZaDan,
+  evaStubisteZaDan,
+} from "@/lib/ciscenje/daniCiscenja";
 
 // ── Oblik jednog retka plana ──
 // Identičan "valuti" koju tjedni gradi (stavkeApartmani/medjuciscenje/bazen/
@@ -74,34 +79,6 @@ function formatDatumKratko(d: Date) {
   const dd = String(d.getDate()).padStart(2, "0");
   const mm = String(d.getMonth() + 1).padStart(2, "0");
   return `${dd}.${mm}.${d.getFullYear()}.`;
-}
-
-function martyBazenZaDan(postavke: any, datum: Date) {
-  const day = datum.getDay();
-
-  return [
-    postavke.martyBazenNedjelja,
-    postavke.martyBazenPonedjeljak,
-    postavke.martyBazenUtorak,
-    postavke.martyBazenSrijeda,
-    postavke.martyBazenCetvrtak,
-    postavke.martyBazenPetak,
-    postavke.martyBazenSubota,
-  ][day];
-}
-
-function evaStubisteZaDan(postavke: any, datum: Date) {
-  const day = datum.getDay();
-
-  return [
-    postavke.evaStubisteNedjelja,
-    postavke.evaStubistePonedjeljak,
-    postavke.evaStubisteUtorak,
-    postavke.evaStubisteSrijeda,
-    postavke.evaStubisteCetvrtak,
-    postavke.evaStubistePetak,
-    postavke.evaStubisteSubota,
-  ][day];
 }
 
 function escapeHtml(value: any) {
