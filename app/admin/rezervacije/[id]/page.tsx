@@ -20,6 +20,7 @@ import { renderWelcomeMail } from "@/lib/vodic/welcomeMail";
 import { normalizirajE164 } from "@/lib/twilio";
 import { sastaviCheckinSms } from "@/lib/smsCheckin";
 import { rezerviraniJezik } from "@/lib/jezik";
+import { SmsPanel } from "./SmsPanel";
 import { posaljiRacunMail } from "@/lib/posaljiRacunMail";
 import { zagrebWallClockToInstant, formatZagreb } from "@/lib/dates";
 
@@ -411,9 +412,8 @@ export default async function RezervacijaDetaljPage({
   // red se izostavlja ako rezervacija nema spremljen link. Welcome link (isto
   // kao cron): proslijedimo appUrl + slug + rezervacijaId.
   const smsAppUrl = await getAppUrl();
-  const smsPredlozak = sastaviCheckinSms({
-    // Jezik preko resolvera (drzava korigira zaglavljeni "hr" default).
-    jezik: rezerviraniJezik(rezervacija.gost),
+  // Zajednički parametri za sva tri jezika (razlikuje se samo `jezik`).
+  const smsZajednicki = {
     ime: rezervacija.gost?.ime || "goste",
     objekt: rezervacija.jedinica.objekt.naziv,
     datumUlaska: formatDanMjesec(rezervacija.datumOd),
@@ -424,7 +424,15 @@ export default async function RezervacijaDetaljPage({
     appUrl: smsAppUrl,
     slug: nazivToSlug(rezervacija.jedinica.objekt.naziv),
     rezervacijaId: rezervacija.id,
-  });
+  };
+  // Sva tri predloška unaprijed → ručni HR/EN/DE prekidač ih mijenja bez reloada.
+  const smsTextovi = {
+    hr: sastaviCheckinSms({ ...smsZajednicki, jezik: "hr" }),
+    en: sastaviCheckinSms({ ...smsZajednicki, jezik: "en" }),
+    de: sastaviCheckinSms({ ...smsZajednicki, jezik: "de" }),
+  };
+  // Default highlight = jezik koji bi i cron izabrao (resolver), sveden na hr/en/de.
+  const smsDefaultJezik = odaberiJezikMaila(rezerviraniJezik(rezervacija.gost));
 
   // ── Welcome mail panel: default jezik = jezik gosta, editabilan uvod ──────
   const welcomeJezikDefault = odaberiJezikMaila(
@@ -2167,63 +2175,14 @@ export default async function RezervacijaDetaljPage({
           </Card>
 
           <Card title="Pošalji SMS gostu">
-            <form action={posaljiSmsGostu}>
-              <input type="hidden" name="rezervacijaId" value={rezervacija.id} />
-
-              <Field label="Tekst SMS-a (editabilno)">
-                <textarea
-                  className="in"
-                  name="tekst"
-                  rows={7}
-                  defaultValue={smsPredlozak}
-                  style={{ fontFamily: "inherit", lineHeight: 1.5 }}
-                />
-              </Field>
-
-              {!infobipOk && (
-                <div
-                  style={{
-                    marginBottom: 8,
-                    border: "1px solid #fca5a5",
-                    background: "#fef2f2",
-                    padding: "6px 8px",
-                    fontSize: 11,
-                    fontWeight: 600,
-                    color: "#991b1b",
-                  }}
-                >
-                  Infobip nije konfiguriran — slanje onemogućeno.
-                </div>
-              )}
-
-              {infobipOk && !imaSifru && (
-                <div
-                  style={{
-                    marginBottom: 8,
-                    border: "1px solid #ead7b6",
-                    background: "#fff9ef",
-                    padding: "6px 8px",
-                    fontSize: 11,
-                    fontWeight: 600,
-                    color: "#7a5a22",
-                  }}
-                >
-                  Nema generirane šifre — prvo je spremi u TTLock pristupu.
-                </div>
-              )}
-
-              <button
-                className="bg"
-                style={{
-                  width: "100%",
-                  opacity: infobipOk && imaSifru ? 1 : 0.5,
-                  cursor: infobipOk && imaSifru ? "pointer" : "not-allowed",
-                }}
-                disabled={!infobipOk || !imaSifru}
-              >
-                Pošalji SMS
-              </button>
-            </form>
+            <SmsPanel
+              textovi={smsTextovi}
+              defaultJezik={smsDefaultJezik}
+              rezervacijaId={rezervacija.id}
+              infobokOk={infobipOk}
+              imaSifru={imaSifru}
+              posalji={posaljiSmsGostu}
+            />
           </Card>
         </section>
 
