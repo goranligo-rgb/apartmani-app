@@ -21,6 +21,7 @@ import { normalizirajE164 } from "@/lib/twilio";
 import { sastaviCheckinSms } from "@/lib/smsCheckin";
 import { rezerviraniJezik } from "@/lib/jezik";
 import { SmsPanel } from "./SmsPanel";
+import { WelcomePanel } from "./WelcomePanel";
 import { posaljiRacunMail } from "@/lib/posaljiRacunMail";
 import { zagrebWallClockToInstant, formatZagreb } from "@/lib/dates";
 
@@ -438,8 +439,13 @@ export default async function RezervacijaDetaljPage({
   const welcomeJezikDefault = odaberiJezikMaila(
     rezerviraniJezik(rezervacija.gost)
   );
-  const welcomeUvodDefault =
-    dohvatiPrijevode(welcomeJezikDefault).dobrodoslica.najava;
+  // Sva tri uvoda unaprijed → HR/EN/DE prekidač ih mijenja bez reloada
+  // (popravak: uvod više nije "zaglavljen" na jednom jeziku dok šaljemo drugi).
+  const welcomeUvodovi = {
+    hr: dohvatiPrijevode("hr").dobrodoslica.najava,
+    en: dohvatiPrijevode("en").dobrodoslica.najava,
+    de: dohvatiPrijevode("de").dobrodoslica.najava,
+  };
   const imaEmail = Boolean(rezervacija.gost?.email);
   const imaWelcomeSlug = nazivToSlug(rezervacija.jedinica.objekt.naziv) !== null;
 
@@ -2188,80 +2194,14 @@ export default async function RezervacijaDetaljPage({
 
         <section className="row" style={{ marginBottom: 12 }}>
           <Card title="Pošalji welcome mail">
-            <form action={posaljiWelcomeMail}>
-              <input type="hidden" name="rezervacijaId" value={rezervacija.id} />
-
-              <Field label="Jezik">
-                <select
-                  className="in"
-                  name="jezik"
-                  defaultValue={welcomeJezikDefault}
-                >
-                  <option value="hr">Hrvatski</option>
-                  <option value="en">English</option>
-                  <option value="de">Deutsch</option>
-                </select>
-              </Field>
-
-              <Field label="Uvodni tekst (editabilno)">
-                <textarea
-                  className="in"
-                  name="uvodPara"
-                  rows={4}
-                  defaultValue={welcomeUvodDefault}
-                  style={{ fontFamily: "inherit", lineHeight: 1.5 }}
-                />
-              </Field>
-
-              <div style={{ fontSize: 11, color: "#6f665a", marginBottom: 8 }}>
-                Mail nosi cijeli vodič dobrodošlice + šifru (ako postoji) i
-                eCheckin link. Šifra se čita s rezervacije, ne generira se.
-              </div>
-
-              {!imaEmail && (
-                <div
-                  style={{
-                    marginBottom: 8,
-                    border: "1px solid #fca5a5",
-                    background: "#fef2f2",
-                    padding: "6px 8px",
-                    fontSize: 11,
-                    fontWeight: 600,
-                    color: "#991b1b",
-                  }}
-                >
-                  Gost nema email adresu — slanje onemogućeno.
-                </div>
-              )}
-
-              {imaEmail && !imaWelcomeSlug && (
-                <div
-                  style={{
-                    marginBottom: 8,
-                    border: "1px solid #ead7b6",
-                    background: "#fff9ef",
-                    padding: "6px 8px",
-                    fontSize: 11,
-                    fontWeight: 600,
-                    color: "#7a5a22",
-                  }}
-                >
-                  Za ovaj objekt ne postoji welcome vodič.
-                </div>
-              )}
-
-              <button
-                className="bg"
-                style={{
-                  width: "100%",
-                  opacity: imaEmail && imaWelcomeSlug ? 1 : 0.5,
-                  cursor: imaEmail && imaWelcomeSlug ? "pointer" : "not-allowed",
-                }}
-                disabled={!imaEmail || !imaWelcomeSlug}
-              >
-                Pošalji welcome mail
-              </button>
-            </form>
+            <WelcomePanel
+              uvodovi={welcomeUvodovi}
+              defaultJezik={welcomeJezikDefault}
+              rezervacijaId={rezervacija.id}
+              imaEmail={imaEmail}
+              imaWelcomeSlug={imaWelcomeSlug}
+              posalji={posaljiWelcomeMail}
+            />
           </Card>
         </section>
 
