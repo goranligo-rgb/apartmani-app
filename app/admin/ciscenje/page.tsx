@@ -4,7 +4,8 @@ import { redirect } from "next/navigation";
 import { generirajINaPosalji } from "@/lib/ciscenje/generirajINaPosalji";
 import { adminSessionOk } from "@/lib/admin-auth";
 // Predikat dana čišćenja po konkretnom datumu — jedini izvor istine.
-import { martyBazenZaDan } from "@/lib/ciscenje/daniCiscenja";
+import { martyBazenZaDan, evaStubisteZaDan, formatYMD } from "@/lib/ciscenje/daniCiscenja";
+import { formatZagreb } from "@/lib/dates";
 
 export const dynamic = "force-dynamic";
 
@@ -56,21 +57,14 @@ async function spremiPostavke(formData: FormData) {
     minutaSlanja: Number(formData.get("minutaSlanja") || 0),
     brojDanaUnaprijed: Number(formData.get("brojDanaUnaprijed") || 7),
 
-    martyBazenPonedjeljak: !!formData.get("martyBazenPonedjeljak"),
-    martyBazenUtorak: !!formData.get("martyBazenUtorak"),
-    martyBazenSrijeda: !!formData.get("martyBazenSrijeda"),
-    martyBazenCetvrtak: !!formData.get("martyBazenCetvrtak"),
-    martyBazenPetak: !!formData.get("martyBazenPetak"),
-    martyBazenSubota: !!formData.get("martyBazenSubota"),
-    martyBazenNedjelja: !!formData.get("martyBazenNedjelja"),
-
-    evaStubistePonedjeljak: !!formData.get("evaStubistePonedjeljak"),
-    evaStubisteUtorak: !!formData.get("evaStubisteUtorak"),
-    evaStubisteSrijeda: !!formData.get("evaStubisteSrijeda"),
-    evaStubisteCetvrtak: !!formData.get("evaStubisteCetvrtak"),
-    evaStubistePetak: !!formData.get("evaStubistePetak"),
-    evaStubisteSubota: !!formData.get("evaStubisteSubota"),
-    evaStubisteNedjelja: !!formData.get("evaStubisteNedjelja"),
+    // Dani čišćenja zajedničkih prostora — sada KONKRETNI datumi ("YYYY-MM-DD"),
+    // ne više dan u tjednu. Svaka kućica u sekciji dijeli isti `name`, a value je
+    // YMD string; getAll vrati SAMO čekirane. Dates izvan prikazanog prozora se
+    // ovim spremanjem prirodno prune-aju (lista = točno ono što je čekirano).
+    // Stari boolean stupci (martyBazen*/evaStubiste*) su MRTVI — ne pišemo ih.
+    martyBazenDatumi: formData.getAll("martyBazenDatum").map(String),
+    evaStubisteDatumi: formData.getAll("evaStubisteDatum").map(String),
+    martyStubisteDatumi: formData.getAll("martyStubisteDatum").map(String),
   };
 
   const postavke = await prisma.ciscenjeMailPostavke.findFirst();
@@ -152,6 +146,28 @@ function guestName(gost: any) {
   return `${gost?.ime || ""} ${gost?.prezime || ""}`.trim() || "-";
 }
 
+// Lista datuma za kućice odabira (sekcije bazen / stubište Eva / stubište Marty).
+// N = brojDanaUnaprijed kućica, počevši od DANAS (Zagreb), redom. `value` je
+// formatYMD ("YYYY-MM-DD") — isto što predikat (martyBazenZaDan…) kasnije čita,
+// pa se odabir i generiranje garantirano poklapaju. `danas` se računa isto kao u
+// generiranju (startOfDay(new Date())), pa su prozori usklađeni. `label` je
+// hrvatski "pon, 16. 06." (Zagreb zona).
+function datumiZaOdabir(danas: Date, broj: number) {
+  const lista: { value: string; label: string }[] = [];
+  for (let i = 0; i < broj; i++) {
+    const d = addDays(danas, i);
+    lista.push({
+      value: formatYMD(d),
+      label: formatZagreb(d, {
+        weekday: "short",
+        day: "2-digit",
+        month: "2-digit",
+      }),
+    });
+  }
+  return lista;
+}
+
 function tipLabel(tip: string) {
   if (tip === "ZAVRSNO_CISCENJE") return "Završno čišćenje";
   if (tip === "MEDJUCISCENJE_I_POSTELJINA") {
@@ -211,6 +227,11 @@ export default async function CiscenjeAdminPage({
 
   const danas = startOfDay(new Date());
   const doDatuma = addDays(danas, brojDanaZaPlan);
+
+  // Kućice za odabir datuma čišćenja prate SPREMLJENI brojDanaUnaprijed (ne
+  // preview `dana` param). Promjena broja dana → Spremi → kućice se osvježe.
+  const brojDanaKucice = postavke?.brojDanaUnaprijed ?? 7;
+  const datumiKucice = datumiZaOdabir(danas, brojDanaKucice);
 
   const rezervacijeZaOdlazak = await prisma.rezervacija.findMany({
     where: {
@@ -384,6 +405,48 @@ export default async function CiscenjeAdminPage({
     }
   }
 
+  // Stubište Eva — popravak nedosljednosti: prije se prikazivao SAMO bazen.
+  // Sad i Eva stubište po odabranim datumima (paralela s mailom/PDF-om).
+  const prvaEvaJedinica = await prisma.jedinica.findFirst({
+    where: {
+      objekt: {
+        naziv: {
+          contains: "Eva",
+        },
+      },
+    },
+    include: {
+      objekt: true,
+    },
+    orderBy: {
+      sortOrder: "asc",
+    },
+  });
+
+  if (postavke && prvaEvaJedinica) {
+    let d = new Date(danas);
+
+    while (d <= doDatuma) {
+      if (evaStubisteZaDan(postavke, d)) {
+        planItems.push({
+          id: `eva-stubiste-${d.toISOString()}`,
+          datum: new Date(d),
+          tip: "DODATNO_CISCENJE",
+          objekt: prvaEvaJedinica.objekt.naziv,
+          jedinica: "Stubište Eva",
+          gost: "-",
+          brojGostiju: "-",
+          opis: "Čišćenje stubišta zajedničkih prostorija",
+          sljedeciUlazak: "-",
+          brziUlazak: false,
+          nemaUplate: false,
+        });
+      }
+
+      d = addDays(d, 1);
+    }
+  }
+
   planItems.sort((a, b) => {
     const datumDiff = a.datum.getTime() - b.datum.getTime();
     if (datumDiff !== 0) return datumDiff;
@@ -528,96 +591,58 @@ export default async function CiscenjeAdminPage({
               </div>
             </div>
 
+            {/* Dani čišćenja zajedničkih prostora — sada KONKRETNI datumi.
+                N kućica = „Dana unaprijed", redom od danas. Svaka kućica dijeli
+                isti `name`; value = "YYYY-MM-DD" (formatYMD). */}
             <div style={{ ...cardStyle, marginTop: 18 }}>
-              <h2>Marty bazen / okoliš</h2>
+              <h2>Bazen Marty</h2>
 
               <p style={{ color: "#666" }}>
-                Ako ne označiš ništa, bazen se ne šalje agenciji.
+                Označi datume kad se čisti bazen. Ako ne označiš ništa, bazen se
+                ne šalje agenciji.
               </p>
 
-              <div style={daysGrid}>
-                <Check
-                  name="martyBazenPonedjeljak"
-                  label="Ponedjeljak"
-                  checked={postavke?.martyBazenPonedjeljak ?? false}
-                />
-                <Check
-                  name="martyBazenUtorak"
-                  label="Utorak"
-                  checked={postavke?.martyBazenUtorak ?? false}
-                />
-                <Check
-                  name="martyBazenSrijeda"
-                  label="Srijeda"
-                  checked={postavke?.martyBazenSrijeda ?? false}
-                />
-                <Check
-                  name="martyBazenCetvrtak"
-                  label="Četvrtak"
-                  checked={postavke?.martyBazenCetvrtak ?? false}
-                />
-                <Check
-                  name="martyBazenPetak"
-                  label="Petak"
-                  checked={postavke?.martyBazenPetak ?? false}
-                />
-                <Check
-                  name="martyBazenSubota"
-                  label="Subota"
-                  checked={postavke?.martyBazenSubota ?? false}
-                />
-                <Check
-                  name="martyBazenNedjelja"
-                  label="Nedjelja"
-                  checked={postavke?.martyBazenNedjelja ?? false}
-                />
-              </div>
+              <DatumiGrid
+                name="martyBazenDatum"
+                datumi={datumiKucice}
+                odabrani={postavke?.martyBazenDatumi ?? []}
+              />
             </div>
 
             <div style={{ ...cardStyle, marginTop: 18 }}>
               <h2>Stubište Eva</h2>
 
               <p style={{ color: "#666" }}>
-                Ako ne označiš ništa, stubište se ne šalje agenciji.
+                Označi datume kad se čisti stubište. Ako ne označiš ništa,
+                stubište se ne šalje agenciji.
               </p>
 
-              <div style={daysGrid}>
-                <Check
-                  name="evaStubistePonedjeljak"
-                  label="Ponedjeljak"
-                  checked={postavke?.evaStubistePonedjeljak ?? false}
-                />
-                <Check
-                  name="evaStubisteUtorak"
-                  label="Utorak"
-                  checked={postavke?.evaStubisteUtorak ?? false}
-                />
-                <Check
-                  name="evaStubisteSrijeda"
-                  label="Srijeda"
-                  checked={postavke?.evaStubisteSrijeda ?? false}
-                />
-                <Check
-                  name="evaStubisteCetvrtak"
-                  label="Četvrtak"
-                  checked={postavke?.evaStubisteCetvrtak ?? false}
-                />
-                <Check
-                  name="evaStubistePetak"
-                  label="Petak"
-                  checked={postavke?.evaStubistePetak ?? false}
-                />
-                <Check
-                  name="evaStubisteSubota"
-                  label="Subota"
-                  checked={postavke?.evaStubisteSubota ?? false}
-                />
-                <Check
-                  name="evaStubisteNedjelja"
-                  label="Nedjelja"
-                  checked={postavke?.evaStubisteNedjelja ?? false}
-                />
-              </div>
+              <DatumiGrid
+                name="evaStubisteDatum"
+                datumi={datumiKucice}
+                odabrani={postavke?.evaStubisteDatumi ?? []}
+              />
+            </div>
+
+            <div style={{ ...cardStyle, marginTop: 18 }}>
+              <h2>Stubište Marty</h2>
+
+              <p style={{ color: "#666" }}>
+                Označi datume kad se čisti stubište. Ako ne označiš ništa,
+                stubište se ne šalje agenciji.
+              </p>
+
+              <DatumiGrid
+                name="martyStubisteDatum"
+                datumi={datumiKucice}
+                odabrani={postavke?.martyStubisteDatumi ?? []}
+              />
+
+              <p style={{ color: "#888", fontSize: 13, marginTop: 14 }}>
+                Kućice prikazuju narednih {brojDanaKucice} dana (prema polju
+                „Dana unaprijed" gore). Promijeniš li broj dana → prvo spremi →
+                kućice se osvježe.
+              </p>
 
               <button type="submit" style={buttonStyle}>
                 Spremi sve postavke
@@ -808,6 +833,35 @@ function Check({
       <input type="checkbox" name={name} defaultChecked={checked} />
       {label}
     </label>
+  );
+}
+
+// Mreža kućica za odabir KONKRETNIH datuma čišćenja. Sve kućice dijele isti
+// `name` (npr. "martyBazenDatum"), a value je YMD string — server action ih
+// pokupi preko formData.getAll(name). Čekirano = datum je u spremljenoj listi.
+function DatumiGrid({
+  name,
+  datumi,
+  odabrani,
+}: {
+  name: string;
+  datumi: { value: string; label: string }[];
+  odabrani: string[];
+}) {
+  return (
+    <div style={daysGrid}>
+      {datumi.map((d) => (
+        <label key={d.value} style={checkLine}>
+          <input
+            type="checkbox"
+            name={name}
+            value={d.value}
+            defaultChecked={odabrani.includes(d.value)}
+          />
+          {d.label}
+        </label>
+      ))}
+    </div>
   );
 }
 
