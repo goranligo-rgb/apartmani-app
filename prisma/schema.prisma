@@ -631,6 +631,16 @@ model CiscenjeMailPostavke {
   evaStubisteSubota      Boolean @default(false)
   evaStubisteNedjelja    Boolean @default(false)
 
+  // Redizajn dana čišćenja (feat/ciscenje-dani-datumi): umjesto fiksnih dana u
+  // tjednu (gore, sada MRTVI stupci) biramo KONKRETNE datume. Format svakog
+  // elementa: "YYYY-MM-DD" (wall-clock, Europe/Zagreb) — namjerno String[] a NE
+  // DateTime[] da izbjegnemo TZ/DST pomak. Usporedba: lista.includes(formatYMD(d)).
+  // @default([]) — prazno dok korisnik ne označi datume; nitko ne čita dok ne
+  // dođe F2/F3. SQL stupci dodani ručno u Supabase (text[] NOT NULL DEFAULT '{}').
+  martyBazenDatumi    String[] @default([])
+  evaStubisteDatumi   String[] @default([])
+  martyStubisteDatumi String[] @default([])
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
