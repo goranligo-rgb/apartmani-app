@@ -1,4 +1,9 @@
 import crypto from "crypto";
+import { formatZagreb } from "@/lib/dates";
+import {
+  odlukaTtlockAkcije,
+  type TtlockAkcija,
+} from "@/lib/ttlock-odluka";
 
 const TTLOCK_BASE_URL = "https://api.sciener.com";
 
@@ -195,4 +200,97 @@ export async function obrisiTtlockSifru(params: {
   });
   console.log("[ttlock-delete]", JSON.stringify(odgovor));
   return odgovor;
+}
+
+// ── Orkestrator: sinkroniziraj šifru na bravu (ADD / CHANGE / fallback DELETE+ADD) ──
+//
+// Jedini ulaz za pozivatelje (cron whatsapp-checkin + admin [id]) umjesto golog
+// dodajTtlockSifru. Riješava bug "The same passcode already exists." tako da kad
+// brava VEĆ ima šifru (postoji keyboardPwdId) ne dodaje novu nego je MIJENJA.
+//
+// Vraća { akcija, keyboardPwdId } — pozivatelj radi DB-update (status POSLANO +
+// spremi keyboardPwdId). Pri potpunom neuspjehu (i fallback add baci) → throwa,
+// pozivatelj to hvata i postavlja status GRESKA (kao i dosad).
+export async function sinkronizirajTtlockSifru(params: {
+  lockId: string | number;
+  keyboardPwdId?: string | null;
+  sifra: string;
+  vrijediOd: Date;
+  vrijediDo: Date;
+  sifraNaBravi?: string | null; // zadnji broj na bravi; zasad uvijek undefined
+  naziv?: string;
+}): Promise<{ akcija: TtlockAkcija; keyboardPwdId: string | null }> {
+  const odluka = odlukaTtlockAkcije({
+    keyboardPwdId: params.keyboardPwdId,
+    sifra: params.sifra,
+    sifraNaBravi: params.sifraNaBravi,
+  });
+
+  // Log akcije (bez šifre gosta) — pokazuje ide li ADD vs CHANGE i KOJE vrijeme
+  // (ms + čitljivo Europe/Zagreb), ključno za provjeru u DRY_RUN-u prije brave.
+  const opcije: Intl.DateTimeFormatOptions = {
+    day: "2-digit",
+    month: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  };
+  console.log("[ttlock-sync]",
+    "akcija:", odluka.akcija,
+    "razlog:", odluka.razlog,
+    "saljiNoviBroj:", odluka.saljiNoviBroj,
+    "lockId:", Number(params.lockId),
+    "keyboardPwdId:", String(params.keyboardPwdId ?? "-"),
+    "od:", `${params.vrijediOd.getTime()} (${formatZagreb(params.vrijediOd, opcije)})`,
+    "do:", `${params.vrijediDo.getTime()} (${formatZagreb(params.vrijediDo, opcije)})`);
+
+  if (odluka.akcija === "ADD") {
+    const resp: any = await dodajTtlockSifru({
+      lockId: params.lockId,
+      sifra: params.sifra,
+      naziv: params.naziv,
+      vrijediOd: params.vrijediOd,
+      vrijediDo: params.vrijediDo,
+    });
+    return {
+      akcija: "ADD",
+      keyboardPwdId: resp?.keyboardPwdId ? String(resp.keyboardPwdId) : null,
+    };
+  }
+
+  // CHANGE — zadrži isti keyboardPwdId; newKeyboardPwd samo ako mijenjamo broj.
+  try {
+    await promijeniTtlockSifru({
+      lockId: params.lockId,
+      keyboardPwdId: params.keyboardPwdId!,
+      vrijediOd: params.vrijediOd,
+      vrijediDo: params.vrijediDo,
+      sifra: odluka.saljiNoviBroj ? params.sifra : undefined,
+      naziv: params.naziv,
+    });
+    return { akcija: "CHANGE", keyboardPwdId: String(params.keyboardPwdId) };
+  } catch (err: any) {
+    // Fallback: change pao (npr. pwdId zastario na bravi) → obriši staru (ako
+    // još postoji) pa dodaj novu s istim brojem. Delete grešku gutamo (možda
+    // šifra već ne postoji); presudan je uspjeh add-a.
+    console.log("[ttlock-sync] CHANGE pao → fallback DELETE+ADD:", err?.message);
+    try {
+      await obrisiTtlockSifru({
+        lockId: params.lockId,
+        keyboardPwdId: params.keyboardPwdId!,
+      });
+    } catch (delErr: any) {
+      console.log("[ttlock-sync] delete u fallbacku preskočen:", delErr?.message);
+    }
+    const resp: any = await dodajTtlockSifru({
+      lockId: params.lockId,
+      sifra: params.sifra,
+      naziv: params.naziv,
+      vrijediOd: params.vrijediOd,
+      vrijediDo: params.vrijediDo,
+    });
+    return {
+      akcija: "DELETE_ADD",
+      keyboardPwdId: resp?.keyboardPwdId ? String(resp.keyboardPwdId) : null,
+    };
+  }
 }
