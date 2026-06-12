@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { generirajINaPosalji } from "@/lib/ciscenje/generirajINaPosalji";
 import { adminSessionOk } from "@/lib/admin-auth";
 // Predikat dana čišćenja po konkretnom datumu — jedini izvor istine.
-import { martyBazenZaDan, evaStubisteZaDan, formatYMD } from "@/lib/ciscenje/daniCiscenja";
+import { martyBazenZaDan, evaStubisteZaDan, martyStubisteZaDan, formatYMD } from "@/lib/ciscenje/daniCiscenja";
 import { formatZagreb } from "@/lib/dates";
 
 export const dynamic = "force-dynamic";
@@ -434,6 +434,32 @@ export default async function CiscenjeAdminPage({
           tip: "DODATNO_CISCENJE",
           objekt: prvaEvaJedinica.objekt.naziv,
           jedinica: "Stubište Eva",
+          gost: "-",
+          brojGostiju: "-",
+          opis: "Čišćenje stubišta zajedničkih prostorija",
+          sljedeciUlazak: "-",
+          brziUlazak: false,
+          nemaUplate: false,
+        });
+      }
+
+      d = addDays(d, 1);
+    }
+  }
+
+  // Stubište Marty — preko prve Marty jedinice (`prvaMartyJedinica`, gore za
+  // bazen). Oblik retka identičan Evi/bazenu.
+  if (postavke && prvaMartyJedinica) {
+    let d = new Date(danas);
+
+    while (d <= doDatuma) {
+      if (martyStubisteZaDan(postavke, d)) {
+        planItems.push({
+          id: `marty-stubiste-${d.toISOString()}`,
+          datum: new Date(d),
+          tip: "DODATNO_CISCENJE",
+          objekt: prvaMartyJedinica.objekt.naziv,
+          jedinica: "Stubište Marty",
           gost: "-",
           brojGostiju: "-",
           opis: "Čišćenje stubišta zajedničkih prostorija",

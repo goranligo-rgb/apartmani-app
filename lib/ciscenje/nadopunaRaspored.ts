@@ -30,6 +30,7 @@ import {
 import {
   martyBazenZaDan,
   evaStubisteZaDan,
+  martyStubisteZaDan,
 } from "@/lib/ciscenje/daniCiscenja";
 
 // ── Oblik jednog retka plana ──
@@ -322,11 +323,37 @@ export async function izracunajRasporedZaPeriod(
     }
   }
 
+  // 5) Stubište Marty — isto kao Eva, ali preko prve Marty jedinice
+  // (`prvaJedinica`, dohvaćena gore za bazen). Oblik retka identičan Evi.
+  const stavkeStubisteMarty: StavkaPlana[] = [];
+
+  if (prvaJedinica) {
+    let d = danas;
+
+    while (d <= doDatuma) {
+      if (martyStubisteZaDan(postavke, d)) {
+        stavkeStubisteMarty.push({
+          datum: new Date(d),
+          tip: "DODATNO_CISCENJE",
+          nazivJedinice: "Stubište Marty",
+          nazivObjekta: prvaJedinica.objekt.naziv,
+          brojGostiju: 0,
+          osnovniKapacitet: 0,
+          opis: "Čišćenje stubišta zajedničkih prostorija",
+          sljedeciUlazak: "-",
+        });
+      }
+
+      d = addDays(d, 1);
+    }
+  }
+
   return [
     ...stavkeApartmani,
     ...stavkeMedjuciscenje,
     ...stavkeBazen,
     ...stavkeStubiste,
+    ...stavkeStubisteMarty,
   ].sort((a, b) => a.datum.getTime() - b.datum.getTime());
 }
 

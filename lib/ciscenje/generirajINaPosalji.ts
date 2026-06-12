@@ -14,6 +14,7 @@ import {
 import {
   martyBazenZaDan,
   evaStubisteZaDan,
+  martyStubisteZaDan,
 } from "@/lib/ciscenje/daniCiscenja";
 
 const resend = new Resend(process.env.RESEND_API_KEY!);
@@ -104,6 +105,12 @@ async function findOrCreateZadatak(data: {
       rezervacijaId: data.rezervacijaId || null,
       datum: data.datum,
       tip: data.tip,
+      // `naslov` u ključu razdvaja dva DODATNO_CISCENJE zadatka na ISTOJ Marty
+      // jedinici i istom datumu (Bazen Marty vs Stubište Marty) — inače bi drugi
+      // reuse-ao prvog (isti jedinicaId+datum+tip+rezervacijaId=null) i pregazio
+      // mu trošak. Svi naslovi su deterministični po tipu/jedinici → idempotencija
+      // ostalih tipova (završno, međučišćenje, bazen, Eva) ostaje očuvana.
+      naslov: data.naslov,
     },
   });
 
@@ -520,11 +527,64 @@ export async function generirajINaPosalji() {
     }
   }
 
+  // Stubište Marty — isto kao Eva, ali vezano na prvu Marty jedinicu
+  // (`prvaJedinica`, dohvaćena gore za bazen). Oblik retka identičan Evi →
+  // samo dodaje nove retke, render/stupci nepromijenjeni.
+  const stavkeStubisteMarty: any[] = [];
+
+  if (prvaJedinica) {
+    let d = danas;
+
+    while (d <= doDatuma) {
+      if (martyStubisteZaDan(postavke, d)) {
+        const opis = "Čišćenje stubišta zajedničkih prostorija";
+
+        const zadatak = await findOrCreateZadatak({
+          jedinicaId: prvaJedinica.id,
+          rezervacijaId: null,
+          datum: startOfDay(d),
+          tip: "DODATNO_CISCENJE",
+          naslov: "Stubište Marty",
+          opis,
+          prioritet: false,
+        });
+
+        if (troskoviEnabled) {
+          await upsertTrosak({
+            zadatakId: zadatak.id,
+            kategorija: "STUBISTE",
+            jedinicaId: prvaJedinica.id,
+            objektId: prvaJedinica.objekt.id,
+            datum: startOfDay(d),
+            iznos: postavke.stubisteCijena ?? 0,
+          });
+        }
+
+        stavkeStubisteMarty.push({
+          datum: new Date(d),
+          tip: "DODATNO_CISCENJE" as const,
+          jedinicaId: prvaJedinica.id,
+          zadatakId: zadatak.id,
+          nazivJedinice: "Stubište Marty",
+          nazivObjekta: prvaJedinica.objekt.naziv,
+          brojGostiju: 0,
+          osnovniKapacitet: 0,
+          opis,
+          sljedeciUlazak: "-",
+          cijena: 0,
+        });
+      }
+
+      d = addDays(d, 1);
+    }
+  }
+
   const sveStavkeZaMail = [
     ...stavkeApartmani,
     ...stavkeMedjuciscenje,
     ...stavkeBazen,
     ...stavkeStubiste,
+    ...stavkeStubisteMarty,
   ].sort((a, b) => a.datum.getTime() - b.datum.getTime());
 
   if (sveStavkeZaMail.length === 0) {

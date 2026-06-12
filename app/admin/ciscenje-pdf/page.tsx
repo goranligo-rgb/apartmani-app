@@ -9,6 +9,7 @@ import {
 import {
   martyBazenZaDan,
   evaStubisteZaDan,
+  martyStubisteZaDan,
 } from "@/lib/ciscenje/daniCiscenja";
 
 export const dynamic = "force-dynamic";
@@ -292,6 +293,31 @@ export default async function PlanCiscenjaPdfPage({
           tip: "DODATNO_CISCENJE",
           objekt: prvaEvaJedinica.objekt.naziv,
           jedinica: "Stubište Eva",
+          gost: "-",
+          brojGostiju: "-",
+          opis: "Čišćenje stubišta zajedničkih prostorija",
+          sljedeciUlazak: "-",
+          brziUlazak: false,
+        });
+      }
+
+      d = addDays(d, 1);
+    }
+  }
+
+  // Stubište Marty — isto kao Eva, ali preko prve Marty jedinice. Oblik retka
+  // identičan → samo dodaje nove retke u PDF.
+  if (postavke && prvaMartyJedinica) {
+    let d = new Date(danas);
+
+    while (d <= doDatuma) {
+      if (martyStubisteZaDan(postavke, d)) {
+        planItems.push({
+          id: `stubiste-marty-${d.toISOString()}`,
+          datum: new Date(d),
+          tip: "DODATNO_CISCENJE",
+          objekt: prvaMartyJedinica.objekt.naziv,
+          jedinica: "Stubište Marty",
           gost: "-",
           brojGostiju: "-",
           opis: "Čišćenje stubišta zajedničkih prostorija",
