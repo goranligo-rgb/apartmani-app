@@ -10,6 +10,7 @@ import {
   formatDateZaMail,
   money,
 } from "@/lib/mailovi";
+import { rezerviraniJezik } from "@/lib/jezik";
 
 export const dynamic = "force-dynamic";
 
@@ -341,7 +342,7 @@ async function obradiPlacanjeAkoTreba(placanjeId: string, sessionId?: string) {
     : "";
 
   if (gost?.email) {
-    const jezik = odaberiJezikMaila(gost.jezik);
+    const jezik = odaberiJezikMaila(rezerviraniJezik(gost));
     const t = dohvatiPrijevode(jezik).uspjehPlacanje;
     const placeno = noviOstatak <= 0;
 

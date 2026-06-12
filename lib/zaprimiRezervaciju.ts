@@ -8,6 +8,7 @@ import {
   formatDateZaMail,
   money,
 } from "@/lib/mailovi";
+import { rezerviraniJezik } from "@/lib/jezik";
 import { imaInfobipKonfiguraciju, posaljiSmsInfobip } from "@/lib/infobip";
 import { kratkaJedinica } from "@/lib/smsIzvjestaj";
 
@@ -190,7 +191,7 @@ export async function zaprimiAutoriziranuRezervaciju(args: {
   // Ako mail gostu već postoji u logu (npr. status ručno resetiran na UPIT
   // nakon već poslanih mailova), ne šaljemo ništa opet.
   const gostEmail = r.gost?.email || "";
-  const jezik = odaberiJezikMaila(r.gost?.jezik);
+  const jezik = odaberiJezikMaila(rezerviraniJezik(r.gost));
   const t = dohvatiPrijevode(jezik).zaprimiRezervaciju;
 
   if (gostEmail) {

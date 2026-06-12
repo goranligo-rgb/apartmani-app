@@ -8,6 +8,7 @@ import {
   odaberiJezikMaila,
   formatDateZaMail,
 } from "@/lib/mailovi";
+import { rezerviraniJezik } from "@/lib/jezik";
 
 // Zajednička logika potvrde/naplate plaćanja — izlučena iz
 // /api/admin/placanja/potvrdi-link route handlera.
@@ -328,7 +329,9 @@ export async function potvrdiNaplatu(
         placanje.rezervacija.gost?.email || "goran.ligo@gmail.com";
       const ccEmails = getCcEmails(objekt);
 
-      const jezik = odaberiJezikMaila(placanje.rezervacija.gost?.jezik);
+      const jezik = odaberiJezikMaila(
+        rezerviraniJezik(placanje.rezervacija.gost)
+      );
       const t = dohvatiPrijevode(jezik).potvrdaNaplate;
       const placeno = noviStatus === "PLACENO";
 

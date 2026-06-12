@@ -572,7 +572,7 @@ export default async function RezervacijaDetaljPage({
     });
 
     if (r.gost?.email) {
-      const jezik = odaberiJezikMaila(r.gost.jezik);
+      const jezik = odaberiJezikMaila(rezerviraniJezik(r.gost));
       const t = dohvatiPrijevode(jezik).rezervacijaOdbijena;
 
       await resend.emails.send({
@@ -763,7 +763,7 @@ export default async function RezervacijaDetaljPage({
     const baseUrl = await getAppUrl();
     const paymentLink = `${baseUrl}/api/rezervacije/create-payment?placanjeId=${placanje.id}`;
 
-    const jezik = odaberiJezikMaila(r.gost?.jezik);
+    const jezik = odaberiJezikMaila(rezerviraniJezik(r.gost));
     const t = dohvatiPrijevode(jezik).zahtjevZaUplatu;
 
     const subject = t.subject(tip);
@@ -1014,7 +1014,7 @@ export default async function RezervacijaDetaljPage({
     const slug = nazivToSlug(r.jedinica.objekt.naziv);
     if (!slug) throw new Error("Za ovaj objekt ne postoji welcome vodič.");
 
-    const jezik = vodicJezik(jezikRaw || r.gost?.jezik);
+    const jezik = vodicJezik(jezikRaw || rezerviraniJezik(r.gost));
     const t = dohvatiPrijevode(jezik).dobrodoslica;
     const appUrl = await getAppUrl();
 

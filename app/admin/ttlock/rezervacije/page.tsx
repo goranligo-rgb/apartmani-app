@@ -8,6 +8,7 @@ import {
   odaberiJezikMaila,
   formatDateTimeZaMail,
 } from "@/lib/mailovi";
+import { rezerviraniJezik } from "@/lib/jezik";
 
 export const dynamic = "force-dynamic";
 
@@ -223,7 +224,7 @@ async function posaljiSifruGostu(formData: FormData) {
     if (rezervacija.ttlockSifre.length === 0) return;
 
     const prva = rezervacija.ttlockSifre[0];
-    const jezik = odaberiJezikMaila(rezervacija.gost.jezik);
+    const jezik = odaberiJezikMaila(rezerviraniJezik(rezervacija.gost));
     const t = dohvatiPrijevode(jezik).ttlockSifra;
 
     // House Art (vrsta=KUCA) ima samo 1 jedinicu istog naziva kao objekt —

@@ -6,6 +6,7 @@ import {
   odaberiJezikMaila,
   formatDateZaMail,
 } from "@/lib/mailovi";
+import { rezerviraniJezik } from "@/lib/jezik";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 const BCC_EMAIL = process.env.MAIL_BCC || "goran@malinska-stay.hr";
@@ -146,7 +147,7 @@ export async function GET() {
       }
 
       const paymentLink = `${baseUrl}/placanje/${placanje.id}`;
-      const jezik = odaberiJezikMaila(r.gost.jezik);
+      const jezik = odaberiJezikMaila(rezerviraniJezik(r.gost));
       const t = dohvatiPrijevode(jezik).podsjetnikOstatak;
 
       await resend.emails.send({
