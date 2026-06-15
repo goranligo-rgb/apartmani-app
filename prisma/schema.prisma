@@ -253,6 +253,16 @@ model Rezervacija {
   automatskoCiscenje   Boolean @default(true)
   automatskaPosteljina Boolean @default(true)
 
+  // Fleksibilno čišćenje (feat/ciscenje-fleksibilno).
+  // odgodaCiscenjaDana: pomak ZAVRSNO_CISCENJE u danima naprijed od datumDo
+  //   (A — admin potvrdi odgodu kad nema ulaza sljedećih dana). 0 = bez pomaka.
+  // ciscenjeOdOverride: per-slučaj vrijeme početka čišćenja "HH:MM"
+  //   (C — npr. "08:00" kad nema žurbe). null = koristi globalni default iz
+  //   CiscenjeMailPostavke. SQL stupci dodani ručno u Supabase.
+  // NO-OP u F0: nitko još ne čita ova polja (ožičavaju se u F1–F3).
+  odgodaCiscenjaDana   Int     @default(0)
+  ciscenjeOdOverride   String?
+
   obrisanoAt       DateTime?
   obrisaoKorisnik String?
   statusPrijeBrisanja StatusRezervacije?
@@ -610,6 +620,13 @@ model CiscenjeMailPostavke {
 
   satSlanja    Int @default(8)
   minutaSlanja Int @default(0)
+
+  // Globalni default vremena kad čistačice mogu početi čišćenje (C —
+  // feat/ciscenje-fleksibilno). Prikazuje se u novom stupcu "Čišćenje od"
+  // u mailu/PDF-u; per-slučaj se override-a preko Rezervacija.ciscenjeOdOverride.
+  // SQL stupci dodani ručno u Supabase. NO-OP u F0: još se ne čita.
+  ciscenjeOdSat    Int @default(10)
+  ciscenjeOdMinuta Int @default(0)
 
   brojDanaUnaprijed Int @default(7)
 
