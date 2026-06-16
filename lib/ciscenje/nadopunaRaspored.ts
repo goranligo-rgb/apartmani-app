@@ -32,6 +32,13 @@ import {
   evaStubisteZaDan,
   martyStubisteZaDan,
 } from "@/lib/ciscenje/daniCiscenja";
+// Vrijeme "Čišćenje od" (samo ZAVRSNO; ostalo → "-") + efektivni datum čišćenja
+// (dan odlaska + odgoda). F3a: efektivni datum (NO-OP dok je odgoda 0).
+import {
+  ciscenjeOdZaTip,
+  efektivniDatumCiscenja,
+  ulazakIstiDan,
+} from "@/lib/ciscenje/ciscenjeVrijeme";
 
 // ── Oblik jednog retka plana ──
 // Identičan "valuti" koju tjedni gradi (stavkeApartmani/medjuciscenje/bazen/
@@ -51,6 +58,12 @@ export type StavkaPlana = {
   opis: string;
   sljedeciUlazak: string;
   jeBrziUlazak?: boolean;
+  // F3c: efektivni datum čišćenja pada BAŠ na dan dolaska sljedećeg gosta
+  // (ulazak isti dan → očistiti ujutro). Vodi highlight + upozorenje u renderu.
+  ulazakIstiDan?: boolean;
+  // Per-slučaj override vremena "Čišćenje od" ("HH:MM"). U F1 se ne postavlja
+  // (uvijek globalni default); ožičava se u F2.
+  ciscenjeOdOverride?: string | null;
 };
 
 // ── Format/util helperi (trivijalni — duplikat iz tjednog je bezopasan) ──
@@ -118,6 +131,10 @@ async function stavkaZaZavrsnoCiscenje(r: {
   jedinicaId: string;
   datumDo: Date;
   brojOsoba: number | null;
+  // Per-slučaj vrijeme "Čišćenje od" (override); null = fiksni default 10:00.
+  ciscenjeOdOverride?: string | null;
+  // Pomak završnog čišćenja u danima (F3a); 0/undefined = bez pomaka.
+  odgodaCiscenjaDana?: number | null;
   jedinica: {
     naziv: string;
     osnovniKapacitet: number | null;
@@ -150,8 +167,12 @@ async function stavkaZaZavrsnoCiscenje(r: {
     datumDo: r.datumDo,
   });
 
+  // Efektivni (pomaknuti) datum čišćenja — isti račun kao tjedni; koristi se i
+  // za redak i za "ulazak isti dan" upozorenje (F3c).
+  const efektivni = efektivniDatumCiscenja(r.datumDo, r.odgodaCiscenjaDana);
+
   return {
-    datum: startOfDay(r.datumDo),
+    datum: efektivni,
     tip: "ZAVRSNO_CISCENJE",
     nazivJedinice: r.jedinica.naziv,
     nazivObjekta: r.jedinica.objekt.naziv,
@@ -164,6 +185,9 @@ async function stavkaZaZavrsnoCiscenje(r: {
     opis: "Čišćenje nakon odlaska gosta.",
     sljedeciUlazak: ulazInfo.tekst,
     jeBrziUlazak: ulazInfo.jeBrziUlazak,
+    // F3c: ulazak isti dan računat na EFEKTIVNI datum (ne dan odlaska).
+    ulazakIstiDan: ulazakIstiDan(efektivni, sljedecaRezervacija?.datumOd ?? null),
+    ciscenjeOdOverride: r.ciscenjeOdOverride ?? null,
   };
 }
 
@@ -176,6 +200,10 @@ export async function stavkaZaNovuRezervaciju(r: {
   jedinicaId: string;
   datumDo: Date;
   brojOsoba: number | null;
+  // Per-slučaj vrijeme "Čišćenje od" (override); null = fiksni default 10:00.
+  ciscenjeOdOverride?: string | null;
+  // Pomak završnog čišćenja u danima (F3a); 0/undefined = bez pomaka.
+  odgodaCiscenjaDana?: number | null;
   jedinica: {
     naziv: string;
     osnovniKapacitet: number | null;
@@ -401,6 +429,7 @@ export function renderTablicaPlana(stavke: StavkaPlana[]): string {
       <table cellpadding="8" cellspacing="0" style="border-collapse: collapse; width:100%; font-size:13px; background:white;">
         <tr style="background:#e9ecef;">
           <th align="left" style="border:1px solid #999;">Datum odlaska</th>
+          <th align="left" style="border:1px solid #999; background:#e0f2fe;">Čišćenje od</th>
           <th align="left" style="border:1px solid #999;">Objekt</th>
           <th align="left" style="border:1px solid #999;">Jedinica</th>
           <th align="left" style="border:1px solid #999; background:#d1fae5;">Gosti ulaze</th>
@@ -411,14 +440,19 @@ export function renderTablicaPlana(stavke: StavkaPlana[]): string {
 
         ${stavke
           .map((s) => {
-            const smjenaIstiDan = Boolean(s.jeBrziUlazak);
+            // F3c: highlight + upozorenje vezani uz EFEKTIVNI datum (ulazak isti
+            // dan), ne više uz puki razmak===0 dan odlaska. Identično tjednom.
+            const jeUlazakIstiDan = Boolean(s.ulazakIstiDan);
 
             const napomena = dodatnaPosteljinaText(s);
 
             return `
-              <tr style="${smjenaIstiDan ? "background:#fff1f1;" : ""}">
+              <tr style="${jeUlazakIstiDan ? "background:#fff1f1;" : ""}">
                 <td style="border:1px solid #ccc; vertical-align:top;">${escapeHtml(
                   formatDate(s.datum)
+                )}</td>
+                <td style="border:1px solid #999; vertical-align:top; font-weight:900; background:#f0f9ff;">${escapeHtml(
+                  ciscenjeOdZaTip(s.tip, s.ciscenjeOdOverride)
                 )}</td>
                 <td style="border:1px solid #ccc; vertical-align:top;">${escapeHtml(
                   s.nazivObjekta || ""
@@ -432,8 +466,8 @@ export function renderTablicaPlana(stavke: StavkaPlana[]): string {
                 <td style="border:1px solid #ccc; vertical-align:top;">
                   ${escapeHtml(s.opis || "")}
                   ${
-                    smjenaIstiDan
-                      ? `<div style="margin-top:6px; color:#b42318; font-weight:900; font-size:13px;">SMJENA ISTI DAN</div>`
+                    jeUlazakIstiDan
+                      ? `<div style="margin-top:6px; color:#b42318; font-weight:900; font-size:13px;">Ulazak isti dan - očistiti ujutro</div>`
                       : ""
                   }
                 </td>

@@ -621,10 +621,10 @@ model CiscenjeMailPostavke {
   satSlanja    Int @default(8)
   minutaSlanja Int @default(0)
 
-  // Globalni default vremena kad čistačice mogu početi čišćenje (C —
-  // feat/ciscenje-fleksibilno). Prikazuje se u novom stupcu "Čišćenje od"
-  // u mailu/PDF-u; per-slučaj se override-a preko Rezervacija.ciscenjeOdOverride.
-  // SQL stupci dodani ručno u Supabase. NO-OP u F0: još se ne čita.
+  // MRTVA polja (feat/ciscenje-fleksibilno): pojednostavljenjem je default
+  // vremena "Čišćenje od" tvrdo kodiran na "10:00", a per-slučaj se override-a
+  // preko Rezervacija.ciscenjeOdOverride. Ova dva stupca se VIŠE NE ČITAJU ni
+  // pišu; ostaju u bazi (kao i stari boolean *Dan stupci) da ne diramo Supabase.
   ciscenjeOdSat    Int @default(10)
   ciscenjeOdMinuta Int @default(0)
 

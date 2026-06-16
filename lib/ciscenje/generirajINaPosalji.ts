@@ -16,6 +16,13 @@ import {
   evaStubisteZaDan,
   martyStubisteZaDan,
 } from "@/lib/ciscenje/daniCiscenja";
+// Vrijeme "Čišćenje od" (samo ZAVRSNO; ostalo → "-") + efektivni datum čišćenja
+// (dan odlaska + odgoda). F3a: efektivni datum (NO-OP dok je odgoda 0).
+import {
+  ciscenjeOdZaTip,
+  efektivniDatumCiscenja,
+  ulazakIstiDan,
+} from "@/lib/ciscenje/ciscenjeVrijeme";
 
 const resend = new Resend(process.env.RESEND_API_KEY!);
 
@@ -244,10 +251,18 @@ export async function generirajINaPosalji() {
         `Broj gostiju: ${r.brojOsoba || 0}. ` +
         `Sljedeći ulazak: ${sljedeciUlazak}.`;
 
+      // Efektivni datum čišćenja = dan odlaska + odgoda (F3a; NO-OP dok je
+      // odgoda 0). Isti datum koristi Zadatak, Trošak i redak u mailu da ostanu
+      // poravnati.
+      const datumCiscenja = efektivniDatumCiscenja(
+        r.datumDo,
+        r.odgodaCiscenjaDana
+      );
+
       const zadatak = await findOrCreateZadatak({
         jedinicaId: r.jedinicaId,
         rezervacijaId: r.id,
-        datum: startOfDay(r.datumDo),
+        datum: datumCiscenja,
         tip: "ZAVRSNO_CISCENJE",
         naslov: `Završno čišćenje - ${r.jedinica.naziv}`,
         opis,
@@ -260,7 +275,7 @@ export async function generirajINaPosalji() {
           kategorija: "CISCENJE",
           jedinicaId: r.jedinicaId,
           objektId: r.jedinica.objekt.id,
-          datum: startOfDay(r.datumDo),
+          datum: datumCiscenja,
           iznos: cjenikMap.get(r.jedinicaId)?.cijenaCiscenja ?? 0,
         });
       }
@@ -288,11 +303,21 @@ export async function generirajINaPosalji() {
       // Opis u mailu je UVIJEK isti; dodatna posteljina ide samo u stupac Napomena.
       const opisMail = "Čišćenje nakon odlaska gosta.";
 
+      // "Ulazak isti dan" (F3c): EFEKTIVNI datum čišćenja pada BAŠ na dan dolaska
+      // sljedećeg gosta → čisti se ujutro prije ulaska. Bazirano na efektivnom
+      // (pomaknutom) datumu, ne na danu odlaska; pri odgodi 0 jednako razmak===0.
+      const jeUlazakIstiDan = ulazakIstiDan(
+        datumCiscenja,
+        sljedecaRezervacija?.datumOd ?? null
+      );
+
       return {
-        datum: startOfDay(r.datumDo),
+        datum: datumCiscenja,
         tip: "ZAVRSNO_CISCENJE" as const,
         jedinicaId: r.jedinicaId,
         zadatakId: zadatak.id,
+        // Per-slučaj vrijeme "Čišćenje od" (override); null = fiksni default 10:00.
+        ciscenjeOdOverride: r.ciscenjeOdOverride,
         nazivJedinice: r.jedinica.naziv,
         nazivObjekta: r.jedinica.objekt.naziv,
         brojGostiju: r.brojOsoba || 0,
@@ -305,6 +330,8 @@ export async function generirajINaPosalji() {
         opis: opisMail,
         sljedeciUlazak: ulazInfo.tekst,
         jeBrziUlazak: ulazInfo.jeBrziUlazak,
+        // F3c: highlight retka + upozorenje "Ulazak isti dan" (efektivni datum).
+        ulazakIstiDan: jeUlazakIstiDan,
         cijena: 0,
       };
     })
@@ -677,6 +704,7 @@ export async function generirajINaPosalji() {
       <table cellpadding="8" cellspacing="0" style="border-collapse: collapse; width:100%; font-size:13px; background:white;">
         <tr style="background:#e9ecef;">
           <th align="left" style="border:1px solid #999;">Datum odlaska</th>
+          <th align="left" style="border:1px solid #999; background:#e0f2fe;">Čišćenje od</th>
           <th align="left" style="border:1px solid #999;">Objekt</th>
           <th align="left" style="border:1px solid #999;">Jedinica</th>
           <th align="left" style="border:1px solid #999; background:#d1fae5;">Gosti ulaze</th>
@@ -687,14 +715,19 @@ export async function generirajINaPosalji() {
 
         ${sveStavkeZaMail
           .map((s) => {
-            const smjenaIstiDan = Boolean(s.jeBrziUlazak);
+            // F3c: highlight + upozorenje vezani uz EFEKTIVNI datum čišćenja
+            // (ulazak isti dan), ne više uz puki razmak===0 dan odlaska.
+            const jeUlazakIstiDan = Boolean(s.ulazakIstiDan);
 
             const napomena = dodatnaPosteljinaText(s);
 
             return `
-              <tr style="${smjenaIstiDan ? "background:#fff1f1;" : ""}">
+              <tr style="${jeUlazakIstiDan ? "background:#fff1f1;" : ""}">
                 <td style="border:1px solid #ccc; vertical-align:top;">${escapeHtml(
                   formatDate(s.datum)
+                )}</td>
+                <td style="border:1px solid #999; vertical-align:top; font-weight:900; background:#f0f9ff;">${escapeHtml(
+                  ciscenjeOdZaTip(s.tip, s.ciscenjeOdOverride)
                 )}</td>
                 <td style="border:1px solid #ccc; vertical-align:top;">${escapeHtml(
                   s.nazivObjekta || ""
@@ -708,8 +741,8 @@ export async function generirajINaPosalji() {
                 <td style="border:1px solid #ccc; vertical-align:top;">
                   ${escapeHtml(s.opis || "")}
                   ${
-                    smjenaIstiDan
-                      ? `<div style="margin-top:6px; color:#b42318; font-weight:900; font-size:13px;">SMJENA ISTI DAN</div>`
+                    jeUlazakIstiDan
+                      ? `<div style="margin-top:6px; color:#b42318; font-weight:900; font-size:13px;">Ulazak isti dan - očistiti ujutro</div>`
                       : ""
                   }
                 </td>

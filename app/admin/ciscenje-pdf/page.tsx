@@ -11,6 +11,13 @@ import {
   evaStubisteZaDan,
   martyStubisteZaDan,
 } from "@/lib/ciscenje/daniCiscenja";
+// Vrijeme "Čišćenje od" (samo ZAVRSNO; ostalo → "-") + efektivni datum čišćenja
+// (dan odlaska + odgoda). F3a: efektivni datum (NO-OP dok je odgoda 0).
+import {
+  ciscenjeOdZaTip,
+  efektivniDatumCiscenja,
+  ulazakIstiDan,
+} from "@/lib/ciscenje/ciscenjeVrijeme";
 
 export const dynamic = "force-dynamic";
 
@@ -28,10 +35,6 @@ function addDays(d: Date, days: number) {
   const x = new Date(d);
   x.setDate(x.getDate() + days);
   return x;
-}
-
-function sameDay(a: Date, b: Date) {
-  return startOfDay(a).getTime() === startOfDay(b).getTime();
 }
 
 function formatDatum(d: Date) {
@@ -68,6 +71,8 @@ type PlanItem = {
   opis: string;
   sljedeciUlazak: string;
   brziUlazak: boolean;
+  // Per-slučaj vrijeme "Čišćenje od" (override); null = fiksni default 10:00.
+  ciscenjeOdOverride?: string | null;
 };
 
 export default async function PlanCiscenjaPdfPage({
@@ -163,9 +168,13 @@ export default async function PlanCiscenjaPdfPage({
       },
     });
 
-    const brziUlazak = sljedecaRezervacija
-      ? sameDay(r.datumDo, sljedecaRezervacija.datumOd)
-      : false;
+    // F3c: "ulazak isti dan" računamo na EFEKTIVNI (pomaknuti) datum čišćenja,
+    // ne više na dan odlaska. Pri odgodi 0 efektivni === datumDo → identično.
+    const efektivni = efektivniDatumCiscenja(r.datumDo, r.odgodaCiscenjaDana);
+    const brziUlazak = ulazakIstiDan(
+      efektivni,
+      sljedecaRezervacija?.datumOd ?? null
+    );
 
     const sljedeciUlazak = sljedecaRezervacija
       ? `${formatDatum(sljedecaRezervacija.datumOd)} — ${guestName(
@@ -185,15 +194,16 @@ export default async function PlanCiscenjaPdfPage({
 
     planItems.push({
       id: `odlazak-${r.id}`,
-      datum: startOfDay(r.datumDo),
+      datum: efektivni,
       tip: "ZAVRSNO_CISCENJE",
+      ciscenjeOdOverride: r.ciscenjeOdOverride,
       objekt: r.jedinica.objekt.naziv,
       jedinica: r.jedinica.naziv,
       gost: guestName(r.gost),
       brojGostiju: r.brojOsoba || "-",
       opis:
         (brziUlazak
-          ? "BRZI ULAZAK isti dan — očistiti odmah nakon odlaska gosta."
+          ? "Ulazak isti dan — očistiti ujutro."
           : "Čišćenje nakon odlaska gosta.") + dodatnaRecenica,
       sljedeciUlazak,
       brziUlazak,
@@ -392,6 +402,7 @@ export default async function PlanCiscenjaPdfPage({
           <thead>
             <tr>
               <th style={thStyle}>Datum</th>
+              <th style={thImportantStyle}>Čišćenje od</th>
               <th style={thStyle}>Objekt</th>
               <th style={thStyle}>Jedinica</th>
               <th style={thStyle}>Tip</th>
@@ -409,12 +420,17 @@ export default async function PlanCiscenjaPdfPage({
                 style={item.brziUlazak ? quickRowStyle : undefined}
               >
                 <td style={tdStyle}>{formatDatum(item.datum)}</td>
+                {/* Čišćenje od — SAMO za završno čišćenje (override ?? 10:00);
+                    bazen/stubište/međučišćenje → "-". */}
+                <td style={tdImportantStyle}>
+                  {ciscenjeOdZaTip(item.tip, item.ciscenjeOdOverride)}
+                </td>
                 <td style={tdStyle}>{item.objekt}</td>
                 <td style={tdStyle}>{item.jedinica}</td>
                 <td style={tdStyle}>
                   <strong>{tipLabel(item.tip)}</strong>
                   {item.brziUlazak && (
-                    <div style={quickBadgeStyle}>BRZI ULAZAK</div>
+                    <div style={quickBadgeStyle}>Ulazak isti dan</div>
                   )}
                 </td>
                 <td style={tdStyle}>{item.gost}</td>
@@ -423,7 +439,7 @@ export default async function PlanCiscenjaPdfPage({
                 <td style={tdImportantStyle}>
                   {item.brziUlazak ? (
                     <>
-                      <strong>BRZI ULAZAK ISTI DAN</strong>
+                      <strong>Ulazak isti dan — očistiti ujutro</strong>
                       <br />
                       {item.sljedeciUlazak || "-"}
                     </>

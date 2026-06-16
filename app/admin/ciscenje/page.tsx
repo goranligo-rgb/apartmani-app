@@ -6,6 +6,15 @@ import { adminSessionOk } from "@/lib/admin-auth";
 // Predikat dana čišćenja po konkretnom datumu — jedini izvor istine.
 import { martyBazenZaDan, evaStubisteZaDan, martyStubisteZaDan, formatYMD } from "@/lib/ciscenje/daniCiscenja";
 import { formatZagreb } from "@/lib/dates";
+// Vrijeme "Čišćenje od" (samo ZAVRSNO; ostalo → "-") + efektivni datum čišćenja
+// (dan odlaska + odgoda). F3a: efektivni datum (NO-OP dok je odgoda 0).
+import {
+  ciscenjeOdZaTip,
+  efektivniDatumCiscenja,
+  ulazakIstiDan,
+} from "@/lib/ciscenje/ciscenjeVrijeme";
+// Razmak ulaska sljedećeg gosta (dani) — za prijedlog-badge "nema ulaza".
+import { razmakUlazakaDana } from "@/lib/ciscenje/dodatnaPosteljina";
 
 export const dynamic = "force-dynamic";
 
@@ -105,6 +114,105 @@ async function spremiNapomenu(formData: FormData) {
   redirect("/admin/ciscenje?napomenaSaved=1#napomena");
 }
 
+// Sprema per-slučaj postavke završnog čišćenja na pojedinu rezervaciju (kartica):
+//   - ciscenjeOdOverride: vrijeme "Čišćenje od" (prazno → null = default 10:00)
+//   - odgodaCiscenjaDana: pomak čišćenja u danima (guard: ne smije preko dolaska
+//     sljedećeg gosta; ako nema ulaza — fiksni limit FIKSNI_MAX_POMAK dana)
+//
+// KRITIČNO (idempotencija): ako ZAVRSNO Zadatak za ovu rezervaciju već postoji
+// (cron ga je kreirao na starom datumu), MIGRIRAMO ga (+ pripadni Trošak) na
+// novi efektivni datum — UPDATE datuma, NE create. Inače bi idući tjedni cron,
+// koji `findOrCreateZadatak` ključa po (jedinica, rezervacija, DATUM, tip,
+// naslov), našao prazno na novom datumu i stvorio DUPLIKAT zadatka + orphan
+// Trošak na starom. Migrira se SAMO datum; iznos/storno se ne diraju.
+async function spremiVrijemeCiscenja(formData: FormData) {
+  "use server";
+
+  // Eksplicitni guard (osim middleware-a) — server action piše u bazu.
+  if (!(await adminSessionOk())) redirect("/admin/login");
+
+  const rezervacijaId = String(formData.get("rezervacijaId") || "").trim();
+  const vrijeme = String(formData.get("ciscenjeOdOverride") || "").trim();
+  const unesenoPomak = Math.max(
+    0,
+    Math.trunc(Number(formData.get("odgodaCiscenjaDana")) || 0)
+  );
+
+  if (!rezervacijaId) redirect("/admin/ciscenje");
+
+  const r = await prisma.rezervacija.findUnique({
+    where: { id: rezervacijaId },
+    select: { datumDo: true, jedinicaId: true, odgodaCiscenjaDana: true },
+  });
+
+  if (!r) redirect("/admin/ciscenje");
+
+  // ── GUARD: koliko se najviše smije pomaknuti ──
+  // Sljedeći ulazak u istu jedinicu (ista logika kao render/findNextReservation).
+  const sljedeca = await prisma.rezervacija.findFirst({
+    where: {
+      id: { not: rezervacijaId },
+      jedinicaId: r.jedinicaId,
+      status: { not: "OTKAZANO" },
+      datumOd: { gte: r.datumDo },
+    },
+    orderBy: { datumOd: "asc" },
+    select: { datumOd: true },
+  });
+
+  // maxPomak vezan uz datumDo + sljedeću rezervaciju (NE uz pomični "danas"),
+  // i nikad ispod već spremljenog pomaka. Efektivni datum smije BITI jednak
+  // danu dolaska (jutarnje čišćenje), ne preko — to osigurava sam maxPomak.
+  const maxPomak = izracunajMaxPomak(
+    r.datumDo,
+    sljedeca?.datumOd ?? null,
+    r.odgodaCiscenjaDana
+  );
+  const pomak = Math.min(unesenoPomak, maxPomak);
+
+  const noviEfektivni = efektivniDatumCiscenja(r.datumDo, pomak);
+
+  // Postojeći ZAVRSNO Zadatak za ovu rezervaciju — NEOVISNO o datumu (po
+  // konstrukciji ih je najviše jedan: findOrCreate dedupa po istom ključu).
+  const postojeciZadatak = await prisma.zadatak.findFirst({
+    where: { rezervacijaId, tip: "ZAVRSNO_CISCENJE" },
+    select: { id: true, datum: true },
+  });
+
+  // Atomski: upis postavki na rezervaciju + (po potrebi) migracija datuma
+  // zadatka i troška. Migracija samo kad zadatak postoji I datum se stvarno
+  // mijenja (inače no-op).
+  const ops: any[] = [
+    prisma.rezervacija.update({
+      where: { id: rezervacijaId },
+      data: {
+        ciscenjeOdOverride: vrijeme || null,
+        odgodaCiscenjaDana: pomak,
+      },
+    }),
+  ];
+
+  if (postojeciZadatak && !sameDay(postojeciZadatak.datum, noviEfektivni)) {
+    ops.push(
+      prisma.zadatak.update({
+        where: { id: postojeciZadatak.id },
+        data: { datum: noviEfektivni },
+      })
+    );
+    // updateMany — ne baca ako Trošak ne postoji; dira SAMO datum.
+    ops.push(
+      prisma.trosak.updateMany({
+        where: { zadatakId: postojeciZadatak.id },
+        data: { datum: noviEfektivni },
+      })
+    );
+  }
+
+  await prisma.$transaction(ops);
+
+  redirect("/admin/ciscenje?vrijemeSaved=1");
+}
+
 async function posaljiOdmah() {
   "use server";
 
@@ -131,6 +239,40 @@ function addDays(d: Date, days: number) {
 
 function sameDay(a: Date, b: Date) {
   return startOfDay(a).getTime() === startOfDay(b).getTime();
+}
+
+// Broj cijelih dana između dvije ponoći (b - a). Koristi se za maxPomak guard.
+function danaIzmedu(a: Date, b: Date) {
+  return Math.round(
+    (startOfDay(b).getTime() - startOfDay(a).getTime()) / 86400000
+  );
+}
+
+// Fiksni gornji limit pomaka kad NEMA najavljenog sljedećeg ulaska. Namjerno
+// NE vežemo uz pomični "danas"/prozor (inače max pada svaki dan i sklampa već
+// spremljeni pomak na 0).
+const FIKSNI_MAX_POMAK = 14;
+
+// Maksimalni dozvoljeni pomak završnog čišćenja (u danima). Vezan uz datumDo i
+// sljedeću rezervaciju (stabilno, ne ovisi o "danas"). Nikad ispod već
+// spremljenog pomaka — da se postojeća odgoda ne sklampa sama pri re-saveu.
+// JEDINI izvor istine: koristi ga i UI (max atribut) i server-side guard.
+function izracunajMaxPomak(
+  datumDo: Date,
+  sljedecaDatumOd: Date | null | undefined,
+  vecSpremljeno: number | null | undefined
+) {
+  const baza = sljedecaDatumOd
+    ? danaIzmedu(datumDo, sljedecaDatumOd)
+    : FIKSNI_MAX_POMAK;
+  return Math.max(0, baza, Math.trunc(Number(vecSpremljeno) || 0));
+}
+
+// Kratki datum "23.06." za info-liniju "→ čisti se …" na kartici.
+function formatDanMjesec(d: Date) {
+  const dd = String(d.getDate()).padStart(2, "0");
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  return `${dd}.${mm}.`;
 }
 
 function formatDatum(d: Date) {
@@ -204,6 +346,20 @@ type PlanItem = {
   sljedeciUlazak: string;
   brziUlazak: boolean;
   nemaUplate: boolean;
+  // Za uređivanje vremena "Čišćenje od" na kartici završnog čišćenja.
+  rezervacijaId?: string;
+  ciscenjeOdOverride?: string | null;
+  // Odgoda čišćenja (F3b): trenutni pomak + max dozvoljeni (guard za input).
+  odgodaCiscenjaDana?: number;
+  maxPomak?: number;
+  // Efektivni (pomaknuti) datum — SAMO za info-liniju "→ čisti se …" na kartici.
+  // Kartica je usidrena na originalni datumDo (z.datum); ovo je kamo ide agenciji.
+  efektivniDatum?: Date;
+  // Prijedlog-badge (F3c, SAMO admin — NE ide u mail): kad nema skorog ulaza
+  // (nema sljedeće rezervacije ili je razmak > 4 dana) → predlažemo pomak.
+  prijedlogPomak?: boolean;
+  // Broj dana do sljedećeg ulaska (null = nema najavljenog ulaska) za tekst badge-a.
+  danaBezUlaza?: number | null;
 };
 
 export default async function CiscenjeAdminPage({
@@ -311,9 +467,16 @@ export default async function CiscenjeAdminPage({
       },
     });
 
-    const brziUlazak = sljedecaRezervacija
-      ? sameDay(r.datumDo, sljedecaRezervacija.datumOd)
-      : false;
+    // Efektivni (pomaknuti) datum čišćenja — za "ulazak isti dan" upozorenje i
+    // info-liniju. Pri odgodi 0 efektivni === datumDo.
+    const efektivni = efektivniDatumCiscenja(r.datumDo, r.odgodaCiscenjaDana);
+
+    // F3c: "ulazak isti dan" računamo na EFEKTIVNI datum (ne dan odlaska). Pri
+    // odgodi 0 isto kao stari sameDay(datumDo, datumOd) → backward-compatible.
+    const brziUlazak = ulazakIstiDan(
+      efektivni,
+      sljedecaRezervacija?.datumOd ?? null
+    );
 
     const sljedeciUlazak = sljedecaRezervacija
       ? `${formatDatum(sljedecaRezervacija.datumOd)} — ${guestName(
@@ -321,20 +484,47 @@ export default async function CiscenjeAdminPage({
       )}`
       : "Nema najavljenog ulaska";
 
+    // Guard za "Pomakni X dana" — ISTI helper kao server action (vezan uz
+    // datumDo + sljedeću, ne uz "danas"; nikad ispod već spremljenog pomaka).
+    const maxPomak = izracunajMaxPomak(
+      r.datumDo,
+      sljedecaRezervacija?.datumOd ?? null,
+      r.odgodaCiscenjaDana
+    );
+
+    // Prijedlog-badge (SAMO admin): kad nema skorog ulaza — nema sljedeće
+    // rezervacije (razmak null) ILI je razmak > 4 dana — a ima manevra za pomak
+    // (maxPomak > 0), predlažemo administratoru da pomakne čišćenje.
+    const danaBezUlaza = razmakUlazakaDana({
+      sljedecaRezervacija,
+      datumDo: r.datumDo,
+    });
+    const prijedlogPomak =
+      (danaBezUlaza === null || danaBezUlaza > 4) && maxPomak > 0;
+
     planItems.push({
       id: `odlazak-${r.id}`,
+      // Kartica usidrena na ORIGINALNI dan odlaska (sort+prikaz). Efektivni
+      // (pomaknuti) datum ide samo u info-liniju i u izlazne dokumente (drugdje).
       datum: startOfDay(r.datumDo),
+      efektivniDatum: efektivni,
       tip: "ZAVRSNO_CISCENJE",
       objekt: r.jedinica.objekt.naziv,
       jedinica: r.jedinica.naziv,
       gost: guestName(r.gost),
       brojGostiju: r.brojOsoba || "-",
       opis: brziUlazak
-        ? "BRZI ULAZAK isti dan — očistiti odmah nakon odlaska gosta."
+        ? "Ulazak isti dan — očistiti ujutro."
         : "Završno čišćenje nakon odlaska gosta.",
       sljedeciUlazak,
       brziUlazak,
       nemaUplate: trebaUpozorenjeZaUplatu(r),
+      rezervacijaId: r.id,
+      ciscenjeOdOverride: r.ciscenjeOdOverride,
+      odgodaCiscenjaDana: r.odgodaCiscenjaDana,
+      maxPomak,
+      prijedlogPomak,
+      danaBezUlaza,
     });
   }
 
@@ -805,6 +995,76 @@ export default async function CiscenjeAdminPage({
                     >
                       <div style={taskDateStyle}>{formatDatum(z.datum)}</div>
 
+                      {/* Pomak vidljiv: kartica ostaje na danu odlaska, a ovdje
+                          piše kamo je čišćenje pomaknuto (ide agenciji). */}
+                      {z.tip === "ZAVRSNO_CISCENJE" &&
+                        (z.odgodaCiscenjaDana ?? 0) > 0 &&
+                        z.efektivniDatum && (
+                          <div style={taskPomakStyle}>
+                            → čisti se {formatDanMjesec(z.efektivniDatum)} (pomak
+                            +{z.odgodaCiscenjaDana})
+                          </div>
+                        )}
+
+                      {/* Prijedlog-badge (SAMO admin, NE ide agenciji): kad nema
+                          skorog ulaza, podsjeti da se čišćenje smije pomaknuti. */}
+                      {z.prijedlogPomak && (
+                        <div style={prijedlogBadgeStyle}>
+                          💡{" "}
+                          {z.danaBezUlaza != null
+                            ? `Nema ulaza sljedećih ${z.danaBezUlaza} dana`
+                            : "Nema najavljenog ulaska"}{" "}
+                          — možeš pomaknuti čišćenje (do {z.maxPomak ?? 0} dana).
+                        </div>
+                      )}
+
+                      {/* Čišćenje od — SAMO za završno čišćenje. Uredivo po
+                          kartici (override na rezervaciji); prazno → fiksni
+                          default 10:00. Ostali tipovi → "-". */}
+                      {z.tip === "ZAVRSNO_CISCENJE" && z.rezervacijaId ? (
+                        <form
+                          action={spremiVrijemeCiscenja}
+                          style={ciscenjeOdFormStyle}
+                        >
+                          <input
+                            type="hidden"
+                            name="rezervacijaId"
+                            value={z.rezervacijaId}
+                          />
+                          <span style={taskCiscenjeOdStyle}>Čišćenje od:</span>
+                          <input
+                            type="time"
+                            name="ciscenjeOdOverride"
+                            defaultValue={ciscenjeOdZaTip(
+                              z.tip,
+                              z.ciscenjeOdOverride
+                            )}
+                            style={timeInputStyle}
+                          />
+                          {/* Pomak čišćenja u danima (F3b). max = guard (do
+                              dolaska sljedećeg gosta / prozor plana). */}
+                          <span style={taskCiscenjeOdStyle}>Pomakni za</span>
+                          <input
+                            type="number"
+                            name="odgodaCiscenjaDana"
+                            defaultValue={z.odgodaCiscenjaDana ?? 0}
+                            min={0}
+                            max={z.maxPomak ?? 0}
+                            style={pomakInputStyle}
+                          />
+                          <span style={taskCiscenjeOdStyle}>
+                            dana (max {z.maxPomak ?? 0})
+                          </span>
+                          <button type="submit" style={smallSaveButtonStyle}>
+                            Spremi
+                          </button>
+                        </form>
+                      ) : (
+                        <div style={taskCiscenjeOdStyle}>
+                          Čišćenje od: <strong>-</strong>
+                        </div>
+                      )}
+
                       <div style={taskObjectStyle}>{z.objekt}</div>
 
                       <div style={taskUnitStyle}>{z.jedinica}</div>
@@ -813,7 +1073,7 @@ export default async function CiscenjeAdminPage({
 
                       {z.brziUlazak && (
                         <div style={quickBadgeStyle}>
-                          ⚠️ BRZI ULAZAK ISTI DAN
+                          ⚠️ Ulazak isti dan — očistiti ujutro
                         </div>
                       )}
 
@@ -1087,6 +1347,66 @@ const taskDateStyle: React.CSSProperties = {
   fontWeight: 700,
   color: "#777",
   marginBottom: 4,
+};
+
+// "Čišćenje od" linija u kartici.
+const taskCiscenjeOdStyle: React.CSSProperties = {
+  fontSize: 13,
+  color: "#0f5132",
+  fontWeight: 700,
+};
+
+// "→ čisti se …" info-linija (pomaknuto čišćenje).
+const taskPomakStyle: React.CSSProperties = {
+  fontSize: 13,
+  color: "#b45309",
+  fontWeight: 800,
+  marginBottom: 4,
+};
+
+// Prijedlog-badge "nema ulaza — možeš pomaknuti" (SAMO admin kartica, info ton).
+const prijedlogBadgeStyle: React.CSSProperties = {
+  marginBottom: 6,
+  padding: "6px 8px",
+  background: "#eff6ff",
+  border: "1px solid #bfdbfe",
+  color: "#1e40af",
+  fontSize: 13,
+  fontWeight: 700,
+  lineHeight: 1.4,
+};
+
+// Inline forma za uređivanje vremena "Čišćenje od" po kartici završnog čišćenja.
+const ciscenjeOdFormStyle: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: 6,
+  flexWrap: "wrap",
+  marginBottom: 6,
+};
+
+const timeInputStyle: React.CSSProperties = {
+  padding: "4px 6px",
+  border: "1px solid #bbb",
+  fontSize: 13,
+};
+
+// Uski number input za "Pomakni za X dana".
+const pomakInputStyle: React.CSSProperties = {
+  width: 56,
+  padding: "4px 6px",
+  border: "1px solid #bbb",
+  fontSize: 13,
+};
+
+const smallSaveButtonStyle: React.CSSProperties = {
+  padding: "4px 10px",
+  background: "#0f5132",
+  color: "white",
+  border: "none",
+  fontSize: 12,
+  fontWeight: 700,
+  cursor: "pointer",
 };
 
 const taskObjectStyle: React.CSSProperties = {
