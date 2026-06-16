@@ -11,7 +11,10 @@
 // za promjenu broja. DELETE+ADD je runtime fallback (vidi orkestrator) i NIJE
 // dio ove čiste odluke.
 
-export type TtlockAkcija = "ADD" | "CHANGE" | "DELETE_ADD";
+// DELETE_ADD i RECOVER_CHANGE nastaju TEK u runtime-u (orkestrator), nisu dio
+// čiste odluke: DELETE_ADD = fallback kad CHANGE baci; RECOVER_CHANGE = kad ADD
+// vrati "already exists" pa nađemo postojeći pwdId na bravi i napravimo CHANGE.
+export type TtlockAkcija = "ADD" | "CHANGE" | "DELETE_ADD" | "RECOVER_CHANGE";
 
 export type TtlockOdluka = {
   // Čista odluka poznaje samo ADD ili CHANGE. DELETE_ADD nastaje tek u runtime-u

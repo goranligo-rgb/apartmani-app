@@ -202,6 +202,71 @@ export async function obrisiTtlockSifru(params: {
   return odgovor;
 }
 
+// ── Dohvat keyboardPwdId s brave po BROJU šifre — /v3/lock/listKeyboardPwd ──
+//
+// Recovery pomoć: kad u bazi NEMAMO keyboardPwdId (NULL) a broj je fizički na
+// bravi (add vrati "already exists"), ovdje ga pronađemo po broju da bismo mogli
+// CHANGE umjesto bezuspješnog ponovnog ADD-a. Cloud read — NE treba gateway.
+// Prolazi stranice dok ne nađe `keyboardPwd === sifra` ili dok ne ostane stranica.
+export async function dohvatiTtlockPwdIdPoBroju(
+  lockId: string | number,
+  sifra: string
+): Promise<string | null> {
+  // DRY-RUN: ne diraj API, vrati lažni id (orkestrator tada simulira recovery).
+  if (jeDryRun()) {
+    const fakeId = `DRYRUN-LIST-${Number(lockId)}-${sifra}`;
+    console.log("[ttlock-list][DRY_RUN] preskačem listKeyboardPwd →", fakeId);
+    return fakeId;
+  }
+
+  const accessToken = await getTtlockAccessToken();
+  const PAGE_SIZE = 100;
+  let pageNo = 1;
+
+  // Gornji limit stranica = sigurnosna kočnica protiv beskonačne petlje.
+  for (let i = 0; i < 50; i++) {
+    const odgovor: any = await postForm("/v3/lock/listKeyboardPwd", {
+      clientId: env("TTLOCK_CLIENT_ID"),
+      accessToken,
+      lockId: Number(lockId),
+      pageNo,
+      pageSize: PAGE_SIZE,
+      date: Date.now(),
+    });
+
+    const lista: any[] = Array.isArray(odgovor?.list) ? odgovor.list : [];
+    // Broj na bravi može doći kao number ili string → usporedba preko String().
+    const nadjen = lista.find((x) => String(x?.keyboardPwd) === String(sifra));
+
+    console.log("[ttlock-list]",
+      "lockId:", Number(lockId),
+      "pageNo:", pageNo,
+      "uListi:", lista.length,
+      "total:", odgovor?.total ?? "-",
+      "nadjen?", nadjen ? "DA" : "ne");
+
+    if (nadjen?.keyboardPwdId != null) {
+      return String(nadjen.keyboardPwdId);
+    }
+
+    // Ima li još stranica? TTLock vraća `pages` (ukupno stranica). Zaustavi i kad
+    // je vraćena stranica kraća od PAGE_SIZE (nema više zapisa).
+    const pages = Number(odgovor?.pages ?? 0);
+    if (!pages || pageNo >= pages || lista.length < PAGE_SIZE) break;
+    pageNo++;
+  }
+
+  return null;
+}
+
+// Detekcija TTLock greške "broj već postoji na bravi". postForm baca Error s
+// porukom = errmsg (ili JSON ako errmsg prazan), pa hvatamo po tekstu. TTLock
+// poruka: "The same passcode already exists. Please use another one."
+function jeGreskaVecPostoji(err: any): boolean {
+  const msg = String(err?.message ?? err ?? "");
+  return /same passcode already exists/i.test(msg);
+}
+
 // ── Orkestrator: sinkroniziraj šifru na bravu (ADD / CHANGE / fallback DELETE+ADD) ──
 //
 // Jedini ulaz za pozivatelje (cron whatsapp-checkin + admin [id]) umjesto golog
@@ -243,18 +308,52 @@ export async function sinkronizirajTtlockSifru(params: {
     "od:", `${params.vrijediOd.getTime()} (${formatZagreb(params.vrijediOd, opcije)})`,
     "do:", `${params.vrijediDo.getTime()} (${formatZagreb(params.vrijediDo, opcije)})`);
 
-  if (odluka.akcija === "ADD") {
-    const resp: any = await dodajTtlockSifru({
+  // Recovery na "already exists": broj je fizički na bravi ali nemamo pwdId u
+  // bazi. Dohvati pwdId s brave po broju pa CHANGE (isti broj, ispravan prozor).
+  // Vraća rezultat za pozivatelja ili null ako broj nije nađen na bravi.
+  async function recoverPostojeciNaBravi(): Promise<{
+    akcija: TtlockAkcija;
+    keyboardPwdId: string | null;
+  } | null> {
+    const pwdId = await dohvatiTtlockPwdIdPoBroju(params.lockId, params.sifra);
+    if (!pwdId) {
+      console.log("[ttlock-sync] recovery: broj nije nađen na bravi → odustajem");
+      return null;
+    }
+    console.log("[ttlock-sync] recovery: nađen pwdId", pwdId, "→ CHANGE (isti broj, ispravan prozor)");
+    await promijeniTtlockSifru({
       lockId: params.lockId,
-      sifra: params.sifra,
-      naziv: params.naziv,
+      keyboardPwdId: pwdId,
       vrijediOd: params.vrijediOd,
       vrijediDo: params.vrijediDo,
+      // Broj je već na bravi (po njemu smo i našli pwdId) → ne šaljemo newKeyboardPwd.
+      sifra: undefined,
+      naziv: params.naziv,
     });
-    return {
-      akcija: "ADD",
-      keyboardPwdId: resp?.keyboardPwdId ? String(resp.keyboardPwdId) : null,
-    };
+    return { akcija: "RECOVER_CHANGE", keyboardPwdId: String(pwdId) };
+  }
+
+  if (odluka.akcija === "ADD") {
+    try {
+      const resp: any = await dodajTtlockSifru({
+        lockId: params.lockId,
+        sifra: params.sifra,
+        naziv: params.naziv,
+        vrijediOd: params.vrijediOd,
+        vrijediDo: params.vrijediDo,
+      });
+      return {
+        akcija: "ADD",
+        keyboardPwdId: resp?.keyboardPwdId ? String(resp.keyboardPwdId) : null,
+      };
+    } catch (err: any) {
+      // Samo na "already exists" pokušaj recovery; ostale greške propusti dalje.
+      if (!jeGreskaVecPostoji(err)) throw err;
+      console.log("[ttlock-sync] ADD 'already exists' → recovery preko liste");
+      const rec = await recoverPostojeciNaBravi();
+      if (rec) return rec;
+      throw err; // broj nije nađen na bravi → GRESKA kao i dosad
+    }
   }
 
   // CHANGE — zadrži isti keyboardPwdId; newKeyboardPwd samo ako mijenjamo broj.
@@ -281,16 +380,26 @@ export async function sinkronizirajTtlockSifru(params: {
     } catch (delErr: any) {
       console.log("[ttlock-sync] delete u fallbacku preskočen:", delErr?.message);
     }
-    const resp: any = await dodajTtlockSifru({
-      lockId: params.lockId,
-      sifra: params.sifra,
-      naziv: params.naziv,
-      vrijediOd: params.vrijediOd,
-      vrijediDo: params.vrijediDo,
-    });
-    return {
-      akcija: "DELETE_ADD",
-      keyboardPwdId: resp?.keyboardPwdId ? String(resp.keyboardPwdId) : null,
-    };
+    try {
+      const resp: any = await dodajTtlockSifru({
+        lockId: params.lockId,
+        sifra: params.sifra,
+        naziv: params.naziv,
+        vrijediOd: params.vrijediOd,
+        vrijediDo: params.vrijediDo,
+      });
+      return {
+        akcija: "DELETE_ADD",
+        keyboardPwdId: resp?.keyboardPwdId ? String(resp.keyboardPwdId) : null,
+      };
+    } catch (addErr: any) {
+      // Delete vjerojatno nije maknuo broj (zastario pwdId), pa ADD opet vrati
+      // "already exists" → isti recovery preko liste.
+      if (!jeGreskaVecPostoji(addErr)) throw addErr;
+      console.log("[ttlock-sync] fallback ADD 'already exists' → recovery preko liste");
+      const rec = await recoverPostojeciNaBravi();
+      if (rec) return rec;
+      throw addErr;
+    }
   }
 }
