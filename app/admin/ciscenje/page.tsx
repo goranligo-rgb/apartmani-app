@@ -11,6 +11,7 @@ import { formatZagreb } from "@/lib/dates";
 import {
   ciscenjeOdZaTip,
   efektivniDatumCiscenja,
+  pocetakDanaUtc,
   ulazakIstiDan,
 } from "@/lib/ciscenje/ciscenjeVrijeme";
 // Razmak ulaska sljedećeg gosta (dani) — za prijedlog-badge "nema ulaza".
@@ -154,7 +155,9 @@ async function spremiVrijemeCiscenja(formData: FormData) {
       id: { not: rezervacijaId },
       jedinicaId: r.jedinicaId,
       status: { not: "OTKAZANO" },
-      datumOd: { gte: r.datumDo },
+      // Sljedeći ULAZ po DANU (granica = početak-dana odlaska, UTC ponoć), da
+      // booking-ulaz na 00:00 isti dan ne padne kroz filter. Vidi pocetakDanaUtc.
+      datumOd: { gte: pocetakDanaUtc(r.datumDo) },
     },
     orderBy: { datumOd: "asc" },
     select: { datumOd: true },
@@ -455,8 +458,12 @@ export default async function CiscenjeAdminPage({
         status: {
           not: "OTKAZANO",
         },
+        // Sljedeći ULAZ po DANU, ne po instantu: granica = početak-dana odlaska
+        // (UTC ponoć). Tako booking-ulaz spremljen na 00:00 (isti dan kao admin-
+        // odlazak na 12:00) ne padne kroz filter. `orderBy datumOd asc` i dalje
+        // hvata NAJRANIJI ulaz (npr. ulaz isti dan, ne kasniji 7 dana poslije).
         datumOd: {
-          gte: r.datumDo,
+          gte: pocetakDanaUtc(r.datumDo),
         },
       },
       include: {

@@ -37,6 +37,7 @@ import {
 import {
   ciscenjeOdZaTip,
   efektivniDatumCiscenja,
+  pocetakDanaUtc,
   ulazakIstiDan,
 } from "@/lib/ciscenje/ciscenjeVrijeme";
 
@@ -116,7 +117,11 @@ async function findNextReservation(
       id: { not: currentReservationId },
       jedinicaId,
       status: { not: "OTKAZANO" },
-      datumOd: { gte: datumDo },
+      // Sljedeći ULAZ po DANU, ne po instantu: granica = početak-dana odlaska
+      // (UTC ponoć). Tako booking-ulaz spremljen na 00:00 (isti dan kao admin-
+      // odlazak na 12:00) ne padne kroz filter. `orderBy datumOd asc` i dalje
+      // hvata NAJRANIJI ulaz (npr. ulaz isti dan, ne kasniji 7 dana poslije).
+      datumOd: { gte: pocetakDanaUtc(datumDo) },
     },
     include: { gost: true },
     orderBy: { datumOd: "asc" },

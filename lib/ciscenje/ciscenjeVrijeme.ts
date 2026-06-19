@@ -30,7 +30,12 @@ export const CISCENJE_OD_DEFAULT = "10:00";
 // `...T00:00Z`, pa se zadatak/trošak datum razilazi dev↔prod (pomak dana -1 +
 // duplikati zadataka). Na UTC serveru (Vercel) je `Date.UTC(y,m,d)` identičan
 // dotadašnjem `new Date(y,m,d)` → NULA promjene na produkciji.
-function pocetakDanaUtc(d: Date): Date {
+//
+// Exportano i kao GRANICA za "sljedeća rezervacija" lookup: traži se ulaz po
+// DANU (datumOd >= pocetakDanaUtc(datumDo)), ne po instantu (datumOd >= datumDo).
+// Bez ovoga booking-ulaz spremljen na UTC ponoć (00:00) pada kroz filter kad
+// odlazak (admin) ima podne (12:00) — isti dan se ne detektira (vidi F3c bug).
+export function pocetakDanaUtc(d: Date): Date {
   return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
 }
 
