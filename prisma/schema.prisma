@@ -280,6 +280,7 @@ model Rezervacija {
   promjene RezervacijaPromjena[]
   ttlockSifre RezervacijaTtlockSifra[]
   whatsappPoruke WhatsappPoruka[]
+  poklonBon PoklonBon?
 
   @@index([jedinicaId])
   @@index([datumOd, datumDo])
@@ -808,6 +809,22 @@ model EmailLog {
   @@index([rezervacijaId])
   @@index([tip])
   @@index([status])
+}
+
+model PoklonBon {
+  id            String  @id @default(uuid())
+  kod           String  @unique
+  imeVlasnika   String
+  rezervacijaId String  @unique
+
+  postotakPopusta Float     @default(10)
+  vrijediDo       DateTime
+  iskoristen      Boolean   @default(false)
+  iskoristenoAt   DateTime?
+
+  createdAt DateTime @default(now())
+
+  rezervacija Rezervacija @relation(fields: [rezervacijaId], references: [id], onDelete: Restrict)
 }
 
 model SlikaObjekta {
