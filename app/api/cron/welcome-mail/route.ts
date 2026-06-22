@@ -176,6 +176,7 @@ export async function GET(request: Request) {
           tip: "DOBRODOSLICA",
           status: mailStatus,
           greska: mailGreska,
+          sadrzaj: html,
         },
       });
 

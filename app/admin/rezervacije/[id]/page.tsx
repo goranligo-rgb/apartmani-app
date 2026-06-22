@@ -15,10 +15,13 @@ import { imaInfobipKonfiguraciju, posaljiSmsInfobip } from "@/lib/infobip";
 import { sendMail } from "@/lib/mail";
 import { nazivToSlug } from "@/lib/objekti";
 import { vodicJezik, OBJEKT_BOJA } from "@/lib/vodic";
-import { welcomeUrl } from "@/lib/vodic/mail";
+import { welcomeUrl, zahvalaUrl } from "@/lib/vodic/mail";
 import { renderWelcomeMail } from "@/lib/vodic/welcomeMail";
+import { renderZahvalaMail, zahvalaSubject } from "@/lib/vodic/zahvalaMail";
 import { normalizirajE164 } from "@/lib/twilio";
 import { sastaviCheckinSms } from "@/lib/smsCheckin";
+import { sastaviZahvalaSms } from "@/lib/smsZahvala";
+import { osigurajPoklonBon } from "@/lib/poklonBon";
 import { rezerviraniJezik } from "@/lib/jezik";
 import { SmsPanel } from "./SmsPanel";
 import { WelcomePanel } from "./WelcomePanel";
@@ -448,6 +451,7 @@ export default async function RezervacijaDetaljPage({
   };
   const imaEmail = Boolean(rezervacija.gost?.email);
   const imaWelcomeSlug = nazivToSlug(rezervacija.jedinica.objekt.naziv) !== null;
+  const imaTelefon = normalizirajE164(rezervacija.gost?.telefon) !== null;
 
   // ── Spojeni log komunikacije (EMAIL + SMS/WHATSAPP), sortirano po vremenu ─
   type LogStavka = {
@@ -1060,6 +1064,7 @@ export default async function RezervacijaDetaljPage({
         tip: "DOBRODOSLICA",
         status: mailStatus,
         greska: mailGreska,
+        sadrzaj: html,
       },
     });
 
@@ -1073,6 +1078,164 @@ export default async function RezervacijaDetaljPage({
             : "Welcome mail nije poslan (greška).",
         razlog: mailGreska,
         noviPodaci: JSON.stringify({ jezik, mailStatus, mailGreska }),
+        korisnikIme: "Admin",
+      },
+    });
+
+    revalidatePath(`/admin/rezervacije/${rezervacijaId}`);
+    redirect(`/admin/rezervacije/${rezervacijaId}`);
+  }
+
+  // Ručno slanje maila zahvale — zrcalo zahvala-mail crona za 1 rezervaciju.
+  // Reuporaba: renderZahvalaMail + zahvalaSubject + sendMail + osigurajPoklonBon
+  // + zahvalaUrl + OBJEKT_BOJA. Loga EmailLog(ZAHVALA, sadrzaj: html) + promjenu.
+  async function posaljiZahvalaMail(formData: FormData) {
+    "use server";
+
+    const rezervacijaId = String(formData.get("rezervacijaId") || "");
+    if (!rezervacijaId) throw new Error("Nedostaje ID rezervacije.");
+
+    const r = await prisma.rezervacija.findUnique({
+      where: { id: rezervacijaId },
+      include: { gost: true, jedinica: { include: { objekt: true } } },
+    });
+
+    if (!r) throw new Error("Rezervacija nije pronađena.");
+    if (!r.gost?.email) throw new Error("Gost nema upisanu email adresu.");
+
+    const slug = nazivToSlug(r.jedinica.objekt.naziv);
+    if (!slug) throw new Error("Za ovaj objekt ne postoji stranica zahvale.");
+
+    // Bon se izdaje/dohvaća PRIJE slanja — da link na /zahvala radi odmah.
+    await osigurajPoklonBon(r.id);
+
+    const appUrl = await getAppUrl();
+    const jezik = vodicJezik(rezerviraniJezik(r.gost));
+    const subject = zahvalaSubject(jezik, r.jedinica.objekt.naziv);
+    const html = renderZahvalaMail({
+      jezik,
+      ime: r.gost.ime || "goste",
+      nazivObjekta: r.jedinica.objekt.naziv,
+      zahvalaUrl: zahvalaUrl(appUrl, jezik, slug, rezervacijaId),
+      boja: OBJEKT_BOJA[slug],
+    });
+
+    let mailStatus: "POSLANO" | "GRESKA" = "GRESKA";
+    let mailGreska: string | null = null;
+    try {
+      const res = await sendMail({ to: r.gost.email, subject, html });
+      if (res.ok) mailStatus = "POSLANO";
+      else mailGreska = res.error || "Greška kod slanja maila.";
+    } catch (error: any) {
+      mailGreska = error?.message || "Greška kod slanja maila.";
+    }
+
+    await prisma.emailLog.create({
+      data: {
+        rezervacijaId,
+        to: r.gost.email,
+        subject,
+        tip: "ZAHVALA",
+        status: mailStatus,
+        greska: mailGreska,
+        sadrzaj: html,
+      },
+    });
+
+    await prisma.rezervacijaPromjena.create({
+      data: {
+        rezervacijaId,
+        tip: "ZAHVALA_MAIL",
+        opis:
+          mailStatus === "POSLANO"
+            ? "Poslan mail zahvale s poklon-bonom (ručno)."
+            : "Mail zahvale nije poslan (greška).",
+        razlog: mailGreska,
+        noviPodaci: JSON.stringify({ jezik, mailStatus, mailGreska }),
+        korisnikIme: "Admin",
+      },
+    });
+
+    revalidatePath(`/admin/rezervacije/${rezervacijaId}`);
+    redirect(`/admin/rezervacije/${rezervacijaId}`);
+  }
+
+  // Ručno slanje SMS-a zahvale — zrcalo zahvala-sms crona za 1 rezervaciju.
+  // Reuporaba: sastaviZahvalaSms + posaljiSmsInfobip + osigurajPoklonBon +
+  // normalizirajE164. Loga WhatsappPoruka(tip: ZAHVALA, pun tekst) + promjenu.
+  async function posaljiZahvalaSms(formData: FormData) {
+    "use server";
+
+    const rezervacijaId = String(formData.get("rezervacijaId") || "");
+    if (!rezervacijaId) throw new Error("Nedostaje ID rezervacije.");
+
+    if (!imaInfobipKonfiguraciju()) {
+      throw new Error("Infobip nije konfiguriran — SMS se ne može poslati.");
+    }
+
+    const r = await prisma.rezervacija.findUnique({
+      where: { id: rezervacijaId },
+      include: { gost: true, jedinica: { include: { objekt: true } } },
+    });
+
+    if (!r) throw new Error("Rezervacija nije pronađena.");
+
+    const e164 = normalizirajE164(r.gost?.telefon);
+    if (!e164) throw new Error("Gost nema ispravan broj telefona.");
+
+    const slug = nazivToSlug(r.jedinica.objekt.naziv);
+    if (!slug) throw new Error("Za ovaj objekt ne postoji stranica zahvale.");
+
+    // Bon se izdaje/dohvaća PRIJE slanja.
+    await osigurajPoklonBon(r.id);
+
+    const appUrl = await getAppUrl();
+    const jezik = vodicJezik(rezerviraniJezik(r.gost));
+    const smsTekst = sastaviZahvalaSms({
+      jezik,
+      ime: r.gost?.ime || "gost",
+      objekt: r.jedinica.objekt.naziv,
+      appUrl,
+      slug,
+      rezervacijaId,
+    });
+
+    let status: "POSLANO" | "GRESKA" = "GRESKA";
+    let greska: string | null = null;
+    let messageId: string | null = null;
+    try {
+      const infobip = await posaljiSmsInfobip({ to: e164, text: smsTekst });
+      messageId = infobip.messageId;
+      status = "POSLANO";
+    } catch (error: any) {
+      greska = error?.message || "Greška kod slanja SMS-a.";
+    }
+
+    await prisma.whatsappPoruka.create({
+      data: {
+        rezervacijaId,
+        kanal: "SMS",
+        tip: "ZAHVALA",
+        primatelj: e164,
+        templateSid: null,
+        varijable: {},
+        tekstPregled: smsTekst, // stvarni tekst i na grešci (sastavljen prije slanja)
+        twilioSid: messageId,
+        status,
+        greska,
+      },
+    });
+
+    await prisma.rezervacijaPromjena.create({
+      data: {
+        rezervacijaId,
+        tip: "ZAHVALA_SMS",
+        opis:
+          status === "POSLANO"
+            ? "Poslan SMS zahvale s poklon-bonom (ručno)."
+            : "SMS zahvale nije poslan (greška).",
+        razlog: greska,
+        noviPodaci: JSON.stringify({ jezik, status, messageId, greska }),
         korisnikIme: "Admin",
       },
     });
@@ -2203,6 +2366,115 @@ export default async function RezervacijaDetaljPage({
               imaWelcomeSlug={imaWelcomeSlug}
               posalji={posaljiWelcomeMail}
             />
+          </Card>
+        </section>
+
+        <section className="row" style={{ marginBottom: 12 }}>
+          <Card title="Zahvala (poklon-bon)">
+            <div style={{ fontSize: 11, color: "#6f665a", marginBottom: 10 }}>
+              Ručno slanje (dan prije odlaska ide i automatski). Bon se izdaje pri
+              slanju; mail/SMS nosi link na stranicu zahvale. Jezik se bira
+              automatski prema gostu.
+            </div>
+
+            {!imaWelcomeSlug && (
+              <div
+                style={{
+                  marginBottom: 8,
+                  border: "1px solid #ead7b6",
+                  background: "#fff9ef",
+                  padding: "6px 8px",
+                  fontSize: 11,
+                  fontWeight: 600,
+                  color: "#7a5a22",
+                }}
+              >
+                Za ovaj objekt ne postoji stranica zahvale — slanje onemogućeno.
+              </div>
+            )}
+
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {/* Mail zahvale */}
+              <form action={posaljiZahvalaMail}>
+                <input
+                  type="hidden"
+                  name="rezervacijaId"
+                  value={rezervacija.id}
+                />
+                {!imaEmail && (
+                  <div
+                    style={{
+                      marginBottom: 6,
+                      fontSize: 11,
+                      fontWeight: 600,
+                      color: "#991b1b",
+                    }}
+                  >
+                    Gost nema email adresu.
+                  </div>
+                )}
+                <button
+                  className="bg"
+                  style={{
+                    width: "100%",
+                    opacity: !imaEmail || !imaWelcomeSlug ? 0.5 : 1,
+                    cursor:
+                      !imaEmail || !imaWelcomeSlug ? "not-allowed" : "pointer",
+                  }}
+                  disabled={!imaEmail || !imaWelcomeSlug}
+                >
+                  Pošalji mail zahvale
+                </button>
+              </form>
+
+              {/* SMS zahvale */}
+              <form action={posaljiZahvalaSms}>
+                <input
+                  type="hidden"
+                  name="rezervacijaId"
+                  value={rezervacija.id}
+                />
+                {!imaTelefon && (
+                  <div
+                    style={{
+                      marginBottom: 6,
+                      fontSize: 11,
+                      fontWeight: 600,
+                      color: "#991b1b",
+                    }}
+                  >
+                    Gost nema (ispravan) broj telefona.
+                  </div>
+                )}
+                {imaTelefon && !infobipOk && (
+                  <div
+                    style={{
+                      marginBottom: 6,
+                      fontSize: 11,
+                      fontWeight: 600,
+                      color: "#7a5a22",
+                    }}
+                  >
+                    Infobip nije konfiguriran — SMS onemogućen.
+                  </div>
+                )}
+                <button
+                  className="bg"
+                  style={{
+                    width: "100%",
+                    opacity:
+                      !imaTelefon || !imaWelcomeSlug || !infobipOk ? 0.5 : 1,
+                    cursor:
+                      !imaTelefon || !imaWelcomeSlug || !infobipOk
+                        ? "not-allowed"
+                        : "pointer",
+                  }}
+                  disabled={!imaTelefon || !imaWelcomeSlug || !infobipOk}
+                >
+                  Pošalji SMS zahvale
+                </button>
+              </form>
+            </div>
           </Card>
         </section>
 

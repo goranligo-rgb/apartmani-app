@@ -155,6 +155,7 @@ export async function GET(request: Request) {
           tip: "ZAHVALA",
           status: mailStatus,
           greska: mailGreska,
+          sadrzaj: html,
         },
       });
 

@@ -803,6 +803,8 @@ model EmailLog {
   status StatusEmaila @default(POSLANO)
   greska String?
 
+  sadrzaj String? // renderirani HTML poslanog maila (za pregled u logu); NULL za stare/neposlane
+
   createdAt DateTime @default(now())
 
   rezervacija Rezervacija? @relation(fields: [rezervacijaId], references: [id], onDelete: Cascade)
