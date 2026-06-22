@@ -105,6 +105,7 @@ enum TipEmaila {
   OTKAZIVANJE_REZERVACIJE
   RACUN
   DOBRODOSLICA
+  ZAHVALA
 }
 
 enum StatusEmaila {

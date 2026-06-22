@@ -102,7 +102,7 @@ const DATUM_LOCALE: Record<VodicJezik, string> = {
 const EYEBROW_PERS: Record<VodicJezik, (ime: string) => string> = {
   hr: (ime) => `Dobar dan ${ime},`,
   en: (ime) => `Dear ${ime},`,
-  de: (ime) => `Hallo ${ime},`,
+  de: (ime) => `Sehr geehrte/r ${ime},`,
 };
 
 const ZAHVALA_NASLOV: Record<VodicJezik, string> = {

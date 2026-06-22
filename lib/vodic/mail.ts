@@ -30,6 +30,20 @@ export function welcomeUrl(
   return t ? `${url}?t=${encodeURIComponent(t)}` : url;
 }
 
+// Analogno welcomeUrl, samo /welcome/ → /zahvala/. Token (t = rezervacijaId)
+// otvara personaliziranu stranicu zahvale s poklon-bonom (app/[locale]/zahvala).
+export function zahvalaUrl(
+  appUrl: string,
+  jezik: VodicJezik,
+  slug: ObjektSlug,
+  t?: string | null
+): string {
+  const base = (appUrl || "").replace(/\/$/, "");
+  const prefix = jezik === "hr" ? "" : `/${jezik}`;
+  const url = `${base}${prefix}/zahvala/${slug}`;
+  return t ? `${url}?t=${encodeURIComponent(t)}` : url;
+}
+
 const GOLD = "#B9A286";
 const GOLD_LINK = "#B9883F";
 const SEC_TITLE = "#8B7B63";
