@@ -28,6 +28,10 @@
     {
       "path": "/api/cron/zahvala-mail",
       "schedule": "0 6 * * *"
+    },
+    {
+      "path": "/api/cron/zahvala-sms",
+      "schedule": "30 6 * * *"
     }
   ]
 }

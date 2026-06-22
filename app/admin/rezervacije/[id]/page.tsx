@@ -966,6 +966,7 @@ export default async function RezervacijaDetaljPage({
       data: {
         rezervacijaId,
         kanal: "SMS",
+        tip: "CHECKIN",
         primatelj: e164,
         templateSid: null,
         varijable: {},

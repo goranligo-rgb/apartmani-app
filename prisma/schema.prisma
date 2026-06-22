@@ -1010,6 +1010,7 @@ model WhatsappPoruka {
   rezervacijaId String
 
   kanal        String   @default("SMS") // SMS / WHATSAPP — kojim je kanalom poslano
+  tip          String   @default("CHECKIN") // CHECKIN / ZAHVALA — svrha poruke (idempotencija po tipu)
   primatelj    String // E.164 broj na koji je poslano
   templateSid  String?
   varijable    Json // {1: ime, 2: objekt, 3: datum, 4: sifra, 5: upute, 6: kontakt}

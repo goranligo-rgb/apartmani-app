@@ -108,7 +108,10 @@ export async function GET(request: Request) {
         },
       },
       // idempotencija: ako već postoji uspješno poslana poruka, preskoči.
-      whatsappPoruke: { where: { status: "POSLANO" }, select: { id: true } },
+      whatsappPoruke: {
+        where: { status: "POSLANO", tip: "CHECKIN" },
+        select: { id: true },
+      },
     },
   });
 
@@ -226,6 +229,7 @@ export async function GET(request: Request) {
           data: {
             rezervacijaId: r.id,
             kanal: "SMS",
+            tip: "CHECKIN",
             primatelj: e164,
             templateSid: null,
             varijable: {},
@@ -266,6 +270,7 @@ export async function GET(request: Request) {
         data: {
           rezervacijaId: r.id,
           kanal: "SMS",
+          tip: "CHECKIN",
           primatelj: e164,
           templateSid: null,
           varijable: {},
@@ -287,6 +292,7 @@ export async function GET(request: Request) {
           data: {
             rezervacijaId: r.id,
             kanal: "SMS",
+            tip: "CHECKIN",
             primatelj: normalizirajE164(r.gost?.telefon) || "(nepoznato)",
             templateSid: null,
             varijable: {},
