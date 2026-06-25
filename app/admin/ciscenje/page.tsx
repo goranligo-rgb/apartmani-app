@@ -225,6 +225,34 @@ async function posaljiOdmah() {
     redirect(`/admin/ciscenje?error=${encodeURIComponent(result.error)}`);
   }
 
+  // Naprijed-only: ako je sve već poslano do kursora, nema novih stavki naprijed.
+  if ("prazno" in result && result.prazno) {
+    const doKada = result.zadnjiPoslani
+      ? new Date(result.zadnjiPoslani).toLocaleDateString("hr-HR")
+      : "";
+    redirect(
+      `/admin/ciscenje?prazno=1${doKada ? `&do=${encodeURIComponent(doKada)}` : ""}`
+    );
+  }
+
+  redirect("/admin/ciscenje?sent=1");
+}
+
+// "Pošalji puni plan" — izlaz za rubne slučajeve / greške: ignorira kursor i
+// šalje CIJELI prozor [danas, +brojDana] kao prije (može duplirati već poslano).
+async function posaljiPuniPlan() {
+  "use server";
+
+  const result = await generirajINaPosalji({ ignorirajKursor: true });
+
+  if (result?.error) {
+    redirect(`/admin/ciscenje?error=${encodeURIComponent(result.error)}`);
+  }
+
+  if ("prazno" in result && result.prazno) {
+    redirect("/admin/ciscenje?prazno=1");
+  }
+
   redirect("/admin/ciscenje?sent=1");
 }
 
@@ -374,6 +402,8 @@ export default async function CiscenjeAdminPage({
     napomenaSaved?: string;
     error?: string;
     dana?: string;
+    prazno?: string;
+    do?: string;
   }>;
 }) {
   const params = await searchParams;
@@ -696,6 +726,14 @@ export default async function CiscenjeAdminPage({
         </div>
       )}
 
+      {params?.prazno === "1" && (
+        <div style={successStyle}>
+          ✅ Sve je već poslano{params?.do ? ` do ${params.do}` : ""} — nema
+          novih stavki naprijed. (Za ponovno slanje cijelog plana koristi
+          „Pošalji puni plan".)
+        </div>
+      )}
+
       {params?.error && (
         <div style={errorStyle}>
           {params.error === "email"
@@ -913,6 +951,22 @@ export default async function CiscenjeAdminPage({
             >
               📧 Pošalji odmah raspored za sljedećih{" "}
               {postavke?.brojDanaUnaprijed ?? 7} dana
+            </button>
+          </form>
+
+          {/* Izlaz za rubne slučajeve: ignorira kursor i šalje CIJELI prozor
+              (može duplirati već poslano). Sekundarni stil da ne bude zabunom
+              glavna akcija. */}
+          <form action={posaljiPuniPlan}>
+            <button
+              style={{
+                ...buttonStyle,
+                marginTop: 10,
+                background: "#6c757d",
+                width: "100%",
+              }}
+            >
+              🔁 Pošalji puni plan (ignoriraj „dokle poslano")
             </button>
           </form>
         </div>

@@ -191,7 +191,11 @@ async function upsertTrosak(params: {
   }
 }
 
-export async function generirajINaPosalji() {
+export async function generirajINaPosalji(opcije?: {
+  // "Pošalji puni plan" (rubni slučaj / izlaz u slučaju greške): svjesno
+  // preskače kursor i šalje CIJELI prozor [danas, doDatuma] kao i prije.
+  ignorirajKursor?: boolean;
+}) {
   const agencija = await prisma.ciscenjeAgencija.findFirst();
   const postavke = await prisma.ciscenjeMailPostavke.findFirst();
 
@@ -205,6 +209,30 @@ export async function generirajINaPosalji() {
 
   const danas = startOfDay(new Date());
   const doDatuma = addDays(danas, postavke.brojDanaUnaprijed || 7);
+
+  // ── "Samo nadopuna naprijed" — kreni od mjesta gdje je zadnji put stao ──
+  // Kursor "dokle je agenciji poslan tjedni plan" = najdalji POKRIVENI datum
+  // (max datumDo) po VEĆ POSLANIM tjednim narudžbama. `napomena: null` isključuje
+  // izvanredne nadopune (one nose "NADOPUNA-..." marker i NE pomiču granicu).
+  // Pravilo: što je poslano — poslano je; ne diramo unatrag, šaljemo samo naprijed.
+  // `ignorirajKursor` (gumb "Pošalji puni plan") ovo svjesno preskače.
+  let zadnjiPoslani: Date | null = null;
+  let pocetniDatum = danas;
+
+  if (!opcije?.ignorirajKursor) {
+    const zadnji = await prisma.ciscenjeNarudzba.aggregate({
+      where: { poslanoEmail: true, napomena: null },
+      _max: { datumDo: true },
+    });
+    zadnjiPoslani = zadnji._max.datumDo;
+
+    if (zadnjiPoslani) {
+      // Prvi NEpokriveni dan = zadnji poslani + 1. `max` s `danas` da nikad ne
+      // krenemo u prošlost (npr. dugi razmak između slanja).
+      const sljedeci = addDays(startOfDay(zadnjiPoslani), 1);
+      pocetniDatum = sljedeci > danas ? sljedeci : danas;
+    }
+  }
 
   // Faza 2A — troškovi. Flag gata SAMO kreiranje Trosak zapisa (NE generiranje
   // zadataka / mail). Cjenik se učita jednom kao mapa po jedinicaId; jedinica bez
@@ -223,7 +251,8 @@ export async function generirajINaPosalji() {
       },
       automatskoCiscenje: true,
       datumDo: {
-        gte: danas,
+        // Donji rub = pocetniDatum (kursor "naprijed-only"), ne više fiksni danas.
+        gte: pocetniDatum,
         lte: doDatuma,
       },
     },
@@ -356,7 +385,9 @@ export async function generirajINaPosalji() {
         lt: doDatuma,
       },
       datumDo: {
-        gt: danas,
+        // Naprijed-only: ignoriraj boravke koji su završili prije pocetniDatum
+        // (njihovo međučišćenje je u već poslanom razdoblju).
+        gt: pocetniDatum,
       },
     },
     include: {
@@ -383,7 +414,7 @@ export async function generirajINaPosalji() {
       continue;
     }
 
-    if (datumMedjuciscenja < danas || datumMedjuciscenja > doDatuma) {
+    if (datumMedjuciscenja < pocetniDatum || datumMedjuciscenja > doDatuma) {
       continue;
     }
 
@@ -446,7 +477,7 @@ export async function generirajINaPosalji() {
   const stavkeBazen: any[] = [];
 
   if (prvaJedinica) {
-    let d = danas;
+    let d = pocetniDatum; // naprijed-only: kreni od kursora, ne od danas
 
     while (d <= doDatuma) {
       if (martyBazenZaDan(postavke, d)) {
@@ -513,7 +544,7 @@ export async function generirajINaPosalji() {
   const stavkeStubiste: any[] = [];
 
   if (prvaEvaJedinica) {
-    let d = danas;
+    let d = pocetniDatum; // naprijed-only: kreni od kursora, ne od danas
 
     while (d <= doDatuma) {
       if (evaStubisteZaDan(postavke, d)) {
@@ -565,7 +596,7 @@ export async function generirajINaPosalji() {
   const stavkeStubisteMarty: any[] = [];
 
   if (prvaJedinica) {
-    let d = danas;
+    let d = pocetniDatum; // naprijed-only: kreni od kursora, ne od danas
 
     while (d <= doDatuma) {
       if (martyStubisteZaDan(postavke, d)) {
@@ -622,7 +653,11 @@ export async function generirajINaPosalji() {
   if (sveStavkeZaMail.length === 0) {
     return {
       success: true,
-      message: "Nema stavki za slanje",
+      // `prazno` + `zadnjiPoslani` nose info za UX poruku "Sve poslano do DD.MM".
+      // Kursor NE napreduje (ništa nije poslano, nema nove narudžbe).
+      prazno: true,
+      zadnjiPoslani,
+      message: "Nema novih stavki za slanje",
     };
   }
 
@@ -643,7 +678,9 @@ export async function generirajINaPosalji() {
   const narudzba = await prisma.ciscenjeNarudzba.create({
     data: {
       agencijaId: agencija.id,
-      datumOd: danas,
+      // datumOd = pocetniDatum (kursor) → header "Period" pošteno pokazuje
+      // SAMO nadopunu-naprijed, a max(datumDo) ostaje izvor kursora idućeg puta.
+      datumOd: pocetniDatum,
       datumDo: doDatuma,
       emailPrimatelja: agencija.email,
       ccEmailsSnapshot: agencija.ccEmails,
