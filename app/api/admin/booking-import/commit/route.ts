@@ -332,8 +332,12 @@ export async function POST(req: Request) {
         }
 
         if (postojece.length > 0) {
+          const brisaniIds = postojece.map((r) => r.id);
+          await tx.poklonBon.deleteMany({
+            where: { rezervacijaId: { in: brisaniIds } },
+          });
           const res = await tx.rezervacija.deleteMany({
-            where: { id: { in: postojece.map((r) => r.id) } },
+            where: { id: { in: brisaniIds } },
           });
           brojObrisano = res.count;
         }
