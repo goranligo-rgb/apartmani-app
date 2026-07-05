@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { startOfTodayInZagreb } from "@/lib/dates";
 
 function parseICal(data: string) {
   const events = [];
@@ -108,6 +109,67 @@ async function syncJedanKalendar(kal: any) {
       where: { id: { in: toDelete } },
     });
     console.log(`iCal sync: obrisano ${toDelete.length} blokada koje su nestale iz feed-a (kalendar ${kal.id.slice(0, 8)})`);
+  }
+
+  // ── GHOST-CLEANUP: otkazane BUDUĆE BOOKING rezervacije ──
+  //
+  // Kad gost otkaže, Booking ukloni event iz feed-a (UID nestane) — isto kao
+  // kad boravak završi. Zato je "nestanak" siguran signal otkaza SAMO za
+  // BUDUĆNOST: prošle rezervacije (datumDo < danas, odn. datumOd < danas) su
+  // NORMALNO završeni boravci i NIKAD ih ne diramo. Empirijski potvrđeno:
+  // Booking feed drži samo datumDo >= danas, pa se prošlima UID uvijek "izgubi".
+  //
+  // Ghost = BUDUĆA (datumOd >= danas) BOOKING rezervacija za ovu jedinicu čiji
+  // je UID nestao iz feed-a ILI joj je blokada obrisana. Brišemo poklon-bon
+  // (Restrict FK) prije rezervacije; rezervacija (Cascade) očisti svoje logove.
+  //
+  // SIGURNOSNI GUARD: preskačemo ghost-cleanup ako feed nema nijedan event
+  // (vjerojatno transientni prazan/loš odgovor) — inače bismo masovno obrisali
+  // sve buduće rezervacije jedinice na jednom lošem fetchu.
+  if (events.length > 0) {
+    const danas = startOfTodayInZagreb();
+
+    const buduceBooking = await prisma.rezervacija.findMany({
+      where: {
+        izvor: "BOOKING",
+        jedinicaId: kal.jedinicaId,
+        datumOd: { gte: danas },
+      },
+      select: { id: true, bookingIcalUid: true, blokadaId: true },
+    });
+
+    // Žive blokade ove jedinice NAKON delete-missing koraka.
+    const ziveBlokadeIds = new Set(
+      (
+        await prisma.blokadaVanjskogKalendara.findMany({
+          where: { jedinicaId: kal.jedinicaId },
+          select: { id: true },
+        })
+      ).map((b) => b.id)
+    );
+
+    const ghostIds = buduceBooking
+      .filter((r) => {
+        const uidNestao = !!r.bookingIcalUid && !feedUids.has(r.bookingIcalUid);
+        const blokadaNestala = !!r.blokadaId && !ziveBlokadeIds.has(r.blokadaId);
+        return uidNestao || blokadaNestala;
+      })
+      .map((r) => r.id);
+
+    if (ghostIds.length > 0) {
+      // Atomično i redom: poklon-bon (Restrict) mora prije rezervacije.
+      await prisma.$transaction([
+        prisma.poklonBon.deleteMany({
+          where: { rezervacijaId: { in: ghostIds } },
+        }),
+        prisma.rezervacija.deleteMany({
+          where: { id: { in: ghostIds } },
+        }),
+      ]);
+      console.log(
+        `iCal sync: ghost-cleanup obrisao ${ghostIds.length} otkazanih budućih BOOKING rezervacija (kalendar ${kal.id.slice(0, 8)})`
+      );
+    }
   }
 
   await prisma.vanjskiKalendar.update({
