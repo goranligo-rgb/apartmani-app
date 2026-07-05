@@ -462,6 +462,8 @@ export default async function RezervacijaDetaljPage({
     status: string;
     greska?: string | null;
     vrijeme: Date;
+    // EMAIL: sadrzaj (HTML, FAZA 6) · SMS/WA: tekstPregled (tekst). NULL = nije spremljeno.
+    puniSadrzaj?: string | null;
   };
 
   const logKomunikacije: LogStavka[] = [
@@ -473,6 +475,7 @@ export default async function RezervacijaDetaljPage({
       status: e.status,
       greska: e.greska,
       vrijeme: e.createdAt,
+      puniSadrzaj: e.sadrzaj, // renderirani HTML maila (FAZA 6), NULL za stare/neposlane
     })),
     ...rezervacija.whatsappPoruke.map((p) => ({
       id: `wa-${p.id}`,
@@ -480,10 +483,11 @@ export default async function RezervacijaDetaljPage({
         | "SMS"
         | "WHATSAPP",
       naslov: p.tekstPregled,
-      podnaslov: p.primatelj,
+      podnaslov: `${p.primatelj} · ${p.tip}`, // tip = CHECKIN / ZAHVALA (FAZA 5)
       status: p.status,
       greska: p.greska,
       vrijeme: p.poslanoAt,
+      puniSadrzaj: p.tekstPregled, // puni tekst poruke (bez ellipsis skraćivanja)
     })),
   ].sort((a, b) => b.vrijeme.getTime() - a.vrijeme.getTime());
 
@@ -2912,7 +2916,7 @@ export default async function RezervacijaDetaljPage({
                         : { bg: "#fef9c3", border: "#fde047", text: "#854d0e" };
 
                   return (
-                    <div
+                    <details
                       key={s.id}
                       style={{
                         border: "1px solid #e8dcc4",
@@ -2921,51 +2925,93 @@ export default async function RezervacijaDetaljPage({
                         fontSize: 12,
                       }}
                     >
-                      <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", gap: 6 }}>
-                        <div style={{ minWidth: 0, flex: 1 }}>
-                          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                            <span
-                              style={{
-                                border: `1px solid ${kanalBoja.border}`,
-                                background: kanalBoja.bg,
-                                color: kanalBoja.text,
-                                padding: "1px 6px",
-                                fontSize: 10,
-                                fontWeight: 700,
-                                letterSpacing: "0.04em",
-                              }}
-                            >
-                              {s.kanal}
-                            </span>
-                            <span
-                              style={{
-                                fontWeight: 600,
-                                color: "#2f261d",
-                                overflow: "hidden",
-                                textOverflow: "ellipsis",
-                                whiteSpace: "nowrap",
-                              }}
-                            >
-                              {s.naslov}
-                            </span>
+                      <summary style={{ cursor: "pointer", listStyle: "none" }}>
+                        <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", gap: 6 }}>
+                          <div style={{ minWidth: 0, flex: 1 }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                              <span
+                                style={{
+                                  border: `1px solid ${kanalBoja.border}`,
+                                  background: kanalBoja.bg,
+                                  color: kanalBoja.text,
+                                  padding: "1px 6px",
+                                  fontSize: 10,
+                                  fontWeight: 700,
+                                  letterSpacing: "0.04em",
+                                }}
+                              >
+                                {s.kanal}
+                              </span>
+                              <span
+                                style={{
+                                  fontWeight: 600,
+                                  color: "#2f261d",
+                                  overflow: "hidden",
+                                  textOverflow: "ellipsis",
+                                  whiteSpace: "nowrap",
+                                }}
+                              >
+                                {s.naslov}
+                              </span>
+                            </div>
+                            <div style={{ fontSize: 11, color: "#6f665a", marginTop: 2 }}>
+                              {s.podnaslov}
+                            </div>
                           </div>
-                          <div style={{ fontSize: 11, color: "#6f665a", marginTop: 2 }}>
-                            {s.podnaslov}
+                          <span className={s.status === "POSLANO" ? "gr" : "rd"}>{s.status}</span>
+                        </div>
+
+                        {s.greska && (
+                          <div style={{ marginTop: 4, background: "#fef2f2", padding: 6, fontSize: 11, color: "#991b1b" }}>
+                            {s.greska}
                           </div>
-                        </div>
-                        <span className={s.status === "POSLANO" ? "gr" : "rd"}>{s.status}</span>
-                      </div>
+                        )}
 
-                      {s.greska && (
-                        <div style={{ marginTop: 4, background: "#fef2f2", padding: 6, fontSize: 11, color: "#991b1b" }}>
-                          {s.greska}
+                        <div style={{ marginTop: 4, fontSize: 10, color: "#9b7a4c" }}>
+                          {formatDateTime(s.vrijeme)}
                         </div>
-                      )}
+                      </summary>
 
-                      <div style={{ marginTop: 4, fontSize: 10, color: "#9b7a4c" }}>
-                        {formatDateTime(s.vrijeme)}
+                      {/* Rastvoreni puni sadržaj — bez modala/nove stranice. */}
+                      <div style={{ marginTop: 8, borderTop: "1px solid #e8dcc4", paddingTop: 8 }}>
+                        {s.kanal === "EMAIL" ? (
+                          s.puniSadrzaj ? (
+                            // Mail je HTML string → renderiramo ga u sandboxiranom iframeu.
+                            // Prazan sandbox="" = bez skripti, bez same-origin, bez formi →
+                            // XSS iz sadržaja maila je neutraliziran, a mail se vidi kako izgleda.
+                            <iframe
+                              srcDoc={s.puniSadrzaj}
+                              sandbox=""
+                              title={`Sadržaj maila: ${s.naslov}`}
+                              style={{
+                                width: "100%",
+                                height: 360,
+                                border: "1px solid #e8dcc4",
+                                background: "#fff",
+                              }}
+                            />
+                          ) : (
+                            <div style={{ fontSize: 11, color: "#9b7a4c", fontStyle: "italic" }}>
+                              (sadržaj nije spremljen)
+                            </div>
+                          )
+                        ) : (
+                          // SMS/WhatsApp = običan tekst → React escapea sadržaj (sigurno).
+                          <pre
+                            style={{
+                              whiteSpace: "pre-wrap",
+                              wordBreak: "break-word",
+                              margin: 0,
+                              fontFamily: "inherit",
+                              fontSize: 12,
+                              color: "#2f261d",
+                            }}
+                          >
+                            {s.puniSadrzaj || "(sadržaj nije spremljen)"}
+                          </pre>
+                        )}
                       </div>
-                    </div>
+                    </details>
                   );
                 })}
               </div>
