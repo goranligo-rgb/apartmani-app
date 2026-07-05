@@ -10,7 +10,6 @@ import {
   OBJEKT_KEY_TO_NAZIV,
   type ObjektKey,
 } from "@/lib/booking-unit-mapping";
-import { startOfTodayInZagreb } from "@/lib/dates";
 import { drzavaUJezik } from "@/lib/jezik";
 import { mozdaPosaljiNadopunu } from "@/lib/ciscenje/mozdaPosaljiNadopunu";
 
@@ -280,11 +279,10 @@ export async function POST(req: Request) {
     }
   }
 
-  // FULL REPLACE: prikupimo postojeće BOOKING rezervacije za ovaj objekt
-  // od današnjeg datuma (Europe/Zagreb) pa nadalje. Brišemo ih PRIJE kreiranja
-  // novih iz Excel-a, da Excel postane jedini izvor istine za buduće rezervacije.
-  // Prošli datumi (datumOd < today) ostaju netaknuti i upsert-aju se po UID-u.
-  const today = startOfTodayInZagreb();
+  // INKREMENTALNO: postojeće BOOKING rezervacije se VIŠE NE BRIŠU (nekad FULL
+  // REPLACE). Korak 2 (find-or-create po bookingIcalUid) update-a postojeće i
+  // kreira nove. Audit polja obrisaneRez/brojObrisano ostaju radi kompatibilnosti
+  // (uvijek prazno / 0 — ništa se ne briše ovdje).
   const obrisaneRez: Array<{
     id: string;
     datumOd: string;
@@ -304,43 +302,10 @@ export async function POST(req: Request) {
   try {
     await prisma.$transaction(
       async (tx) => {
-        // 0. FULL REPLACE: find + delete postojeće BOOKING rezervacije za ovaj objekt
-        //    s datumOd >= today (Europe/Zagreb). Cascade auto-briše Placanja/Racuni/
-        //    Emailove/Promjene (sve su 0 za BOOKING flow). Ne dira Blokade ni Goste.
-        const postojece = await tx.rezervacija.findMany({
-          where: {
-            izvor: "BOOKING",
-            jedinica: { objektId: objekt.id },
-            datumOd: { gte: today },
-          },
-          include: {
-            gost: { select: { ime: true, prezime: true } },
-          },
-        });
-
-        for (const r of postojece) {
-          const gostIme = r.gost
-            ? `${r.gost.ime ?? ""} ${r.gost.prezime ?? ""}`.trim() || "(bez imena)"
-            : "(bez gosta)";
-          obrisaneRez.push({
-            id: r.id,
-            datumOd: ymdKey(r.datumOd),
-            datumDo: ymdKey(r.datumDo),
-            gostIme,
-            iznos: r.iznosUkupno,
-          });
-        }
-
-        if (postojece.length > 0) {
-          const brisaniIds = postojece.map((r) => r.id);
-          await tx.poklonBon.deleteMany({
-            where: { rezervacijaId: { in: brisaniIds } },
-          });
-          const res = await tx.rezervacija.deleteMany({
-            where: { id: { in: brisaniIds } },
-          });
-          brojObrisano = res.count;
-        }
+        // 0. INKREMENTALNO: NE brišemo postojeće BOOKING rezervacije. Time isti
+        //    Rezervacija.id preživi re-import, pa vezani EmailLog/WhatsappPoruka/
+        //    PoklonBon (welcome/zahvala "poslano") ostaju sačuvani. Otkazane buduće
+        //    rezervacije čisti iCal sync (ghost-cleanup), ne ovaj import.
 
         // 1. UPDATE blokada (Excel obogaćivanje)
         for (const u of blokadaUpdates) {
@@ -356,87 +321,116 @@ export async function POST(req: Request) {
         // iCal sync briše/kreira blokade s novim UUID-evima ali istim UID-em,
         // pa blokadaId nije pouzdan ključ za vezu Rezervacije.
         //
-        // Idempotentnost: ako Shadow Rezervacija već postoji za UID,
-        // SAMO update-amo iznose + bookingExternalId + osvježeni blokadaId.
-        // Gost se NE dira (ni novi se ne kreira), čime izbjegavamo duplikat
-        // Gost-ova pri re-importu istog Excel-a.
+        // Idempotentnost: ako Shadow Rezervacija već postoji za UID, UPDATE-amo je
+        // (datumi/osobe/iznosi/gost) uz ISTI id — tako vezani EmailLog/WhatsappPoruka/
+        // PoklonBon ("poslano" welcome/zahvala) prežive re-import. Inače CREATE nove.
         //
         // NAPOMENA: Excel trenutno NE postavlja gostEmail na blokadu, pa će
         // email-upsert grana raditi samo ako je email došao iz drugog izvora.
         for (const op of shadowOps) {
           const existing = await tx.rezervacija.findUnique({
             where: { bookingIcalUid: op.icalUid },
-            select: { id: true },
+            select: { id: true, gostId: true },
           });
 
-          if (existing) {
-            await tx.rezervacija.update({
-              where: { bookingIcalUid: op.icalUid },
-              data: {
-                iznosUkupno: op.iznosBruto,
-                iznosPlaceno: op.iznosBruto,
-                dogovoreniIznos: op.iznosBruto,
-                bookingExternalId: op.bookingId,
-                blokadaId: op.blokadaId,
-              },
-            });
-            continue;
-          }
-
-          let gostId: string | null = null;
-
-          // Mapiraj državu u jezik (booking ISO kod → routing locale).
-          // Booking je slabiji signal od weba; jezik NE prepisujemo na postojećem
-          // gostu — koristimo "fill if null" obrazac niže.
-          const bookingJezik = drzavaUJezik(op.gostDrzava);
-
-          if (op.gostEmail) {
-            const g = await tx.gost.upsert({
-              where: { email: op.gostEmail },
-              create: {
-                ime: op.gostIme || "Booking gost",
-                prezime: op.gostPrezime,
-                email: op.gostEmail,
-                telefon: op.gostTelefon,
-                drzava: op.gostDrzava,
-                jezik: bookingJezik,
-              },
-              update: {
-                ime: op.gostIme || undefined,
-                prezime: op.gostPrezime,
-                telefon: op.gostTelefon,
-                drzava: op.gostDrzava,
-              },
-            });
-            gostId = g.id;
-
-            // Postojeći gost bez jezika dobiva ga iz booking signala; ako već
-            // ima jezik (npr. web ga je postavio), NE diramo.
-            if (bookingJezik && g.jezik == null) {
-              await tx.gost.update({
-                where: { id: g.id },
-                data: { jezik: bookingJezik },
-              });
-            }
-          } else if (op.gostIme) {
-            const g = await tx.gost.create({
-              data: {
-                ime: op.gostIme,
-                prezime: op.gostPrezime,
-                telefon: op.gostTelefon,
-                drzava: op.gostDrzava,
-                jezik: bookingJezik,
-              },
-            });
-            gostId = g.id;
-          }
-
+          // Broj noćenja — isti izračun za UPDATE i CREATE granu.
           const noci = Math.max(
             Math.round(
               (op.datumDo.getTime() - op.datumOd.getTime()) / 86400000
             ),
             1
           );
+
+          // Mapiraj državu u jezik (booking ISO kod → routing locale).
+          // Booking je slabiji signal od weba; jezik NE prepisujemo na postojećem
+          // gostu — koristimo "fill if null" obrazac.
+          const bookingJezik = drzavaUJezik(op.gostDrzava);
+
+          // Razriješi (ili kreiraj) gosta iz Excel podataka za NOVU rezervaciju.
+          // Email → idempotentni upsert; bez emaila → create (Booking gosti obično
+          // nemaju email). Vraća null ako nema ni emaila ni imena.
+          const resolveNoviGostId = async (): Promise<string | null> => {
+            if (op.gostEmail) {
+              const g = await tx.gost.upsert({
+                where: { email: op.gostEmail },
+                create: {
+                  ime: op.gostIme || "Booking gost",
+                  prezime: op.gostPrezime,
+                  email: op.gostEmail,
+                  telefon: op.gostTelefon,
+                  drzava: op.gostDrzava,
+                  jezik: bookingJezik,
+                },
+                update: {
+                  ime: op.gostIme || undefined,
+                  prezime: op.gostPrezime,
+                  telefon: op.gostTelefon,
+                  drzava: op.gostDrzava,
+                },
+              });
+              // Postojeći gost bez jezika dobiva ga iz booking signala; ako već
+              // ima jezik (npr. web ga je postavio), NE diramo.
+              if (bookingJezik && g.jezik == null) {
+                await tx.gost.update({
+                  where: { id: g.id },
+                  data: { jezik: bookingJezik },
+                });
+              }
+              return g.id;
+            } else if (op.gostIme) {
+              const g = await tx.gost.create({
+                data: {
+                  ime: op.gostIme,
+                  prezime: op.gostPrezime,
+                  telefon: op.gostTelefon,
+                  drzava: op.gostDrzava,
+                  jezik: bookingJezik,
+                },
+              });
+              return g.id;
+            }
+            return null;
+          };
+
+          if (existing) {
+            // INKREMENTALNI UPDATE (isti id) — hvata promjenu datuma/osoba/cijene/
+            // gosta na Bookingu. Gost: ako rezervacija već ima gosta, osvježi mu
+            // podatke u mjestu (bez dupliranja Gost-reda pri re-importu); inače
+            // razriješi novog.
+            let gostId = existing.gostId;
+            if (gostId) {
+              await tx.gost.update({
+                where: { id: gostId },
+                data: {
+                  ime: op.gostIme || undefined,
+                  prezime: op.gostPrezime,
+                  telefon: op.gostTelefon,
+                  drzava: op.gostDrzava,
+                },
+              });
+            } else {
+              gostId = await resolveNoviGostId();
+            }
+
+            await tx.rezervacija.update({
+              where: { bookingIcalUid: op.icalUid },
+              data: {
+                datumOd: op.datumOd,
+                datumDo: op.datumDo,
+                brojNocenja: noci,
+                brojOsoba: op.brojOsoba ?? 2,
+                iznosUkupno: op.iznosBruto,
+                iznosPlaceno: op.iznosBruto,
+                dogovoreniIznos: op.iznosBruto,
+                bookingExternalId: op.bookingId,
+                blokadaId: op.blokadaId,
+                gostId,
+              },
+            });
+            continue;
+          }
+
+          const gostId = await resolveNoviGostId();
 
           // STVARNO nova Shadow Rezervacija — capture id za PR2 nadopuna helper.
           // Grana iznad (existing → update + continue) NE zapisuje u noviRezervacijeIds.
