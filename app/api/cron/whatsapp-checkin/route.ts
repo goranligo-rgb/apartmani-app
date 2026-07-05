@@ -6,7 +6,7 @@ import { normalizirajE164 } from "@/lib/twilio";
 import { imaInfobipKonfiguraciju, posaljiSmsInfobip } from "@/lib/infobip";
 import { sastaviCheckinSms } from "@/lib/smsCheckin";
 import { rezerviraniJezik } from "@/lib/jezik";
-import { nazivToSlug } from "@/lib/objekti";
+import { nazivToSlug, brojApartmanaIzNaziva } from "@/lib/objekti";
 import { zagrebWallClockToInstant } from "@/lib/dates";
 
 export const dynamic = "force-dynamic";
@@ -257,6 +257,8 @@ export async function GET(request: Request) {
         datumUlaska: formatDatumKratko(r.datumOd),
         datumIzlaska: formatDatumKratko(r.datumDo),
         sifra,
+        // Broj apartmana samo za Eva/Marty; House Art → null (red se izostavlja).
+        brojApartmana: brojApartmanaIzNaziva(r.jedinica.naziv),
         kontakt,
         eCheckinLink: r.eCheckinLink,
         appUrl,

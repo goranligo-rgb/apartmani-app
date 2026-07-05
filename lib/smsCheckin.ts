@@ -15,6 +15,7 @@ type SmsTekst = {
     datumUlaska: string;
     datumIzlaska: string;
     sifra: string;
+    brojApartmana?: number | null; // Eva/Marty → broj; House Art → izostaje
   }) => string;
   eCheckinUvod: string; // rečenica iznad linka (link ide u sljedeći red)
   welcomeUvod: string; // rečenica iznad welcome linka (link ide u sljedeći red)
@@ -23,8 +24,10 @@ type SmsTekst = {
 
 const TEKSTOVI: Record<MailJezik, SmsTekst> = {
   hr: {
-    uvod: ({ ime, objekt, datumUlaska, datumIzlaska, sifra }) =>
-      `Pozdrav ${ime}! Hvala sto ste odabrali ${objekt}. ` +
+    uvod: ({ ime, objekt, datumUlaska, datumIzlaska, sifra, brojApartmana }) =>
+      `Pozdrav ${ime}! Hvala sto ste odabrali ${objekt}.` +
+      (brojApartmana ? ` Vas apartman je broj ${brojApartmana}.` : "") +
+      ` ` +
       `Prijava ${datumUlaska} od 16h, odjava ${datumIzlaska} do 10h. ` +
       `Sifru za glavni ulaz i apartman unesite kao *${sifra}#.`,
     eCheckinUvod: "Molimo popunite prijavu prije dolaska na linku:",
@@ -32,8 +35,10 @@ const TEKSTOVI: Record<MailJezik, SmsTekst> = {
     kontakt: (kontakt) => `Kontakt u slucaju problema: ${kontakt}`,
   },
   en: {
-    uvod: ({ ime, objekt, datumUlaska, datumIzlaska, sifra }) =>
-      `Hello ${ime}! Thank you for choosing ${objekt}. ` +
+    uvod: ({ ime, objekt, datumUlaska, datumIzlaska, sifra, brojApartmana }) =>
+      `Hello ${ime}! Thank you for choosing ${objekt}.` +
+      (brojApartmana ? ` Your apartment is number ${brojApartmana}.` : "") +
+      ` ` +
       `Check-in ${datumUlaska} from 16h, check-out ${datumIzlaska} until 10h. ` +
       `Enter the code for the main entrance and apartment as *${sifra}#.`,
     eCheckinUvod:
@@ -42,8 +47,10 @@ const TEKSTOVI: Record<MailJezik, SmsTekst> = {
     kontakt: (kontakt) => `Contact in case of problems: ${kontakt}`,
   },
   de: {
-    uvod: ({ ime, objekt, datumUlaska, datumIzlaska, sifra }) =>
-      `Hallo ${ime}! Danke, dass Sie sich fuer ${objekt} entschieden haben. ` +
+    uvod: ({ ime, objekt, datumUlaska, datumIzlaska, sifra, brojApartmana }) =>
+      `Hallo ${ime}! Danke, dass Sie sich fuer ${objekt} entschieden haben.` +
+      (brojApartmana ? ` Ihre Wohnung ist Nummer ${brojApartmana}.` : "") +
+      ` ` +
       `Check-in ${datumUlaska} ab 16 Uhr, Check-out ${datumIzlaska} bis 10 Uhr. ` +
       `Geben Sie den Code fuer Haupteingang und Apartment als *${sifra}# ein.`,
     eCheckinUvod:
@@ -66,6 +73,7 @@ export function sastaviCheckinSms(params: {
   datumUlaska: string; // DD.MM.
   datumIzlaska: string; // DD.MM.
   sifra: string;
+  brojApartmana?: number | null; // Eva/Marty → broj; House Art/nepoznato → izostaje
   kontakt: string;
   eCheckinLink?: string | null;
   appUrl?: string | null; // baza za welcome link; prazno → welcome red se izostavlja
@@ -84,6 +92,7 @@ export function sastaviCheckinSms(params: {
       datumUlaska: params.datumUlaska,
       datumIzlaska: params.datumIzlaska,
       sifra: params.sifra,
+      brojApartmana: params.brojApartmana,
     }),
   ];
 

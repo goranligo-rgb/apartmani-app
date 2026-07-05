@@ -52,6 +52,15 @@ export type WelcomeMailParams = {
   vodicUrl: string; // welcomeUrl(appUrl, jezik, slug, t)
   boja: string; // OBJEKT_BOJA — gumb + bold šifra
   uvodOverride?: string | null; // editabilan uvod iz admina; zamjenjuje "najava"
+  brojApartmana?: number | null; // Eva/Marty → redak "Vaš apartman je broj N."; House Art → izostaje
+};
+
+// Rečenica o broju apartmana po jeziku (Eva/Marty). Držana ovdje jer je
+// samo za welcome mail; House Art nikad ne dolazi ovamo (brojApartmana=null).
+const APARTMAN_RECENICA: Record<MailJezik, (n: number) => string> = {
+  hr: (n) => `Vaš apartman je broj ${n}.`,
+  en: (n) => `Your apartment is number ${n}.`,
+  de: (n) => `Ihre Wohnung ist Nummer ${n}.`,
 };
 
 // Vrati gotov HTML welcome maila. Subject pozivatelj sklapa zasebno
@@ -61,6 +70,14 @@ export function renderWelcomeMail(p: WelcomeMailParams): string {
   const boja = p.boja;
 
   const najava = (p.uvodOverride && p.uvodOverride.trim()) || t.najava;
+
+  // Redak s brojem apartmana — samo Eva/Marty (brojApartmana zadan). House Art
+  // ima brojApartmana=null → red se izostavlja, mail ostaje nepromijenjen.
+  const apartmanRed = p.brojApartmana
+    ? `<p style="margin:0 0 14px;">${esc(
+        APARTMAN_RECENICA[p.jezik](p.brojApartmana)
+      )}</p>`
+    : "";
   const datumOd = formatDateZaMail(p.datumOd, p.jezik);
   const datumDo = formatDateZaMail(p.datumDo, p.jezik);
 
@@ -100,6 +117,8 @@ export function renderWelcomeMail(p: WelcomeMailParams): string {
 
   const children = `
       <p>${esc(t.pozdrav(p.ime))}</p>
+
+      ${apartmanRed}
 
       <p>${esc(najava)}</p>
 

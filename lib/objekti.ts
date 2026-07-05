@@ -93,6 +93,21 @@ export function nazivToSlug(naziv: string | null | undefined): ObjektSlug | null
   return null;
 }
 
+// Izvuci broj apartmana iz naziva jedinice (Jedinica.naziv) — SAMO za Eva i
+// Marty ("Eva 3" → 3, "Marty 4" → 4). House Art nema broj → null. Bilo koji
+// naziv bez prepoznatog prefiksa ili broja → null (pozivatelj tada ne dodaje
+// nikakav tekst o apartmanu).
+export function brojApartmanaIzNaziva(
+  naziv: string | null | undefined
+): number | null {
+  const m = String(naziv || "")
+    .trim()
+    .match(/^(?:Eva|Marty)\s+(\d+)/i);
+  if (!m) return null;
+  const n = Number.parseInt(m[1], 10);
+  return Number.isFinite(n) ? n : null;
+}
+
 const OG_LOCALE: Record<Locale, string> = {
   hr: "hr_HR",
   en: "en_US",

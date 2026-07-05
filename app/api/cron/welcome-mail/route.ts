@@ -7,7 +7,7 @@ import { welcomeUrl } from "@/lib/vodic/mail";
 import { vodicJezik, OBJEKT_BOJA } from "@/lib/vodic";
 import { dohvatiPrijevode } from "@/lib/mailovi";
 import { rezerviraniJezik } from "@/lib/jezik";
-import { nazivToSlug } from "@/lib/objekti";
+import { nazivToSlug, brojApartmanaIzNaziva } from "@/lib/objekti";
 
 export const dynamic = "force-dynamic";
 
@@ -156,6 +156,8 @@ export async function GET(request: Request) {
         datumDo: r.datumDo,
         vodicUrl: welcomeUrl(appUrl, jezik, slug, r.id),
         boja: OBJEKT_BOJA[slug],
+        // Broj apartmana samo za Eva/Marty; House Art → null (red se izostavlja).
+        brojApartmana: brojApartmanaIzNaziva(r.jedinica.naziv),
       });
 
       let mailStatus: "POSLANO" | "GRESKA" = "GRESKA";

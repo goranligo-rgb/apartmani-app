@@ -13,7 +13,7 @@ import {
 } from "@/lib/mailovi";
 import { imaInfobipKonfiguraciju, posaljiSmsInfobip } from "@/lib/infobip";
 import { sendMail } from "@/lib/mail";
-import { nazivToSlug } from "@/lib/objekti";
+import { nazivToSlug, brojApartmanaIzNaziva } from "@/lib/objekti";
 import { vodicJezik, OBJEKT_BOJA } from "@/lib/vodic";
 import { welcomeUrl, zahvalaUrl } from "@/lib/vodic/mail";
 import { renderWelcomeMail } from "@/lib/vodic/welcomeMail";
@@ -1042,6 +1042,8 @@ export default async function RezervacijaDetaljPage({
       vodicUrl: welcomeUrl(appUrl, jezik, slug, rezervacijaId),
       boja: OBJEKT_BOJA[slug],
       uvodOverride: uvodPara || null,
+      // Broj apartmana samo za Eva/Marty; House Art → null (red se izostavlja).
+      brojApartmana: brojApartmanaIzNaziva(r.jedinica.naziv),
     });
 
     const subject = t.subject(r.jedinica.objekt.naziv);
