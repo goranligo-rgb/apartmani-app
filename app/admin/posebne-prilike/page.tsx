@@ -374,6 +374,17 @@ export default async function AdminPosebnePrilikePage({
       throw new Error("Jedinica nije pronađena.");
     }
 
+    // >>> PRIVREMENI DEBUG (ukloniti nakon dijagnostike posebnih prilika) <<<
+    console.log("[POSEBNA-PRILIKA DEBUG] ulazne vrijednosti provjere:", {
+      jedinicaId,
+      jedinicaNaziv: jedinica.naziv,
+      datumOd_iso: datumOd.toISOString(),
+      datumDo_iso: datumDo.toISOString(),
+      datumOd_raw: String(datumOd),
+      datumDo_raw: String(datumDo),
+      serverTZ: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    });
+
     const postojiRezervacija = await prisma.rezervacija.findFirst({
       where: {
         jedinicaId,
@@ -389,11 +400,41 @@ export default async function AdminPosebnePrilikePage({
       },
     });
 
+    // >>> PRIVREMENI DEBUG (ukloniti nakon dijagnostike posebnih prilika) <<<
+    console.log(
+      "[POSEBNA-PRILIKA DEBUG] findFirst rezervacija rezultat:",
+      postojiRezervacija
+        ? {
+            id: postojiRezervacija.id,
+            jedinicaId: postojiRezervacija.jedinicaId,
+            status: postojiRezervacija.status,
+            izvor: postojiRezervacija.izvor,
+            datumOd_iso: postojiRezervacija.datumOd.toISOString(),
+            datumDo_iso: postojiRezervacija.datumDo.toISOString(),
+            obrisanoAt: postojiRezervacija.obrisanoAt
+              ? postojiRezervacija.obrisanoAt.toISOString()
+              : null,
+            bookingIcalUid: postojiRezervacija.bookingIcalUid,
+          }
+        : "NEMA (null) — provjera rezervacija prolazi"
+    );
+
     if (postojiRezervacija) {
       throw new Error(
         "Ne može se kreirati posebna prilika jer je termin već zauzet rezervacijom."
       );
     }
+
+    // >>> PRIVREMENI DEBUG (ukloniti nakon dijagnostike posebnih prilika) <<<
+    console.log("[POSEBNA-PRILIKA DEBUG] ulazne vrijednosti provjere BLOKADE:", {
+      jedinicaId,
+      jedinicaNaziv: jedinica.naziv,
+      datumOd_iso: datumOd.toISOString(),
+      datumDo_iso: datumDo.toISOString(),
+      datumOd_raw: String(datumOd),
+      datumDo_raw: String(datumDo),
+      serverTZ: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    });
 
     const postojiBlokada = await prisma.blokadaJedinice.findFirst({
       where: {
@@ -407,6 +448,23 @@ export default async function AdminPosebnePrilikePage({
         },
       },
     });
+
+    // >>> PRIVREMENI DEBUG (ukloniti nakon dijagnostike posebnih prilika) <<<
+    console.log(
+      "[POSEBNA-PRILIKA DEBUG] findFirst blokada rezultat:",
+      postojiBlokada
+        ? {
+            id: postojiBlokada.id,
+            jedinicaId: postojiBlokada.jedinicaId,
+            aktivna: postojiBlokada.aktivna,
+            izvor: postojiBlokada.izvor,
+            datumOd_iso: postojiBlokada.datumOd.toISOString(),
+            datumDo_iso: postojiBlokada.datumDo.toISOString(),
+            razlog: postojiBlokada.razlog,
+            externalId: postojiBlokada.externalId,
+          }
+        : "NEMA (null) — provjera blokada prolazi"
+    );
 
     if (postojiBlokada) {
       throw new Error(
