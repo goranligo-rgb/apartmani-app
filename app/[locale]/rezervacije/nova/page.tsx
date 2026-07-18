@@ -255,6 +255,37 @@ export default async function NovaRezervacijaPage(props: {
       datumDo: doDatuma,
     });
 
+    // >>> PRIVREMENI DEBUG (ukloniti nakon dijagnostike gostinske prilike) <<<
+    console.log("[NOVA-PREKLAPANJE DEBUG]", {
+      jedinicaId,
+      datumOd_iso: od.toISOString(),
+      datumDo_iso: doDatuma.toISOString(),
+      akcijaId: akcijaId || null,
+      brojRezervacija: preklapanja.rezervacije.length,
+      brojBlokadeRucne: preklapanja.blokadeRucne.length,
+      brojBlokadeVanjske: preklapanja.blokadeVanjske.length,
+      rezervacije: preklapanja.rezervacije.map((r) => ({
+        id: r.id,
+        status: r.status,
+        izvor: r.izvor,
+        datumOd_iso: r.datumOd.toISOString(),
+        datumDo_iso: r.datumDo.toISOString(),
+      })),
+      blokadeRucne: preklapanja.blokadeRucne.map((b) => ({
+        id: b.id,
+        izvor: b.izvor,
+        datumOd_iso: b.datumOd.toISOString(),
+        datumDo_iso: b.datumDo.toISOString(),
+      })),
+      blokadeVanjske: preklapanja.blokadeVanjske.map((b) => ({
+        id: b.id,
+        izvor: b.izvor,
+        uid: b.uid,
+        datumOd_iso: b.datumOd.toISOString(),
+        datumDo_iso: b.datumDo.toISOString(),
+      })),
+    });
+
     if (
       preklapanja.rezervacije.length > 0 ||
       preklapanja.blokadeRucne.length > 0 ||
