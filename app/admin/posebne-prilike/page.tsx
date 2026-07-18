@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
+import { pronadiPreklapanja } from "@/lib/zauzeca";
 
 export const dynamic = "force-dynamic";
 
@@ -374,101 +375,27 @@ export default async function AdminPosebnePrilikePage({
       throw new Error("Jedinica nije pronađena.");
     }
 
-    // >>> PRIVREMENI DEBUG (ukloniti nakon dijagnostike posebnih prilika) <<<
-    console.log("[POSEBNA-PRILIKA DEBUG] ulazne vrijednosti provjere:", {
-      jedinicaId,
-      jedinicaNaziv: jedinica.naziv,
-      datumOd_iso: datumOd.toISOString(),
-      datumDo_iso: datumDo.toISOString(),
-      datumOd_raw: String(datumOd),
-      datumDo_raw: String(datumDo),
-      serverTZ: Intl.DateTimeFormat().resolvedOptions().timeZone,
-    });
+    // Jedinstvena provjera dostupnosti kroz `pronadiPreklapanja` (lib/zauzeca.ts) —
+    // isti helper koji koristi gostinski booking (create-payment). Pokriva
+    // rezervacije + ručne blokade + iCal Booking blokade, uz normalizaciju na
+    // podne (smjena isti dan / rubni dodir NIJE sukob).
+    const preklapanja = await pronadiPreklapanja({ jedinicaId, datumOd, datumDo });
 
-    const postojiRezervacija = await prisma.rezervacija.findFirst({
-      where: {
-        jedinicaId,
-        status: {
-          not: "OTKAZANO",
-        },
-        datumOd: {
-          lt: datumDo,
-        },
-        datumDo: {
-          gt: datumOd,
-        },
-      },
-    });
-
-    // >>> PRIVREMENI DEBUG (ukloniti nakon dijagnostike posebnih prilika) <<<
-    console.log(
-      "[POSEBNA-PRILIKA DEBUG] findFirst rezervacija rezultat:",
-      postojiRezervacija
-        ? {
-            id: postojiRezervacija.id,
-            jedinicaId: postojiRezervacija.jedinicaId,
-            status: postojiRezervacija.status,
-            izvor: postojiRezervacija.izvor,
-            datumOd_iso: postojiRezervacija.datumOd.toISOString(),
-            datumDo_iso: postojiRezervacija.datumDo.toISOString(),
-            obrisanoAt: postojiRezervacija.obrisanoAt
-              ? postojiRezervacija.obrisanoAt.toISOString()
-              : null,
-            bookingIcalUid: postojiRezervacija.bookingIcalUid,
-          }
-        : "NEMA (null) — provjera rezervacija prolazi"
-    );
-
-    if (postojiRezervacija) {
+    if (preklapanja.rezervacije.length > 0) {
       throw new Error(
         "Ne može se kreirati posebna prilika jer je termin već zauzet rezervacijom."
       );
     }
 
-    // >>> PRIVREMENI DEBUG (ukloniti nakon dijagnostike posebnih prilika) <<<
-    console.log("[POSEBNA-PRILIKA DEBUG] ulazne vrijednosti provjere BLOKADE:", {
-      jedinicaId,
-      jedinicaNaziv: jedinica.naziv,
-      datumOd_iso: datumOd.toISOString(),
-      datumDo_iso: datumDo.toISOString(),
-      datumOd_raw: String(datumOd),
-      datumDo_raw: String(datumDo),
-      serverTZ: Intl.DateTimeFormat().resolvedOptions().timeZone,
-    });
-
-    const postojiBlokada = await prisma.blokadaJedinice.findFirst({
-      where: {
-        jedinicaId,
-        aktivna: true,
-        datumOd: {
-          lt: datumDo,
-        },
-        datumDo: {
-          gt: datumOd,
-        },
-      },
-    });
-
-    // >>> PRIVREMENI DEBUG (ukloniti nakon dijagnostike posebnih prilika) <<<
-    console.log(
-      "[POSEBNA-PRILIKA DEBUG] findFirst blokada rezultat:",
-      postojiBlokada
-        ? {
-            id: postojiBlokada.id,
-            jedinicaId: postojiBlokada.jedinicaId,
-            aktivna: postojiBlokada.aktivna,
-            izvor: postojiBlokada.izvor,
-            datumOd_iso: postojiBlokada.datumOd.toISOString(),
-            datumDo_iso: postojiBlokada.datumDo.toISOString(),
-            razlog: postojiBlokada.razlog,
-            externalId: postojiBlokada.externalId,
-          }
-        : "NEMA (null) — provjera blokada prolazi"
-    );
-
-    if (postojiBlokada) {
+    if (preklapanja.blokadeRucne.length > 0) {
       throw new Error(
         "Ne može se kreirati posebna prilika jer je termin blokiran."
+      );
+    }
+
+    if (preklapanja.blokadeVanjske.length > 0) {
+      throw new Error(
+        "Ne može se kreirati posebna prilika jer je termin zauzet (Booking.com)."
       );
     }
 
