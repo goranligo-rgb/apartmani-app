@@ -238,3 +238,48 @@ export async function DELETE(req: Request) {
     );
   }
 }
+
+export async function PATCH(req: Request) {
+  // Admin auth gate — bez sesije ne dozvoli izmjenu cjenika.
+  if (!(await adminSessionOk())) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  try {
+    const body = await req.json();
+
+    const id = String(body.id || "");
+    const minimalniBoravak = Number(body.minimalniBoravak);
+
+    if (!id) {
+      return NextResponse.json({ error: "Nedostaje ID." }, { status: 400 });
+    }
+
+    if (!Number.isInteger(minimalniBoravak) || minimalniBoravak < 1) {
+      return NextResponse.json(
+        { error: "Minimalni boravak mora biti cijeli broj barem 1." },
+        { status: 400 }
+      );
+    }
+
+    // Ažuriraj ISKLJUČIVO minimalniBoravak — cijena, datumi, boja i aktivno
+    // ostaju netaknuti (namjerno se ne prosljeđuju u data).
+    const updated = await prisma.cjenik.update({
+      where: { id },
+      data: { minimalniBoravak },
+    });
+
+    return NextResponse.json({
+      success: true,
+      id: updated.id,
+      minimalniBoravak: updated.minimalniBoravak,
+    });
+  } catch (error) {
+    console.error("CJENIK_PATCH_ERROR", error);
+
+    return NextResponse.json(
+      { error: "Greška kod ažuriranja minimalnog boravka." },
+      { status: 500 }
+    );
+  }
+}

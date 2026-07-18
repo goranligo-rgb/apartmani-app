@@ -742,6 +742,8 @@ export default function CjenikClient({ jedinice }: { jedinice: JedinicaItem[] })
                             Minimalni boravak: {c.minimalniBoravak} noći •
                             Boja: {c.bojaPerioda}
                           </div>
+
+                          <UrediMinNoci cjenik={c} />
                         </div>
 
                         <button
@@ -761,5 +763,86 @@ export default function CjenikClient({ jedinice }: { jedinice: JedinicaItem[] })
         </section>
       </div>
     </div>
+  );
+}
+
+// Inline uređivanje SAMO minimalnog boravka na postojećem razdoblju.
+// Bez modala (vlasnik ih ne voli) — <details>/<summary> + number input.
+// Cijenu, datume i boju NE dira; šalje PATCH na /api/admin/cjenik.
+function UrediMinNoci({ cjenik }: { cjenik: CjenikItem }) {
+  const router = useRouter();
+  const [vrijednost, setVrijednost] = useState(String(cjenik.minimalniBoravak));
+  const [saving, setSaving] = useState(false);
+  const [greska, setGreska] = useState("");
+
+  async function spremi() {
+    setGreska("");
+
+    const broj = Number(vrijednost);
+
+    if (!Number.isInteger(broj) || broj < 1) {
+      setGreska("Unesi cijeli broj ≥ 1.");
+      return;
+    }
+
+    setSaving(true);
+
+    try {
+      const res = await fetch("/api/admin/cjenik", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: cjenik.id, minimalniBoravak: broj }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setGreska(data.error || "Greška kod spremanja.");
+        setSaving(false);
+        return;
+      }
+
+      router.refresh();
+    } catch {
+      setGreska("Došlo je do greške kod spremanja.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <details className="mt-2">
+      <summary className="cursor-pointer text-xs font-bold text-[#7a4d32]">
+        Uredi min. noći
+      </summary>
+
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        <input
+          type="number"
+          min={1}
+          step={1}
+          value={vrijednost}
+          onChange={(e) => setVrijednost(e.target.value)}
+          className="w-20 border border-[#d9cfbf] px-2 py-1 text-sm outline-none"
+        />
+
+        <span className="text-xs text-[#6f665a]">noći</span>
+
+        <button
+          type="button"
+          onClick={spremi}
+          disabled={saving}
+          className="cursor-pointer border border-[#caa870] bg-[#c79a57] px-3 py-1 text-sm font-bold text-white transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {saving ? "Spremam..." : "Spremi"}
+        </button>
+      </div>
+
+      {greska && (
+        <div className="mt-2 border border-[#f0c3c1] bg-[#f8d7da] p-2 text-xs text-[#8a2d2b]">
+          {greska}
+        </div>
+      )}
+    </details>
   );
 }
