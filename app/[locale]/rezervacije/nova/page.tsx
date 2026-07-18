@@ -4,6 +4,7 @@ import { notFound, redirect } from "next/navigation";
 import { hasLocale } from "next-intl";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { routing, type Locale } from "@/i18n/routing";
+import { pronadiPreklapanja } from "@/lib/zauzeca";
 
 const OG_LOCALE: Record<Locale, string> = {
   hr: "hr_HR",
@@ -243,17 +244,22 @@ export default async function NovaRezervacijaPage(props: {
       redirect(`${prefix}/rezervacije/nova?${params.toString()}`);
     }
 
-    const postojiPreklapanje = await prisma.rezervacija.findFirst({
-      where: {
-        jedinicaId,
-        status: { not: "OTKAZANO" },
-        obrisanoAt: null,
-        datumOd: { lt: doDatuma },
-        datumDo: { gt: od },
-      },
+    // Jedinstvena provjera dostupnosti kroz `pronadiPreklapanja` (lib/zauzeca.ts),
+    // isto kao create-payment i admin. Noon-normalizacija (isRezervacijaOverlap)
+    // rješava lažni sukob kad je Booking rezervacija spremljena na ponoć, a
+    // termin na podne (smjena istog dana). Provjera je STROŽA od stare: pokriva
+    // i ručne + vanjske (Booking iCal) blokade, ne samo rezervacije.
+    const preklapanja = await pronadiPreklapanja({
+      jedinicaId,
+      datumOd: od,
+      datumDo: doDatuma,
     });
 
-    if (postojiPreklapanje) {
+    if (
+      preklapanja.rezervacije.length > 0 ||
+      preklapanja.blokadeRucne.length > 0 ||
+      preklapanja.blokadeVanjske.length > 0
+    ) {
       throw new Error(tAction("errOverlap"));
     }
 
