@@ -25,6 +25,7 @@ import { osigurajPoklonBon } from "@/lib/poklonBon";
 import { rezerviraniJezik } from "@/lib/jezik";
 import { SmsPanel } from "./SmsPanel";
 import { WelcomePanel } from "./WelcomePanel";
+import { PotvrdiUplatuForm } from "./PotvrdiUplatuForm";
 import { posaljiRacunMail } from "@/lib/posaljiRacunMail";
 import { zagrebWallClockToInstant, formatZagreb } from "@/lib/dates";
 
@@ -2720,23 +2721,7 @@ export default async function RezervacijaDetaljPage({
                       p.status !== "PLACENO" &&
                       rezervacija.status === "CEKA_POTVRDU" && (
                         <div style={{ marginTop: 6, display: "flex", flexWrap: "wrap", gap: 6 }}>
-                          <form action="/api/admin/placanja/potvrdi-link" method="POST">
-                            <input type="hidden" name="placanjeId" value={p.id} />
-                            <button
-                              type="submit"
-                              style={{
-                                background: "#15803d",
-                                color: "#fff",
-                                border: "1px solid #15803d",
-                                padding: "5px 10px",
-                                fontSize: 11,
-                                fontWeight: 600,
-                                cursor: "pointer",
-                              }}
-                            >
-                              ✅ Provjeri uplatu i potvrdi
-                            </button>
-                          </form>
+                          <PotvrdiUplatuForm placanjeId={p.id} />
 
                           <form action={odbijRezervaciju}>
                             <input type="hidden" name="rezervacijaId" value={rezervacija.id} />
