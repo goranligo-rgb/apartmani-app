@@ -97,7 +97,7 @@ async function findNextReservation(
   });
 }
 
-async function findOrCreateZadatak(data: {
+export async function findOrCreateZadatak(data: {
   jedinicaId: string;
   rezervacijaId?: string | null;
   datum: Date;
@@ -142,7 +142,7 @@ async function findOrCreateZadatak(data: {
   });
 }
 
-async function upsertTrosak(params: {
+export async function upsertTrosak(params: {
   zadatakId: string;
   kategorija: KategorijaTroska;
   jedinicaId: string | null;

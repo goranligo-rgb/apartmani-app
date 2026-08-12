@@ -6,6 +6,15 @@ import {
   renderTablicaPlana,
   izracunajRasporedZaPeriod,
 } from "@/lib/ciscenje/nadopunaRaspored";
+// Zapis rasporeda (Zadatak + Trosak) — ISTE funkcije koje koristi tjedni plan,
+// da nadopuna ne razvije vlastitu (razilazeću) logiku dedupa i cijena.
+import {
+  findOrCreateZadatak,
+  upsertTrosak,
+} from "@/lib/ciscenje/generirajINaPosalji";
+// Efektivni datum čišćenja (dan odlaska + odgoda) — isti izraz kojim
+// `nadopunaRaspored` gradi redak maila, pa Zadatak i mail pokazuju isti dan.
+import { efektivniDatumCiscenja } from "@/lib/ciscenje/ciscenjeVrijeme";
 
 // ── Nadopuna tjednog plana čišćenja ──
 //
@@ -314,6 +323,60 @@ export async function mozdaPosaljiNadopunu(
         poslanoAt: new Date(),
       },
     });
+
+    // ── Zapis u raspored: Zadatak + Trosak za svaku novu rezervaciju ──
+    //
+    // NAMJERNO NAKON slanja maila. Cijela funkcija je omotana vanjskim
+    // try/catch koji na grešci vraća { skipped: 'error' } — da je upis prije
+    // `resend.emails.send`, pad upisa bi progutao i mail, pa agencija ne bi
+    // saznala za smjenu. Mail je važniji od zapisa, zato ide prvi.
+    //
+    // Vlastiti try/catch: greška ovdje NE smije promijeniti već poslani mail
+    // ni povratnu vrijednost — nadopuna je i dalje uspješno poslana.
+    //
+    // Pokriva SAMO ZAVRSNO_CISCENJE za nove rezervacije. Bazen / stubište /
+    // međučišćenje iz donje tablice maila i dalje nemaju zapis (kao i prije).
+    try {
+      const cjenikRows = await prisma.cjenikCiscenjaJedinice.findMany();
+      const cjenikMap = new Map(cjenikRows.map((c) => [c.jedinicaId, c]));
+
+      for (const r of stvarnoNovi) {
+        // Isti datum koji vidi mail (dan odlaska + odgoda).
+        const datumCiscenja = efektivniDatumCiscenja(
+          r.datumDo,
+          r.odgodaCiscenjaDana
+        );
+
+        // `naslov` je dio dedup-ključa u findOrCreateZadatak — mora biti
+        // BAJT-IDENTIČAN tjednom, inače tjedni kasnije napravi duplikat.
+        // `opis` NIJE u ključu, pa izostanak "Sljedeći ulazak" teksta
+        // (računa ga privatni helper tjednog) ne uzrokuje drift.
+        const zadatak = await findOrCreateZadatak({
+          jedinicaId: r.jedinicaId,
+          rezervacijaId: r.id,
+          datum: datumCiscenja,
+          tip: "ZAVRSNO_CISCENJE",
+          naslov: `Završno čišćenje - ${r.jedinica.naziv}`,
+          opis:
+            `Završno čišćenje nakon odlaska gosta. ` +
+            `Broj gostiju: ${r.brojOsoba || 0}.`,
+          prioritet: true,
+        });
+
+        // Jedinica bez cjenika → 0, isto kao tjedni (`?? 0`): trošak od 0 € je
+        // vidljiv u /admin/troskovi i popravljiv, a preskočen trošak nije.
+        await upsertTrosak({
+          zadatakId: zadatak.id,
+          kategorija: "CISCENJE",
+          jedinicaId: r.jedinicaId,
+          objektId: r.jedinica.objekt.id,
+          datum: datumCiscenja,
+          iznos: cjenikMap.get(r.jedinicaId)?.cijenaCiscenja ?? 0,
+        });
+      }
+    } catch (err) {
+      console.error("[mozdaPosaljiNadopunu] zapis Zadatak/Trosak:", err);
+    }
 
     return {
       sent: true,
