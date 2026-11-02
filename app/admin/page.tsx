@@ -215,6 +215,13 @@ export default async function AdminPage() {
       badge: "Računi",
     },
     {
+      title: "Skupni ispis računa",
+      opis: "Objekt, godina i raspon brojeva: svi računi u jednom PDF-u.",
+      href: "/admin/racuni",
+      icon: "🖨️",
+      badge: "Računi",
+    },
+    {
       title: "Cjenik",
       opis: "Cijene, minimalni boravak i posebne cijene.",
       href: "/admin/cjenik",
